@@ -20,7 +20,9 @@
 #include <glib-2.0/glib.h>
 #include "config.h"
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
+#include <libxml/parser.h>
 #include "rs-utils.h"
 
 gchar *

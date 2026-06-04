@@ -33,7 +33,7 @@
 #include <rs-store.h>
 #include <rs-library.h>
 #ifdef WITH_GCONF
-#include <gconf/gconf-client.h>
+// #include <gconf/gconf-client.h> // GConf removed
 #endif
 #include "conf_interface.h"
 #include "gtk-helper.h"

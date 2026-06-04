@@ -21,7 +21,9 @@
 #include <glib/gstdio.h> /* g_unlink() */
 #include <config.h>
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
+#include <libxml/parser.h>
 #include "gettext.h"
 
 G_DEFINE_TYPE (RSMetadata, rs_metadata, G_TYPE_OBJECT)

@@ -22,7 +22,9 @@
 #include <glib/gprintf.h>
 #include <config.h>
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
+#include <libxml/parser.h>
 #include <glib.h>
 #include <math.h>
 #include <memory.h>

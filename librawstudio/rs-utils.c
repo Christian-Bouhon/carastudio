@@ -19,6 +19,7 @@
 
 #define _XOPEN_SOURCE 500 /* strptime() and realpath() */
 #include <rawstudio.h>
+#include "conf_interface.h"
 #include <config.h>
 #include <glib.h>
 #include <glib/gstdio.h>
@@ -29,7 +30,6 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include "conf_interface.h"
 
 #define DOTDIR ".rawstudio"
 

@@ -19,6 +19,7 @@
 
 #include <rawstudio.h>
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
 #include "config.h"
 #include "rs-lens-db.h"

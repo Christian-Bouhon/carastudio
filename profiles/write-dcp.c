@@ -20,6 +20,7 @@
 #include <glib.h>
 #include <tiffio.h>
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 
 #define DCPTAG_PROFILE_NAME 0xc6f8
 #define DCPTAG_PROFILE_EMBED_POLICY 0xc6fd

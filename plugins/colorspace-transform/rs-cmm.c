@@ -403,7 +403,7 @@ is_profile_gamma_22_corrected(cmsHPROFILE *profile)
 		gint context = 1337;
 		cmsToneCurve* gamma[3];
 		cmsWhitePointFromTemp(&D65, 6504);
-		gamma[0] = gamma[1] = gamma[2] = cmsBuildGamma(&context,1.0);
+		gamma[0] = gamma[1] = gamma[2] = cmsBuildGamma(NULL,1.0);
 
 		linear = cmsCreateRGBProfile(&D65, &srgb_primaries, gamma);
 	}

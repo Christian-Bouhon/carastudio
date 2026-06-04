@@ -20,7 +20,9 @@
 #include "config.h"
 #include "gettext.h"
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
+#include <libxml/parser.h>
 #include "rs-camera-db.h"
 #include "rs-photo.h"
 #include "rs-toolbox.h"

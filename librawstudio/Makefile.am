@@ -2,7 +2,6 @@ AM_CFLAGS = -Wall -fno-strict-aliasing
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir) \
-	-DWITH_GCONF \
 	$(GTK_CFLAGS) \
 	@EXIV2_CFLAGS@
 
@@ -10,7 +9,7 @@ AM_CFLAGS += \
 	-DPACKAGE_DATA_DIR=\""$(datadir)"\" \
 	-DPACKAGE_LIBRARY_DIR=\""@RAWSTUDIO_PLUGINS_LIBS_DIR@"\" \
     -DPACKAGE_LOCALE_DIR=\""@localedir@"\" \
-	@PACKAGE_CFLAGS@ @GCONF_CFLAGS@ @LENSFUN_CFLAGS@
+	@PACKAGE_CFLAGS@ @LENSFUN_CFLAGS@
 
 AM_CXXFLAGS = $(AM_CFLAGS)
 
@@ -112,11 +111,11 @@ librawstudio_la_SOURCES = \
 	rs-profile-selector.c rs-profile-selector.h \
 	rs-profile-camera.c rs-profile-camera.h \
 	rs-color-space-selector.c rs-color-space-selector.h \
-	conf_interface.c conf_interface.h \
 	rs-gui-functions.c rs-gui-functions.h \
+	conf_interface.c conf_interface.h \
 	rs-stock.c rs-stock.h
 
-librawstudio_la_LIBADD = @PACKAGE_LIBS@ @GCONF_LIBS@ @SQLITE3_LIBS@ @LENSFUN_LIBS@ @EXIV2_LIBS@ $(INTLLIBS)
+librawstudio_la_LIBADD = @PACKAGE_LIBS@ @SQLITE3_LIBS@ @LENSFUN_LIBS@ @EXIV2_LIBS@ $(INTLLIBS)
 librawstudio_la_LDFLAGS = -release $(PACKAGE_VERSION)
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = rawstudio-$(PACKAGE_VERSION).pc

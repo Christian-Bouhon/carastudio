@@ -21,6 +21,7 @@
 #include <rawstudio.h>
 #include <math.h>
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
 #include <string.h> /* memset() */
 
@@ -101,7 +102,7 @@ rs_curve_widget_class_init(RSCurveWidgetClass *klass)
 		G_TYPE_NONE, 0);
 
 	widget_class->destroy = rs_curve_widget_destroy;
-	widget_class->draw = rs_curve_widget_draw;
+	widget_class->draw = (gboolean (*)(GtkWidget *, cairo_t *))rs_curve_widget_draw;
 	widget_class->button_press_event = rs_curve_widget_button_press;
 	widget_class->button_release_event = rs_curve_widget_button_release;
 	widget_class->motion_notify_event = rs_curve_widget_motion_notify;
@@ -810,8 +811,8 @@ static gboolean
 rs_curve_widget_draw(RSCurveWidget *curve, cairo_t *cr)
 {
 	GtkWidget *widget;
-	g_return_if_fail (curve != NULL);
-	g_return_if_fail (RS_IS_CURVE_WIDGET(curve));
+	g_return_val_if_fail (curve != NULL, FALSE);
+	g_return_val_if_fail (RS_IS_CURVE_WIDGET(curve), FALSE);
 
 	widget = GTK_WIDGET(curve);
 
@@ -826,14 +827,12 @@ rs_curve_widget_draw(RSCurveWidget *curve, cairo_t *cr)
 		/* Draw the curve */
 		rs_curve_draw_spline(widget, cr);
 	}
+	return TRUE;
 }
   
 static gboolean
 rs_curve_size_allocate_helper(RSCurveWidget *curve)
 {
-	gboolean ret = FALSE;
-
-	gdk_threads_enter();
 	GtkAllocation allocation;
 	GtkWidget *widget = GTK_WIDGET(curve);
 	gtk_widget_get_allocation(widget, &allocation);
@@ -850,16 +849,14 @@ rs_curve_size_allocate_helper(RSCurveWidget *curve)
 
 			g_signal_handler_block(RS_CURVE_WIDGET(curve), RS_CURVE_WIDGET(curve)->size_signal);
 			gtk_widget_set_size_request(GTK_WIDGET(curve), -1, new_height);
-			GUI_CATCHUP();
 			g_signal_handler_unblock(RS_CURVE_WIDGET(curve), RS_CURVE_WIDGET(curve)->size_signal);
 
 			curve->last_width[0] = curve->last_width[1];
 			curve->last_width[1] = width;
 		}
 	}
-	gdk_threads_leave();
 
-	return ret;
+	return FALSE;
 }
 
 /**

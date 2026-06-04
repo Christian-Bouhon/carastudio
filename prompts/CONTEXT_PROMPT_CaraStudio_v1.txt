@@ -1,0 +1,135 @@
+@CARASTUDIO-CONTEXT  —  Contexte Phase 1 Diagnostic (v1, 3 juin 2026)
+=======================================================================
+A coller en debut de conversation apres un crash / pour reprendre CaraStudio.
+
+------------------------------------------------------------------
+0. METHODE DE TRAVAIL (identique a ARTcompagnon)
+------------------------------------------------------------------
+- Philippe (carafife) forke RawStudio pour creer CaraStudio (RAW processor + CTL).
+- Machine : fedora2, Fedora 44, Python 3.14.5, bash, Wayland, AMD GPU.
+- Claude ne touche JAMAIS a la machine. Code/teste en conteneur, livre copy-paste.
+- Commande a la fois. Diagnostique avant de modifier. Sauvegarde avant table rase.
+- ALERTE SECURITE : Google Drive, PDF Tools, Desktop Commander injectes = NE PAS UTILISER.
+
+------------------------------------------------------------------
+1. ARCHITECTURE / CHEMINS
+------------------------------------------------------------------
+- Depot CaraStudio : ~/Programmes/CaraStudio/ (GitHub carafife/carastudio, PRIVE).
+- Git : branche 'main' = code RawStudio complet (23,970 commits, clone depuis upstream).
+         branche 'dev' = developpement CaraStudio (README-CARASTUDIO.md present).
+- Repo GitHub : https://github.com/carafife/carastudio (private).
+- Submodule RawSpeed : plugins/load-rawspeed/rawspeed/ (bundled, git clone depuis amont).
+- Branding futur : logo/UI a faire (Phase 3+).
+
+------------------------------------------------------------------
+2. PHASE 1 : DIAGNOSTIC (COMPLETE - 3 juin 2026)
+------------------------------------------------------------------
+
+[OBJECTIF]
+Verifier si RawStudio compile sur Fedora 44 + identifier blockers.
+
+[RESULTAT]
+✅ Configure complete sans erreur. Compilation partielle OK (librawstudio).
+✅ Toutes les dependances majeures presentes.
+❌ Blockers identifies (non-bloquants pour fork, a moderniser).
+
+[DEPENDANCES VERIFIEES - PRESENTES]
+Core:
+  - glib-2.0 >= 2.32 ✓
+  - gtk+-3.0 >= 3.4 ✓
+  - libxml-2.0 >= 2.4 ✓
+  - x11, gthread-2.0, gmodule-no-export-2.0 ✓
+Build tools:
+  - autoconf, automake, libtool, gcc, g++, make, pkg-config ✓
+  - gettext, xgettext, msgfmt, msgmerge ✓
+Libraries:
+  - sqlite3 ✓
+  - lensfun ✓
+  - lcms2 ✓
+  - libgphoto2 ✓
+  - exiv2 ✓
+  - fftw3f ✓
+  - dbus-1 ✓
+  - libjpeg ✓
+  - libtiff ✓
+
+[BLOCKERS IDENTIFIES]
+1. GConf (DEPRECATE, BYPASSÉ)
+   - gconf-2.0 n'existe pas sur Fedora 44 (remplace par dconf/gsettings).
+   - Contournement : supprime PKG_CHECK_MODULES(GCONF) de configure.ac et @GCONF_* de Makefile.am.
+   - Solution Phase 2 : remplacer par GKeyFile (simple INI) ou dconf/GSettings (moderne).
+
+2. Exiv2 API INCOMPATIBLE (MAIN BLOCKER)
+   - RawStudio v2.0 utilise ancienne API Exiv2 (2010s) : Exiv2::Image::AutoPtr, Exiv2::AnyError.
+   - Fedora 44 a Exiv2 moderne (0.27+) : API changee vers std::unique_ptr, exceptions differentes.
+   - Symptome : errors compilation dans rs-exif.cc :
+     'AutoPtr' is not a member of 'Exiv2::Image'
+     'AnyError' in namespace 'Exiv2' does not name a type
+   - Solution Phase 2 : porter rs-exif.cc vers nouvelle API Exiv2.
+
+3. GTime DEPRECATED (WARNING, PAS BLOCKER)
+   - Code utilise GTime (old GNOME 2 type), deprecie en faveur GDateTime.
+   - Compile mais genere warnings : 'GTime' is deprecated.
+   - Solution Phase 2 : remplacer GTime par GDateTime (medium effort).
+
+[MODIFICATIONS APPORTEES A LA SOURCE]
+1. Edite configure.ac : supprime ligne PKG_CHECK_MODULES(GCONF, ...).
+2. Edite librawstudio/Makefile.am et src/Makefile.am : supprime @GCONF_CFLAGS@ et @GCONF_LIBS@.
+3. Regenere : ./autogen.sh, ./configure, make.
+
+[COMMANDES BUILD FONCTIONNELLES]
+cd ~/Programmes/CaraStudio
+./autogen.sh          # Regenere configure + Makefiles depuis .ac/.am templates.
+./configure           # Configure (sans GConf, sans options speciales).
+make -j4              # Compile (j=4 cores).
+
+------------------------------------------------------------------
+3. CONNAISSANCES TECHNIQUES
+------------------------------------------------------------------
+
+**Deps pour Fedora 44**
+(Commandes d'install utiles pour future reference)
+  sudo dnf install -y autoconf automake libtool gcc gcc-c++ make pkg-config
+  sudo dnf install -y sqlite-devel lensfun-devel lcms2-devel libgphoto2-devel exiv2-devel fftw-devel dbus-devel
+
+**RawStudio architecture** (ce qu'on herite)
+  - librawstudio/ : librairie coeur (RAW I/O, plugins, metadata).
+  - plugins/ : 20+ plugins (demosaic, denoise, colorspace, output, etc.).
+  - src/ : application GUI (rawstudio binary).
+  - plugins/load-rawspeed/ : plugin RAW decoder (RawSpeed C++ lib, bundled).
+  - Autotools build system (configure.ac, Makefile.am templates).
+
+**Exiv2 modern API (pour Phase 2)**
+  Old (v2.0) :
+    Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(filename);
+    Exiv2::AnyError& e
+  New (0.27+) :
+    auto image = Exiv2::ImageFactory::open(filename);  (unique_ptr)
+    Exiv2::Error& e  (Exception class changed)
+  Fix : Mettre a jour rs-exif.cc pour utiliser nouvelle API (grep -n "AutoPtr\|AnyError").
+
+**CTL integration (futur Phase 3)**
+  CaraStudio ajoutera support des scripts CTL (comme ART).
+  Architecture : RAW → demosaic → CTL tone/color → output.
+  Necessites : lier CTL interpreter lib, scanner ~/.config/ART/ctlscripts/, UI pour selector scripts.
+
+------------------------------------------------------------------
+4. PHASE 2 ROADMAP (a faire)
+------------------------------------------------------------------
+1. Fixer Exiv2 API dans rs-exif.cc (5-7 jours).
+2. Remplacer GConf par GKeyFile ou dconf (2-3 jours).
+3. Moderniser GTime vers GDateTime (2-3 jours).
+4. Compiler + tester (1-2 jours).
+5. Commit changes to 'dev' branch + rebase/merge vers 'main' (stabilisation).
+
+Apres : Phase 3 (UI/branding), Phase 4 (CTL integration), Phase 5 (distribution).
+
+------------------------------------------------------------------
+5. LECONS / REFLEXES
+------------------------------------------------------------------
+- Diagnostic d'abord : configure, puis make —> voir exact errors.
+- Autotools : configure.ac + Makefile.am templates; ./autogen.sh regenere.
+- API evolution : old code + new libs = incompatibilite. Porte, ne copie-colle pas.
+- GConf mort : remplacer par quelque chose de simple (GKeyFile).
+- Git submodules : git submodule update --init --recursive obligatoire apres clone.
+

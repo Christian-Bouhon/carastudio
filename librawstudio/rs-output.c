@@ -18,8 +18,8 @@
  */
 
 #include <rawstudio.h>
-#include "rs-output.h"
 #include "conf_interface.h"
+#include "rs-output.h"
 
 G_DEFINE_TYPE (RSOutput, rs_output, G_TYPE_OBJECT)
 

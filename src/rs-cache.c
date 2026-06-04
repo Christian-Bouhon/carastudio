@@ -20,7 +20,9 @@
 #include <rawstudio.h>
 #include <glib.h>
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
+#include <libxml/parser.h>
 #include "application.h"
 #include "rs-cache.h"
 #include "rs-photo.h"

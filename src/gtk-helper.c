@@ -21,7 +21,6 @@
 #include <glib/gstdio.h>
 #include <gtk/gtk.h>
 #include <config.h>
-#include <gconf/gconf-client.h>
 #include "application.h"
 #include "conf_interface.h"
 #include "gtk-interface.h"
@@ -131,7 +130,11 @@ gui_confbox_select_value(RS_CONFBOX *confbox, gchar *value)
 
 	model = gtk_combo_box_get_model(GTK_COMBO_BOX(confbox->widget));
 	path = gtk_tree_path_new_first();
-	gtk_tree_model_get_iter(model, &iter, path);
+	if (!gtk_tree_model_get_iter(model, &iter, path))
+	{
+		gtk_tree_path_free(path);
+		return FALSE;
+	}
 	gtk_tree_path_free(path);
 
 	do {
@@ -639,23 +642,10 @@ gui_label_new_with_mouseover(const gchar *normal_text, const gchar *hover_text)
 void
 gui_box_toggle_callback(GtkExpander *expander, gchar *key)
 {
-	GConfClient *client = gconf_client_get_default();
 	gboolean expanded = gtk_expander_get_expanded(expander);
 
-	/* Save state to gconf */
-	gconf_client_set_bool(client, key, expanded, NULL);
-}
-
-void
-gui_box_notify(GConfClient *client, guint cnxn_id, GConfEntry *entry, gpointer user_data)
-{
-	GtkExpander *expander = GTK_EXPANDER(user_data);
-
-	if (entry->value)
-	{
-		gboolean expanded = gconf_value_get_bool(entry->value);
-		gtk_expander_set_expanded(expander, expanded);
-	}
+	/* Save state to config */
+	rs_conf_set_boolean(key, expanded);
 }
 
 GtkWidget *
@@ -670,10 +660,8 @@ gui_box(const gchar *title, GtkWidget *in, gchar *key, gboolean default_expanded
 
 	if (key)
 	{
-		GConfClient *client = gconf_client_get_default();
 		gchar *name = g_build_filename("/apps", PACKAGE, key, NULL);
 		g_signal_connect_after(expander, "activate", G_CALLBACK(gui_box_toggle_callback), name);
-		gconf_client_notify_add(client, name, gui_box_notify, expander, NULL, NULL);
 	}
 	gtk_expander_set_expanded(GTK_EXPANDER(expander), expanded);
 

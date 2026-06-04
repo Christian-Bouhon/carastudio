@@ -3,13 +3,12 @@
 AM_CFLAGS = \
 	-DPACKAGE_DATA_DIR=\""$(datadir)"\" \
 	-DPACKAGE_LOCALE_DIR=\""@localedir@"\" \
-	@PACKAGE_CFLAGS@ @GCONF_CFLAGS@ @LENSFUN_CFLAGS@ @LIBGPHOTO2_CFLAGS@ @DBUS_CFLAGS@ \
+	@PACKAGE_CFLAGS@ @LENSFUN_CFLAGS@ @LIBGPHOTO2_CFLAGS@ @DBUS_CFLAGS@ \
 	-I$(top_srcdir)/librawstudio/ \
 	-I$(top_srcdir)/
 
 AM_CFLAGS +=\
 	-Wall -fno-strict-aliasing\
-	-DWITH_GCONF\
 	-O4
 
 AM_CXXFLAGS = $(AM_CFLAGS)
@@ -47,5 +46,5 @@ rawstudio_SOURCES = \
 	rs-tethered-shooting.c rs-tethered-shooting.h \
 	rs-enfuse.c rs-enfuse.h
 
-rawstudio_LDADD = ../librawstudio/librawstudio.la @PACKAGE_LIBS@ @GCONF_LIBS@ @LENSFUN_LIBS@ @LIBGPHOTO2_LIBS@ @DBUS_LIBS@ @SQLITE3_LIBS@ $(INTLLIBS)
+rawstudio_LDADD = ../librawstudio/librawstudio.la @PACKAGE_LIBS@ @LENSFUN_LIBS@ @LIBGPHOTO2_LIBS@ @DBUS_LIBS@ @SQLITE3_LIBS@ $(INTLLIBS)
 
