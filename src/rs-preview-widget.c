@@ -746,6 +746,22 @@ gdouble
 rs_preview_widget_get_zoom(RSPreviewWidget *preview)
 {
 	g_assert(RS_IS_PREVIEW_WIDGET(preview));
+
+	/* En mode zoom-to-fit, retourne le zoom visuel réel (canvas / image native)
+	 * pour que les boutons +/- partent du niveau affiché, pas de 1.0. */
+	if (preview->zoom_to_fit && preview->photo)
+	{
+		gint native_w = 0, native_h = 0;
+		rs_filter_get_size_simple(preview->filter_cache0[0], preview->request[0], &native_w, &native_h);
+		if (native_w > 0 && native_h > 0)
+		{
+			gint canvas_w = gtk_widget_get_allocated_width(GTK_WIDGET(preview->canvas));
+			gint canvas_h = gtk_widget_get_allocated_height(GTK_WIDGET(preview->canvas));
+			gdouble zoom_w = (gdouble)canvas_w / native_w;
+			gdouble zoom_h = (gdouble)canvas_h / native_h;
+			return MIN(zoom_w, zoom_h);
+		}
+	}
 	return preview->zoom_factor;
 }
 
