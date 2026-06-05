@@ -8,22 +8,22 @@
 /* Couleurs de base                                                     */
 /* ------------------------------------------------------------------ */
 
-@define-color cs_bg          #2d2d2d;
-@define-color cs_bg_dark     #252525;
-@define-color cs_bg_light    #363636;
-@define-color cs_bg_lighter  #404040;
-@define-color cs_fg          #d0d0d0;
-@define-color cs_fg_dim      #909090;
-@define-color cs_fg_disabled #5a5a5a;
-@define-color cs_border      #1a1a1a;
-@define-color cs_border_soft #404040;
-@define-color cs_accent      #5d8baf;
-@define-color cs_accent_dark #4a7090;
-@define-color cs_hover       #474747;
-@define-color cs_active      #222222;
-@define-color cs_selected    #3a5f7a;
-@define-color cs_entry_bg    #222222;
-@define-color cs_tooltip_bg  #1c1c1c;
+@define-color cs_bg          #424242;
+@define-color cs_bg_dark     #383838;
+@define-color cs_bg_light    #4a4a4a;
+@define-color cs_bg_lighter  #545454;
+@define-color cs_fg          #e0e0e0;
+@define-color cs_fg_dim      #aaaaaa;
+@define-color cs_fg_disabled #707070;
+@define-color cs_border      #2a2a2a;
+@define-color cs_border_soft #555555;
+@define-color cs_accent      #6a9bbf;
+@define-color cs_accent_dark #5580a0;
+@define-color cs_hover       #565656;
+@define-color cs_active      #303030;
+@define-color cs_selected    #4a6f8a;
+@define-color cs_entry_bg    #333333;
+@define-color cs_tooltip_bg  #2a2a2a;
 
 /* ------------------------------------------------------------------ */
 /* Fenêtre et dialogue                                                  */
@@ -37,6 +37,48 @@ window, dialog {
 .background {
     background-color: @cs_bg;
     color: @cs_fg;
+}
+
+/* Corrige le fond blanc du viewport/scrolledwindow (toolbox, panneaux) */
+viewport {
+    background-color: @cs_bg;
+}
+
+scrolledwindow {
+    background-color: @cs_bg;
+}
+
+/* GtkBox et conteneurs généraux */
+box {
+    background-color: transparent;
+}
+
+/* Classe .view : utilisée par GtkViewport pour le fond blanc par défaut */
+.view {
+    background-color: @cs_bg;
+    color: @cs_fg;
+}
+
+/* GtkExpander (sections dépliables dans le toolbox) */
+expander {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+}
+
+expander > title {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+    padding: 3px 6px;
+}
+
+expander > title:hover {
+    background-color: @cs_hover;
+}
+
+/* Séparateurs horizontaux dans le toolbox */
+expander + separator {
+    background-color: @cs_border;
+    min-height: 1px;
 }
 
 /* ------------------------------------------------------------------ */
