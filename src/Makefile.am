@@ -14,7 +14,7 @@ AM_CFLAGS +=\
 AM_CXXFLAGS = $(AM_CFLAGS)
 
 uidir = $(datadir)/rawstudio/
-ui_DATA = ui.xml ui-client.xml
+ui_DATA = ui.xml ui-client.xml theme.css
 
 bin_PROGRAMS = rawstudio
 
