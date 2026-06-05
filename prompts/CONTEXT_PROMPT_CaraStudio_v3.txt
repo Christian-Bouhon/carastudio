@@ -1,0 +1,130 @@
+@CARASTUDIO-CONTEXT  —  PREMIER BUILD FONCTIONNEL (v3, 3 juin 2026)
+=======================================================================
+A coller en debut de conversation apres un crash / pour reprendre CaraStudio.
+JALON MAJEUR : CaraStudio compile, demarre ET charge des images sur Fedora 44.
+
+------------------------------------------------------------------
+0. METHODE DE TRAVAIL
+------------------------------------------------------------------
+- Philippe (carafife) forke RawStudio pour creer CaraStudio (RAW processor + CTL futur).
+- Machine : fedora2, Fedora 44, Python 3.14.5, bash, Wayland, AMD GPU (device=cpu).
+- Commande a la fois. Diagnostique avant de modifier. Sauvegarde avant table rase.
+- Desktop Commander : AUTORISE pour le dossier ~/Programmes/CaraStudio/ uniquement
+  (depot prive, usage perso). Reste strictement dans ce dossier.
+- Bloc par bloc, une modif a la fois, compile/teste apres chaque fix.
+
+------------------------------------------------------------------
+1. ARCHITECTURE / CHEMINS
+------------------------------------------------------------------
+- Depot CaraStudio : ~/Programmes/CaraStudio/ (GitHub carafife/carastudio, PRIVE).
+- Branches : 'main' = RawStudio upstream / 'dev' = developpement CaraStudio (ACTIVE).
+- Submodule RawSpeed : plugins/load-rawspeed/rawspeed/.
+- Pas de versioning CaraStudio (fork RawStudio 2.0 en cours de portage).
+- Les "vX" se referent UNIQUEMENT aux fichiers CONTEXT_PROMPT, pas au logiciel.
+
+------------------------------------------------------------------
+2. ETAT ACTUEL (3 juin 2026) - COMMIT 31b5145b sur 'dev'
+------------------------------------------------------------------
+[RESULTAT]
+CaraStudio compile entierement, demarre, affiche son UI et charge des images.
+Binaire : src/.libs/rawstudio (ELF 1.5 MB). Wrapper : src/rawstudio.
+Installe via 'sudo make install' dans /usr/local/ (plugins + ressources).
+
+[COMMANDES BUILD]
+cd ~/Programmes/CaraStudio
+./autogen.sh && ./configure && make -j4
+sudo make install   # installe plugins dans /usr/local/lib/rawstudio/plugins/
+rawstudio           # lance l'app
+
+[DEBUG]
+gdb -batch -ex run -ex bt rawstudio 2>&1 | grep "^#" | head -15
+(donne la backtrace ; lancer depuis le terminal de Philippe pour le display Wayland)
+
+------------------------------------------------------------------
+3. FIXES APPLIQUES (commit 31b5145b)
+------------------------------------------------------------------
+[Exiv2 0.28.6 - API moderne]
+- Exiv2::Image::AutoPtr -> auto (unique_ptr C++11)
+- Exiv2::AnyError -> Exiv2::Error
+- buf.pData_ -> buf.data() ; buf.size_ -> buf.size()
+- i->toLong() -> i->value().toUint32()
+- std::auto_ptr<Exiv2::Value> -> auto
+Fichiers : rs-exif.cc, plugins/{load-gdk,load-png}/exiv2-colorspace.cpp,
+           plugins/meta-exiv2/exiv2-metadata.cpp
+
+[GTK3]
+- rs-curve.c : cast callback draw (GtkWidget* attendu), g_return_val_if_fail
+  + FALSE, return TRUE ajoute, size_allocate_helper simplifie (gdk_threads
+  + GUI_CATCHUP retires).
+
+[libxml2]
+- Ajout #include <libxml/parser.h> dans les fichiers utilisant xmlParseFile/
+  xmlDocPtr/xmlNodePtr (manquant car xmlParseFile pas dans encoding.h/xmlwriter.h).
+- librawstudio : rs-curve, rs-lens-db, rs-lens-fix, rs-library, rs-metadata,
+  rs-profile-camera, rs-filetypes, rs-output, rs-utils
+- src : rs-camera-db, rs-batch, rs-cache, rs-store
+- profiles : write-dcp.c
+
+[lcms2 2.16]
+- rs-cmm.c : cmsBuildGamma(&context, 1.0) -> cmsBuildGamma(NULL, 1.0)
+  (1er arg = cmsContext, pas gint*)
+
+[GConf -> GKeyFile]
+- conf_interface.c DEJA porte vers GKeyFile avant cette session (settings dans
+  ~/.config/rawstudio/settings.conf). API publique inchangee (conf_interface.h).
+- Nettoyage des appels gconf_client_* DIRECTS (hors conf_interface) :
+  * application.c : code gconf sous #ifdef WITH_GCONF (desactive via Makefile, rien a faire)
+  * gtk-helper.c/h : gui_box_toggle_callback -> rs_conf_set_boolean ;
+    gui_box_notify supprime ; notify_add retire de gui_box
+  * rs-toolbox.c : membre gconf + conf_histogram_height_changed + notify_add/remove supprimes
+- Makefile.am : flags @GCONF_CFLAGS@/@GCONF_LIBS@ et -DWITH_GCONF retires (librawstudio + src)
+
+[CRITIQUE - Wayland] rs-macros.h
+- GUI_CATCHUP() : XFlush(GDK_DISPLAY_XDISPLAY(...)) -> gdk_display_flush(...)
+- C'ETAIT LA CAUSE RACINE de plusieurs crashes au demarrage sous Wayland.
+  GDK_DISPLAY_XDISPLAY retourne un pointeur invalide sous Wayland -> XFlush crash.
+  gdk_display_flush() est portable X11 + Wayland.
+
+[Runtime]
+- gui_confbox_select_value (gtk-helper.c) : verifie gtk_tree_model_get_iter
+  avant la boucle (crash si GtkListStore vide).
+
+------------------------------------------------------------------
+4. CHANTIERS IDENTIFIES (warnings observes a l'usage)
+------------------------------------------------------------------
+[#1 BUG LOCALE FR] (vrai bug, PROCHAIN A TRAITER)
+  "value '0,000000' of type 'gfloat' is invalid for property 'aperture'"
+  -> virgule decimale (locale FR) au lieu de point. Le code parse/formate des
+     floats avec la locale systeme ; GObject attend un point.
+  Fix : g_ascii_strtod/g_ascii_dtostr au lieu de strtod/sprintf, ou
+        setlocale(LC_NUMERIC,"C") pour les conversions numeriques.
+  Cibler : lecture metadonnees EXIF (rs-exif.cc, rs-metadata.c) + conversions floats.
+
+[#2 POPUP WAYLAND] (ergonomie)
+  "gdk_wayland_window_handle_configure_popup: assertion 'impl->transient_for' failed"
+  -> popup/menu sans parent transient. Wayland exige un parent. A nettoyer.
+
+[#3 BASES DONNEES ANCIENNES] (limitation data, pas un bug)
+  "Could not find unique camera: Make:'SONY' Model:'ILCE-7'"
+  -> base camera/lens de 2011, ne connait pas les boitiers recents (Sony A7...).
+  A moderniser : mettre a jour camera-database / profils.
+
+------------------------------------------------------------------
+5. ROADMAP "BETE DE COURSE" (a definir avec Philippe)
+------------------------------------------------------------------
+Objectif Philippe : moderniser ce socle RawStudio 2011 ("vieillot, sommaire").
+Axes possibles a prioriser :
+  - Modernite visuelle (UI/UX, theme sombre, ergonomie)
+  - Performance (GPU/OpenCL, multi-threading, vitesse rendu)
+  - Fonctions (CTL scripting, nouveaux outils, formats RAW recents)
+  - Robustesse (bugs runtime restants, stabilite)
+Decision en attente. Commencer par le bug locale (#1) comme premier coup propre.
+
+------------------------------------------------------------------
+6. LECONS
+------------------------------------------------------------------
+- Vieux code (2011) + libs modernes = nombreuses incompatibilites API a porter.
+- Pattern recurrent du crash : XFlush + appel pointeur NULL = code X11 sous Wayland.
+- Autotools : rm -rf autom4te.cache si Makefile pas regenere ; ./autogen.sh.
+- Toujours verifier le retour de gtk_tree_model_get_iter (modele vide = crash).
+- Backtrace gdb (frames #0-#2) = localisation precise des crashes runtime.

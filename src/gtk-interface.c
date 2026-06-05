@@ -1559,6 +1559,24 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	gtk_container_add (GTK_CONTAINER (rs->window), vbox);
 
 	gtk_box_pack_start (GTK_BOX (vbox), menubar, FALSE, TRUE, 0);
+
+	/* CaraStudio : barre de boutons d'affichage (toggle des panneaux) */
+	{
+		GtkWidget *view_toolbar = gtk_hbox_new(FALSE, 2);
+		GtkWidget *btn_iconbox = gtk_button_new_with_label(_("Bande d'images"));
+		GtkWidget *btn_toolbox = gtk_button_new_with_label(_("Panneau d'outils"));
+		GtkWidget *btn_fullscreen = gtk_button_new_with_label(_("Plein écran"));
+		gtk_widget_set_tooltip_text(btn_iconbox, _("Afficher/masquer la bande d'images (Ctrl+I)"));
+		gtk_widget_set_tooltip_text(btn_toolbox, _("Afficher/masquer le panneau d'outils (Ctrl+T)"));
+		gtk_widget_set_tooltip_text(btn_fullscreen, _("Plein écran (F11)"));
+		g_signal_connect_swapped(btn_iconbox, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Iconbox");
+		g_signal_connect_swapped(btn_toolbox, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Toolbox");
+		g_signal_connect_swapped(btn_fullscreen, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Fullscreen");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_iconbox, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_toolbox, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_fullscreen, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(vbox), view_toolbar, FALSE, TRUE, 0);
+	}
     
     rs_conf_get_boolean("client-mode", &client_mode);
     if (!client_mode)
