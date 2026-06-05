@@ -23,6 +23,13 @@
 #include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
 #include <libxml/parser.h>
+
+/* CaraStudio: écriture XML locale-safe (évite "0,000000" en locale FR) */
+#define RS_XML_WRITE_FLOAT(writer, name, val) do { \
+	gchar _b[G_ASCII_DTOSTR_BUF_SIZE]; \
+	xmlTextWriterWriteElement(writer, BAD_CAST name, \
+		BAD_CAST g_ascii_dtostr(_b, sizeof(_b), (gdouble)(val))); \
+} while(0)
 #include "application.h"
 #include "rs-cache.h"
 #include "rs-photo.h"
@@ -89,8 +96,7 @@ rs_cache_save(RS_PHOTO *photo, const RSSettingsMask mask)
 		xmlTextWriterWriteFormatElement(writer, BAD_CAST "enfuse", "yes");
 	xmlTextWriterWriteFormatElement(writer, BAD_CAST "orientation", "%d",
 		photo->orientation);
-	xmlTextWriterWriteFormatElement(writer, BAD_CAST "angle", "%f",
-		photo->angle);
+	RS_XML_WRITE_FLOAT(writer, "angle", photo->angle);
 
 	RSDcpFile *dcp = rs_photo_get_dcp_profile(photo);
 	if (RS_IS_DCP_FILE(dcp))
@@ -140,46 +146,51 @@ void
 rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriterPtr writer)
 {
 	if (mask & MASK_EXPOSURE)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "exposure", "%f", rss->exposure);
+		RS_XML_WRITE_FLOAT(writer, "exposure", rss->exposure);
 	if (mask & MASK_SATURATION)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "saturation", "%f", rss->saturation);
+		RS_XML_WRITE_FLOAT(writer, "saturation", rss->saturation);
 	if (mask & MASK_HUE)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "hue", "%f", rss->hue);
+		RS_XML_WRITE_FLOAT(writer, "hue", rss->hue);
 	if (mask & MASK_CONTRAST)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "contrast", "%f", rss->contrast);
+		RS_XML_WRITE_FLOAT(writer, "contrast", rss->contrast);
 	if (mask & MASK_WARMTH)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "warmth", "%f", rss->dcp_temp);
+		RS_XML_WRITE_FLOAT(writer, "warmth", rss->dcp_temp);
 	if (mask & MASK_TINT)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "tint", "%f", rss->dcp_tint);
+		RS_XML_WRITE_FLOAT(writer, "tint", rss->dcp_tint);
 	if (mask & MASK_WB && rss->wb_ascii)
 		xmlTextWriterWriteFormatElement(writer, BAD_CAST "wb_ascii", "%s", rss->wb_ascii);
 	if (mask & MASK_SHARPEN)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "sharpen", "%f", rss->sharpen);
+		RS_XML_WRITE_FLOAT(writer, "sharpen", rss->sharpen);
 	if (mask & MASK_DENOISE_LUMA)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "denoise_luma", "%f", rss->denoise_luma);
+		RS_XML_WRITE_FLOAT(writer, "denoise_luma", rss->denoise_luma);
 	if (mask & MASK_DENOISE_CHROMA)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "denoise_chroma", "%f", rss->denoise_chroma);
+		RS_XML_WRITE_FLOAT(writer, "denoise_chroma", rss->denoise_chroma);
 	if (mask & MASK_CHANNELMIXER)
 	{
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "channelmixer_red", "%f", rss->channelmixer_red);
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "channelmixer_green", "%f", rss->channelmixer_green);
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "channelmixer_blue", "%f", rss->channelmixer_blue);
+		RS_XML_WRITE_FLOAT(writer, "channelmixer_red",   rss->channelmixer_red);
+		RS_XML_WRITE_FLOAT(writer, "channelmixer_green", rss->channelmixer_green);
+		RS_XML_WRITE_FLOAT(writer, "channelmixer_blue",  rss->channelmixer_blue);
 	}
 	if (mask & MASK_TCA_KR)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "tca_kr", "%f", rss->tca_kr);
+		RS_XML_WRITE_FLOAT(writer, "tca_kr", rss->tca_kr);
 	if (mask & MASK_TCA_KB)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "tca_kb", "%f", rss->tca_kb);
+		RS_XML_WRITE_FLOAT(writer, "tca_kb", rss->tca_kb);
 	if (mask & MASK_VIGNETTING)
-		xmlTextWriterWriteFormatElement(writer, BAD_CAST "vignetting", "%f", rss->vignetting);
+		RS_XML_WRITE_FLOAT(writer, "vignetting", rss->vignetting);
 	if (mask & MASK_CURVE && rss->curve_nknots > 0)
 	{
 		gint i;
 		xmlTextWriterStartElement(writer, BAD_CAST "curve");
 		xmlTextWriterWriteFormatAttribute(writer, BAD_CAST "num", "%d", rss->curve_nknots);
 		for(i=0;i<rss->curve_nknots;i++)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "knot", "%f %f",
-				rss->curve_knots[i*2+0],
-				rss->curve_knots[i*2+1]);
+		{
+			gchar bx[G_ASCII_DTOSTR_BUF_SIZE], by[G_ASCII_DTOSTR_BUF_SIZE];
+			gchar *knot_str = g_strdup_printf("%s %s",
+				g_ascii_dtostr(bx, sizeof(bx), rss->curve_knots[i*2+0]),
+				g_ascii_dtostr(by, sizeof(by), rss->curve_knots[i*2+1]));
+			xmlTextWriterWriteElement(writer, BAD_CAST "knot", BAD_CAST knot_str);
+			g_free(knot_str);
+		}
 		xmlTextWriterEndElement(writer);
 	}
 }

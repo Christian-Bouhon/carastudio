@@ -467,9 +467,9 @@ gui_menu_popup(GtkWidget *widget, gpointer user_data, ...)
 	va_end(ap);
 
 	if (widget)
-		gtk_menu_popup(GTK_MENU(menu), NULL, NULL, pos_menu_below_widget, widget, 0, GDK_CURRENT_TIME);
+		gtk_menu_popup_at_widget(GTK_MENU(menu), widget, GDK_GRAVITY_SOUTH_WEST, GDK_GRAVITY_NORTH_WEST, NULL);
 	else
-		gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, 0, GDK_CURRENT_TIME);
+		gtk_menu_popup_at_pointer(GTK_MENU(menu), NULL);
 
 	return (menu);
 }

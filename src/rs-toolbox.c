@@ -677,7 +677,7 @@ curve_context_callback(GtkWidget *widget, gpointer user_data)
 	gtk_widget_show (i);
 	gtk_menu_attach (GTK_MENU (menu), i, 0, 1, n, n+1); n++;
 	g_signal_connect (i, "activate", G_CALLBACK (curve_context_callback_white_black_point), widget);
-	gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, 0, GDK_CURRENT_TIME);
+	gtk_menu_popup_at_pointer(GTK_MENU(menu), NULL);
 }
 
 static GtkWidget*

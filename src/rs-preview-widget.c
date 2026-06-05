@@ -1773,16 +1773,12 @@ button(GtkWidget *widget, GdkEventButton *event, RSPreviewWidget *preview)
 		if (view==0)
 		{
 			GtkWidget *menu = gtk_ui_manager_get_widget (ui_manager, "/PreviewPopup");
-			gtk_menu_set_screen(GTK_MENU(menu), preview_screen);
-			gtk_menu_set_monitor(GTK_MENU(menu),screen_number);
-			gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, 0, GDK_CURRENT_TIME);
+			gtk_menu_popup_at_pointer(GTK_MENU(menu), (GdkEvent *) event);
 		}
 		else
 		{
 			GtkWidget *menu = gtk_ui_manager_get_widget (ui_manager, "/PreviewPopupRight");
-			gtk_menu_set_screen(GTK_MENU(menu), preview_screen);
-			gtk_menu_set_monitor(GTK_MENU(menu),screen_number);
-			gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, 0, GDK_CURRENT_TIME);
+			gtk_menu_popup_at_pointer(GTK_MENU(menu), (GdkEvent *) event);
 		}
 	}
 	/* Crop begin */

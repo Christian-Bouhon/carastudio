@@ -448,8 +448,7 @@ static void row_clicked (GtkTreeView *tree_view, GtkTreePath *path, GtkTreeViewC
 
 	g_free(lens_search);
 
-	gtk_menu_popup (GTK_MENU (data->LensMenu), NULL, NULL, NULL, NULL,
-			0, gtk_get_current_event_time ());
+	gtk_menu_popup_at_pointer(GTK_MENU(data->LensMenu), NULL);
 }
 
 static gboolean
@@ -825,8 +824,7 @@ static void set_lens (GtkButton *button, SingleLensData *single_lens_data)
 
 	g_free(lens_search);
 
-	gtk_menu_popup (GTK_MENU (data->LensMenu), NULL, NULL, NULL, NULL,
-			0, gtk_get_current_event_time ());
+	gtk_menu_popup_at_pointer(GTK_MENU(data->LensMenu), NULL);
 }
 
 static void
