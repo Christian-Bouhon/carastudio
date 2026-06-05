@@ -53,6 +53,8 @@ extern GtkWidget *rs_preview_widget_new(GtkWidget *toolbox);
  * @param zoom_to_fit Set to TRUE to enable zoom-to-fit.
  */
 extern void rs_preview_widget_set_zoom_to_fit(RSPreviewWidget *preview, gboolean zoom_to_fit);
+extern void rs_preview_widget_set_zoom(RSPreviewWidget *preview, gdouble zoom_factor);
+extern gdouble rs_preview_widget_get_zoom(RSPreviewWidget *preview);
 
 /**
  * Sets active photo of a RSPreviewWidget

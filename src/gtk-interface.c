@@ -1424,6 +1424,27 @@ rs_window_set_title(const char *str)
 	g_string_free(window_title, TRUE);	
 }
 
+/* CaraStudio: callbacks pour les boutons de zoom variable */
+static void
+cs_zoom_in(GtkButton *button, gpointer user_data)
+{
+	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
+	rs_preview_widget_set_zoom(preview, rs_preview_widget_get_zoom(preview) * 1.25);
+}
+
+static void
+cs_zoom_out(GtkButton *button, gpointer user_data)
+{
+	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
+	rs_preview_widget_set_zoom(preview, rs_preview_widget_get_zoom(preview) * 0.8);
+}
+
+static void
+cs_zoom_100(GtkButton *button, gpointer user_data)
+{
+	rs_preview_widget_set_zoom(RS_PREVIEW_WIDGET(user_data), 1.0);
+}
+
 int
 gui_init(int argc, char **argv, RS_BLOB *rs)
 {
@@ -1575,6 +1596,22 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_iconbox, FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_toolbox, FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_fullscreen, FALSE, FALSE, 0);
+
+		/* Separateur + boutons de zoom variable (CaraStudio) */
+		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
+		GtkWidget *btn_zoom_out = gtk_button_new_with_label(_("Zoom -"));
+		GtkWidget *btn_zoom_100 = gtk_button_new_with_label(_("100%"));
+		GtkWidget *btn_zoom_in = gtk_button_new_with_label(_("Zoom +"));
+		gtk_widget_set_tooltip_text(btn_zoom_out, _("Dezoomer"));
+		gtk_widget_set_tooltip_text(btn_zoom_100, _("Zoom 100% (taille reelle)"));
+		gtk_widget_set_tooltip_text(btn_zoom_in, _("Zoomer"));
+		g_signal_connect(btn_zoom_out, "clicked", G_CALLBACK(cs_zoom_out), rs->preview);
+		g_signal_connect(btn_zoom_100, "clicked", G_CALLBACK(cs_zoom_100), rs->preview);
+		g_signal_connect(btn_zoom_in, "clicked", G_CALLBACK(cs_zoom_in), rs->preview);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_out, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_100, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_in, FALSE, FALSE, 0);
+
 		gtk_box_pack_start(GTK_BOX(vbox), view_toolbar, FALSE, TRUE, 0);
 	}
     

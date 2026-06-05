@@ -130,6 +130,7 @@ struct _RSPreviewWidget
 	RSToolbox *toolbox;
 
 	gboolean zoom_to_fit;
+	gdouble zoom_factor;	/* CaraStudio: facteur de zoom variable (1.0 = 100%) */
 	gboolean exposure_mask;
 	gboolean keep_quick_enabled;
 
@@ -182,6 +183,12 @@ struct _RSPreviewWidget
 	gint last_x;
 	gint last_y;
 	gboolean prev_inside_image; /* For motion and leave function*/
+
+	/* CaraStudio: pan (drag avec bouton du milieu) */
+	gint pan_start_x;
+	gint pan_start_y;
+	gdouble pan_start_hval;
+	gdouble pan_start_vval;
 
 	gboolean loupe_enabled;
 	RSLoupe *loupe;
@@ -329,12 +336,14 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 		| GDK_BUTTON_PRESS_MASK
 		| GDK_BUTTON_RELEASE_MASK
 		| GDK_POINTER_MOTION_MASK
+		| GDK_BUTTON2_MOTION_MASK
 		| GDK_LEAVE_NOTIFY_MASK);
 
 	preview->state = WB_PICKER;
 	preview->split = SPLIT_VERTICAL;
 	preview->views = 1;
 	preview->zoom_to_fit = TRUE;
+	preview->zoom_factor = 1.0;	/* CaraStudio: zoom 100% par defaut */
 	preview->exposure_mask = FALSE;
 	preview->crop_near = CROP_NEAR_NOTHING;
 	preview->keep_quick_enabled = FALSE;
@@ -657,6 +666,85 @@ rs_preview_widget_set_zoom_to_fit(RSPreviewWidget *preview, gboolean zoom_to_fit
 	rs_filter_set_recursive(RS_FILTER(preview->filter_input), "demosaic-allow-downscale",  preview->zoom_to_fit, NULL);
 	GUI_CATCHUP_DISPLAY(preview->display);
 	rs_preview_widget_quick_end(preview);
+}
+
+/**
+ * CaraStudio: Set a variable zoom factor (1.0 = 100%, 0.5 = 50%, 2.0 = 200%).
+ * @param preview A RSPreviewWidget
+ * @param zoom_factor The desired zoom factor (clamped to [0.05, 8.0])
+ */
+void
+rs_preview_widget_set_zoom(RSPreviewWidget *preview, gdouble zoom_factor)
+{
+	gint view;
+	gint native_w, native_h;
+	gint width, height;
+	g_assert(RS_IS_PREVIEW_WIDGET(preview));
+
+	if (!preview->photo)
+		return;
+
+	/* Clamp dans des limites raisonnables */
+	if (zoom_factor < 0.05) zoom_factor = 0.05;
+	if (zoom_factor > 8.0) zoom_factor = 8.0;
+
+	preview->zoom_factor = zoom_factor;
+
+	rs_preview_widget_quick_start(preview, TRUE);
+
+	/* Decode a pleine resolution (pas de downscale au demosaic) */
+	rs_filter_set_recursive(RS_FILTER(preview->filter_input), "demosaic-allow-downscale", FALSE, NULL);
+
+	/* On quitte le mode "zoom to fit" si on y etait */
+	if (preview->zoom_to_fit)
+	{
+		GtkToggleAction *fit_action = GTK_TOGGLE_ACTION(rs_core_action_group_get_action("ZommToFit"));
+		preview->zoom_to_fit = FALSE;
+		if (fit_action)
+			gtk_toggle_action_set_active(fit_action, FALSE);
+
+		/* Cree le navigator si absent (comme le mode 1:1) */
+		if (!preview->navigator)
+		{
+			preview->rs_navigator = rs_navigator_new();
+			gtk_widget_set_size_request(GTK_WIDGET(preview->rs_navigator), NAVIGATOR_WIDTH, NAVIGATOR_HEIGHT);
+			preview->navigator = rs_toolbox_add_widget(preview->toolbox, GTK_WIDGET(preview->rs_navigator), _("Display Navigation"));
+			rs_navigator_set_preview_widget(preview->rs_navigator, preview);
+			rs_navigator_set_colorspace(preview->rs_navigator, preview->display_color_space);
+			gtk_widget_show_all(GTK_WIDGET(preview->navigator));
+		}
+	}
+
+	/* Active le resample et applique l'echelle (taille native x facteur) */
+	rs_filter_set_enabled(preview->filter_resample[0], TRUE);
+	for(view=0; view<preview->views; view++)
+	{
+		rs_filter_get_size_simple(preview->filter_cache0[view], preview->request[view], &native_w, &native_h);
+		rs_filter_set_recursive(preview->filter_end[view],
+			"width", (gint)(native_w * zoom_factor + 0.5),
+			"height", (gint)(native_h * zoom_factor + 0.5),
+			NULL);
+	}
+
+	/* Affiche les scrollbars et centre la vue */
+	gtk_widget_show(preview->vscrollbar);
+	gtk_widget_show(preview->hscrollbar);
+
+	rs_filter_get_size_simple(preview->filter_end[0], preview->request[0], &width, &height);
+	rs_preview_widget_set_scrollbars(preview, width, height, 0.5*width, 0.5*height, TRUE);
+
+	GUI_CATCHUP_DISPLAY(preview->display);
+	rs_preview_widget_quick_end(preview);
+}
+
+/**
+ * CaraStudio: Get the current zoom factor.
+ */
+gdouble
+rs_preview_widget_get_zoom(RSPreviewWidget *preview)
+{
+	g_assert(RS_IS_PREVIEW_WIDGET(preview));
+	return preview->zoom_factor;
 }
 
 /**
@@ -1520,27 +1608,55 @@ scroll(GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
 {
 	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
 
-	if (!preview->zoom_to_fit)
+	/* Scroll gauche/droite : défilement horizontal */
+	if (event->direction == GDK_SCROLL_LEFT || event->direction == GDK_SCROLL_RIGHT)
 	{
-		GtkAdjustment *adj;
-		gdouble value;
-		gdouble page_size;
-		gdouble upper;
-
-		if (event->state & GDK_CONTROL_MASK || event->direction == GDK_SCROLL_LEFT || event->direction == GDK_SCROLL_RIGHT)
-			adj = preview->hadjustment;
-		else
-			adj = preview->vadjustment;
-		g_object_get(G_OBJECT(adj), "page-size", &page_size, "upper", &upper, NULL);
-		
-		if (event->direction == GDK_SCROLL_UP || event->direction == GDK_SCROLL_LEFT)
-			value = MIN(gtk_adjustment_get_value(adj)-page_size/5.0, upper-page_size);
-		else
-			value = MIN(gtk_adjustment_get_value(adj)+page_size/5.0, upper-page_size);
-			
-			
-		gtk_adjustment_set_value(adj, value);
+		if (!preview->zoom_to_fit)
+		{
+			gdouble page_size, upper, value;
+			g_object_get(G_OBJECT(preview->hadjustment), "page-size", &page_size, "upper", &upper, NULL);
+			if (event->direction == GDK_SCROLL_LEFT)
+				value = MIN(gtk_adjustment_get_value(preview->hadjustment) - page_size/5.0, upper - page_size);
+			else
+				value = MIN(gtk_adjustment_get_value(preview->hadjustment) + page_size/5.0, upper - page_size);
+			gtk_adjustment_set_value(preview->hadjustment, MAX(value, 0.0));
+		}
+		return TRUE;
 	}
+
+	/* Molette haut/bas : zoom centré sur le curseur */
+	if (event->direction != GDK_SCROLL_UP && event->direction != GDK_SCROLL_DOWN)
+		return TRUE;
+
+	gdouble factor = (event->direction == GDK_SCROLL_UP) ? 1.25 : 0.8;
+	gboolean was_fit = preview->zoom_to_fit;
+
+	/* Mémorise la position curseur dans l'espace image avant zoom */
+	gdouble old_hval = gtk_adjustment_get_value(preview->hadjustment);
+	gdouble old_vval = gtk_adjustment_get_value(preview->vadjustment);
+	gdouble cursor_x = event->x;
+	gdouble cursor_y = event->y;
+
+	rs_preview_widget_set_zoom(preview, preview->zoom_factor * factor);
+
+	/* Recentre la vue sur le curseur (sauf depuis zoom-to-fit) */
+	if (!was_fit)
+	{
+		gdouble upper_h = gtk_adjustment_get_upper(preview->hadjustment);
+		gdouble upper_v = gtk_adjustment_get_upper(preview->vadjustment);
+		gdouble page_h  = gtk_adjustment_get_page_size(preview->hadjustment);
+		gdouble page_v  = gtk_adjustment_get_page_size(preview->vadjustment);
+
+		gdouble new_hval = (old_hval + cursor_x) * factor - cursor_x;
+		gdouble new_vval = (old_vval + cursor_y) * factor - cursor_y;
+
+		new_hval = CLAMP(new_hval, 0.0, upper_h - page_h);
+		new_vval = CLAMP(new_vval, 0.0, upper_v - page_v);
+
+		gtk_adjustment_set_value(preview->hadjustment, new_hval);
+		gtk_adjustment_set_value(preview->vadjustment, new_vval);
+	}
+
 	return TRUE;
 }
 
@@ -1763,16 +1879,38 @@ button(GtkWidget *widget, GdkEventButton *event, RSPreviewWidget *preview)
 		rs_photo_set_angle(preview->photo, preview->straighten_angle, TRUE);
 		gui_status_pop(preview->status_num);
 	}
-	/* Middle mouse , ctrl + left -> loupe */
-	else if (((event->type == GDK_BUTTON_PRESS)
-		&& (event->button==2)) 
-		|| ((event->type == GDK_BUTTON_PRESS)
+	/* Ctrl + clic gauche -> loupe */
+	else if ((event->type == GDK_BUTTON_PRESS)
 		&& (event->button==1)
-		&& (event->state & GDK_CONTROL_MASK)))
+		&& (event->state & GDK_CONTROL_MASK))
 	{
 		rs_loupe_set_screen(preview->loupe, preview_screen, screen_number);
 		rs_loupe_set_coord(preview->loupe, real_x, real_y);
 		rs_preview_widget_set_loupe_enabled(preview, view, TRUE);
+	}
+	/* Bouton du milieu : pan quand zoomé, loupe en mode zoom-to-fit */
+	else if ((event->type == GDK_BUTTON_PRESS) && (event->button == 2))
+	{
+		if (!preview->zoom_to_fit)
+		{
+			preview->pan_start_x    = x;
+			preview->pan_start_y    = y;
+			preview->pan_start_hval = gtk_adjustment_get_value(preview->hadjustment);
+			preview->pan_start_vval = gtk_adjustment_get_value(preview->vadjustment);
+			preview->state = MOVE;
+			gdk_window_set_cursor(window, cur_fleur);
+		}
+		else
+		{
+			rs_loupe_set_screen(preview->loupe, preview_screen, screen_number);
+			rs_loupe_set_coord(preview->loupe, real_x, real_y);
+			rs_preview_widget_set_loupe_enabled(preview, view, TRUE);
+		}
+	}
+	else if ((event->type == GDK_BUTTON_RELEASE) && (event->button == 2) && (preview->state == MOVE))
+	{
+		preview->state = WB_PICKER;
+		gdk_window_set_cursor(window, NULL);
 	}
 	if (event->type == GDK_BUTTON_RELEASE)
 		rs_preview_widget_set_loupe_enabled(preview, view, FALSE);
@@ -1808,29 +1946,24 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 	if (preview->photo)
 		inside_image = get_image_coord(preview, view, x, y, &scaled_x, &scaled_y, &real_x, &real_y, &max_w, &max_h);
 
-/*	if (preview->state & MOVE)
+	/* CaraStudio: pan au bouton du milieu */
+	if ((mask & GDK_BUTTON2_MASK) && (preview->state == MOVE))
 	{
-		GtkAdjustment *adj;
-		gdouble val;
+		gdouble upper_h = gtk_adjustment_get_upper(preview->hadjustment);
+		gdouble upper_v = gtk_adjustment_get_upper(preview->vadjustment);
+		gdouble page_h  = gtk_adjustment_get_page_size(preview->hadjustment);
+		gdouble page_v  = gtk_adjustment_get_page_size(preview->vadjustment);
 
-		if (coord_diff.x != 0)
-		{
-			adj = gtk_viewport_get_hadjustment(GTK_VIEWPORT(preview->viewport[0]));
-			val = gtk_adjustment_get_value(adj) + coord_diff.x;
-			if (val > (preview->scaled->w - adj->page_size))
-				val = preview->scaled->w - adj->page_size;
-			gtk_adjustment_set_value(adj, val);
-		}
-		if (coord_diff.y != 0)
-		{
-			adj = gtk_viewport_get_vadjustment(GTK_VIEWPORT(preview->viewport[0]));
-			val = gtk_adjustment_get_value(adj) + coord_diff.y;
-			if (val > (preview->scaled->h - adj->page_size))
-				val = preview->scaled->h - adj->page_size;
-			gtk_adjustment_set_value(adj, val);
-		}
+		gdouble new_hval = preview->pan_start_hval + (preview->pan_start_x - x);
+		gdouble new_vval = preview->pan_start_vval + (preview->pan_start_y - y);
+
+		new_hval = CLAMP(new_hval, 0.0, upper_h - page_h);
+		new_vval = CLAMP(new_vval, 0.0, upper_v - page_v);
+
+		gtk_adjustment_set_value(preview->hadjustment, new_hval);
+		gtk_adjustment_set_value(preview->vadjustment, new_vval);
+		return TRUE;
 	}
-*/
 
 	if ((mask & GDK_BUTTON1_MASK) && (preview->state & CROP_MOVE_CORNER))
 	{
