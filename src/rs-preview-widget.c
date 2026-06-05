@@ -337,6 +337,8 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 		| GDK_BUTTON_RELEASE_MASK
 		| GDK_POINTER_MOTION_MASK
 		| GDK_BUTTON2_MOTION_MASK
+		| GDK_SCROLL_MASK
+		| GDK_SMOOTH_SCROLL_MASK
 		| GDK_LEAVE_NOTIFY_MASK);
 
 	preview->state = WB_PICKER;
@@ -1624,11 +1626,17 @@ scroll(GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
 		return TRUE;
 	}
 
-	/* Molette haut/bas : zoom centré sur le curseur */
-	if (event->direction != GDK_SCROLL_UP && event->direction != GDK_SCROLL_DOWN)
+	/* Molette haut/bas : zoom centré sur le curseur.
+	 * Wayland envoie GDK_SCROLL_SMOOTH avec delta_y ; on gère les deux. */
+	gdouble factor;
+	if (event->direction == GDK_SCROLL_UP
+		|| (event->direction == GDK_SCROLL_SMOOTH && event->delta_y < 0))
+		factor = 1.25;
+	else if (event->direction == GDK_SCROLL_DOWN
+		|| (event->direction == GDK_SCROLL_SMOOTH && event->delta_y > 0))
+		factor = 0.8;
+	else
 		return TRUE;
-
-	gdouble factor = (event->direction == GDK_SCROLL_UP) ? 1.25 : 0.8;
 	gboolean was_fit = preview->zoom_to_fit;
 
 	/* Mémorise la position curseur dans l'espace image avant zoom */
