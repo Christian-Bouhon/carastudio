@@ -1289,6 +1289,12 @@
 		<exif make="Panasonic" model="DMC-LX7"/>
 	</camera>
 
+	<!-- CaraStudio: LX100 / LX100M2 — profil basé sur GX7 (même capteur 4/3") -->
+	<camera unique_id="Panasonic DMC-LX100">
+		<exif make="Panasonic" model="DMC-LX100"/>
+		<exif make="Panasonic" model="DC-LX100M2"/>
+	</camera>
+
 	<camera unique_id="Panasonic DMC-FX150">
 		<exif make="Panasonic" model="DMC-FX150"/>
 	</camera>
