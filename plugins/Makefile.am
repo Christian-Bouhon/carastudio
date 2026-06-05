@@ -14,6 +14,7 @@ SUBDIRS = \
 	input-image16 \
 	lensfun \
 	load-gdk \
+	load-libraw \
 	load-png \
 	load-rawspeed \
 	meta-ciff \

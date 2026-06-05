@@ -1,0 +1,17 @@
+AM_CFLAGS=\
+	-Wall\
+	-O4\
+	-DPACKAGE_DATA_DIR=\""$(datadir)"\" \
+	-DPACKAGE_LOCALE_DIR=\""@localedir@"\" \
+	@PACKAGE_CFLAGS@ \
+	@LIBRAW_CFLAGS@ \
+	-I$(top_srcdir)/librawstudio/ \
+	-I$(top_srcdir)/
+
+lib_LTLIBRARIES = load_libraw.la
+
+libdir = @RAWSTUDIO_PLUGINS_LIBS_DIR@
+
+load_libraw_la_LIBADD = @PACKAGE_LIBS@ @LIBRAW_LIBS@
+load_libraw_la_LDFLAGS = -module -avoid-version
+load_libraw_la_SOURCES = load-libraw.c

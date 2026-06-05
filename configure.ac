@@ -109,6 +109,10 @@ PKG_CHECK_MODULES(EXIV2, [exiv2])
 AC_SUBST(EXIV2_CFLAGS)
 AC_SUBST(EXIV2_LIBS)
 
+PKG_CHECK_MODULES(LIBRAW, [libraw >= 0.20])
+AC_SUBST(LIBRAW_CFLAGS)
+AC_SUBST(LIBRAW_LIBS)
+
 PKG_CHECK_MODULES(FFTW3F, [fftw3f])
 AC_SUBST(FFTW3F_CFLAGS)
 AC_SUBST(FFTW3F_LIBS)
@@ -168,6 +172,7 @@ plugins/input-file/Makefile
 plugins/input-image16/Makefile
 plugins/lensfun/Makefile
 plugins/load-gdk/Makefile
+plugins/load-libraw/Makefile
 plugins/load-png/Makefile
 plugins/load-rawspeed/Makefile
 plugins/meta-ciff/Makefile
