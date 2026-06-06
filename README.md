@@ -57,7 +57,7 @@ LD_LIBRARY_PATH=/tmp/casan/lib ASAN_OPTIONS="detect_leaks=0" /tmp/casan/bin/cara
 
 ## À propos du fork
 
-CaraStudio est un fork de RawStudio (© Anders Brander, Anders Kvist, Klaus Post), distribué sous licence **GNU GPL v2 ou ultérieure**.
+CaraStudio est un fork de RawStudio (© Anders Brander, Anders Kvist, Klaus Post), distribué sous licence **GNU GPL v3 ou ultérieure**.
 
 Les modifications apportées par Carafife incluent notamment :
 - Portage et corrections pour Fedora 44 / Wayland / GTK3
