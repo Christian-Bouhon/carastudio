@@ -40,8 +40,11 @@ static void row_activated(GtkTreeView *view, GtkTreePath *path, GtkTreeViewColum
 static void row_expanded(GtkTreeView *view, GtkTreeIter *iter, GtkTreePath *path, gpointer user_data);
 static void row_collapsed(GtkTreeView *view, GtkTreeIter *iter, GtkTreePath *path, gpointer user_data);
 static void move_cursor(GtkTreeView *view, GtkMovementStep movement, gint direction, gpointer user_data);
-static GtkTreeModel *create_and_fill_model (const gchar *root);
+static GtkTreeModel *create_and_fill_model(RSDirSelector *selector, const gchar *root);
 static gboolean directory_contains_directories(const gchar *filepath);
+static gint dir_sort_func(GtkTreeModel *model, GtkTreeIter *a, GtkTreeIter *b, gpointer data);
+
+#define UP_ENTRY "↩"
 
 enum {
 	DIRECTORY_ACTIVATED_SIGNAL,
@@ -106,7 +109,11 @@ rs_dir_selector_init(RSDirSelector *selector)
 	gtk_tree_selection_set_mode(gtk_tree_view_get_selection(GTK_TREE_VIEW(selector->view)),
 								GTK_SELECTION_SINGLE);
 
-	rs_dir_selector_set_root(selector, "/");
+	/* Ouvre par défaut sur ~/Images, avec fallback sur ~ */
+	const gchar *pictures = g_get_user_special_dir(G_USER_DIRECTORY_PICTURES);
+	if (!pictures || !g_file_test(pictures, G_FILE_TEST_IS_DIR))
+		pictures = g_get_home_dir();
+	rs_dir_selector_set_root(selector, pictures);
 
 	g_signal_connect(selector, "realize", G_CALLBACK(realize), NULL);
 
@@ -169,16 +176,28 @@ dir_selector_add_element(GtkTreeStore *treestore, GtkTreeIter *iter, const gchar
 static void
 row_activated(GtkTreeView *view, GtkTreePath *path, GtkTreeViewColumn *col, gpointer user_data)
 {
+	RSDirSelector *selector = RS_DIR_SELECTOR(user_data);
 	GtkTreeModel *model;
 	GtkTreeIter iter;
-	gchar *filepath;
+	gchar *name = NULL;
+	gchar *filepath = NULL;
 
 	model = gtk_tree_view_get_model(view);
 	gtk_tree_model_get_iter(model, &iter, path);
 	gtk_tree_model_get(GTK_TREE_MODEL(model), &iter,
-					   COL_PATH, &filepath,
-					   -1);
-	g_signal_emit (G_OBJECT (user_data), signals[DIRECTORY_ACTIVATED_SIGNAL], 0, filepath);
+	                   COL_NAME, &name,
+	                   COL_PATH, &filepath,
+	                   -1);
+
+	if (g_strcmp0(name, UP_ENTRY) == 0)
+	{
+		/* Remonte d'un niveau : change la racine affichée */
+		rs_dir_selector_set_root(selector, filepath);
+	}
+
+	g_signal_emit(G_OBJECT(selector), signals[DIRECTORY_ACTIVATED_SIGNAL], 0, filepath);
+	g_free(name);
+	g_free(filepath);
 }
 
 /**
@@ -291,18 +310,76 @@ move_cursor(GtkTreeView *view, GtkMovementStep movement, gint direction, gpointe
 	}
 }
 
+/* Tri : ↩ toujours en premier, sinon alphabétique */
+static gint
+dir_sort_func(GtkTreeModel *model, GtkTreeIter *a, GtkTreeIter *b, gpointer data)
+{
+	gchar *na = NULL, *nb = NULL;
+	gint result;
+
+	gtk_tree_model_get(model, a, COL_NAME, &na, -1);
+	gtk_tree_model_get(model, b, COL_NAME, &nb, -1);
+
+	if (g_strcmp0(na, UP_ENTRY) == 0)      { result = -1; goto done; }
+	if (g_strcmp0(nb, UP_ENTRY) == 0)      { result =  1; goto done; }
+	result = g_utf8_collate(na ? na : "", nb ? nb : "");
+done:
+	g_free(na);
+	g_free(nb);
+	return result;
+}
+
 /**
- * Creates a GtkTreeStore and fills it with data
- * @param root A gchar
- * @return A GtkTreeModel
+ * Creates a GtkTreeStore showing the CONTENTS of root directly,
+ * with a ↩ entry at top to navigate to the parent directory.
  */
 static GtkTreeModel *
-create_and_fill_model (const gchar *root)
+create_and_fill_model(RSDirSelector *selector, const gchar *root)
 {
 	GtkTreeStore *treestore;
+	GtkTreeIter iter;
+	GDir *dir;
+	gchar *file;
 
 	treestore = gtk_tree_store_new(NUM_COLS, G_TYPE_STRING, G_TYPE_STRING);
-	dir_selector_add_element(treestore, NULL, root, root);
+
+	/* Entrée ↩ (sauf si on est déjà à la racine filesystem) */
+	if (g_strcmp0(root, "/") != 0)
+	{
+		/* Normalise : retire le slash final pour que g_path_get_dirname marche */
+		gchar *tmp = g_strdup(root);
+		gsize len = strlen(tmp);
+		if (len > 1 && tmp[len-1] == G_DIR_SEPARATOR)
+			tmp[len-1] = '\0';
+		gchar *parent = g_path_get_dirname(tmp);
+		g_free(tmp);
+		gchar *parent_slash = g_strconcat(parent, "/", NULL);
+		g_free(parent);
+
+		gtk_tree_store_append(treestore, &iter, NULL);
+		gtk_tree_store_set(treestore, &iter,
+		                   COL_NAME, UP_ENTRY,
+		                   COL_PATH, parent_slash,
+		                   -1);
+		g_free(parent_slash);
+	}
+
+	/* Contenu du répertoire courant */
+	dir = g_dir_open(root, 0, NULL);
+	if (dir)
+	{
+		while ((file = (gchar *) g_dir_read_name(dir)))
+		{
+			if (file[0] == '.')
+				continue;
+			gchar *path = g_strconcat(root, file, "/", NULL);
+			if (g_file_test(path, G_FILE_TEST_IS_DIR))
+				dir_selector_add_element(treestore, NULL, file, path);
+			g_free(path);
+		}
+		g_dir_close(dir);
+	}
+
 	return GTK_TREE_MODEL(treestore);
 }
 
@@ -323,19 +400,24 @@ rs_dir_selector_new()
 void
 rs_dir_selector_set_root(RSDirSelector *selector, const gchar *root)
 {
-	GtkTreeModel *model;
-	GtkTreeSortable *sortable;
+	/* Normalise : s'assure que root se termine par '/' */
+	gchar *root_norm;
+	if (root && !g_str_has_suffix(root, "/"))
+		root_norm = g_strconcat(root, "/", NULL);
+	else
+		root_norm = g_strdup(root ? root : "/");
 
-	model = create_and_fill_model(root);
+	g_free(selector->root);
+	selector->root = root_norm;
 
-	sortable = GTK_TREE_SORTABLE(model);
-	gtk_tree_sortable_set_sort_column_id(sortable,
-										 COL_NAME,
-										 GTK_SORT_ASCENDING);
+	GtkTreeModel *model = create_and_fill_model(selector, root_norm);
+
+	GtkTreeSortable *sortable = GTK_TREE_SORTABLE(model);
+	gtk_tree_sortable_set_sort_func(sortable, COL_NAME, dir_sort_func, NULL, NULL);
+	gtk_tree_sortable_set_sort_column_id(sortable, COL_NAME, GTK_SORT_ASCENDING);
 
 	gtk_tree_view_set_model(GTK_TREE_VIEW(selector->view), model);
-	
-	g_object_unref(model); /* destroy model automatically with view */
+	g_object_unref(model);
 }
 
 /**
@@ -346,24 +428,30 @@ void
 rs_dir_selector_expand_path(RSDirSelector *selector, const gchar *expand)
 {
 	GtkTreeView *view = GTK_TREE_VIEW(selector->view);
-	GtkTreeModel *model = gtk_tree_view_get_model(view);
-	GtkTreePath *path = gtk_tree_path_new_first();
+	GtkTreeModel *model;
+	GtkTreePath *path;
 	GtkTreeIter iter;
 	gchar *filepath = NULL;
 	GString *gs;
 
-	if (g_path_is_absolute(expand)) 	
-	{
+	if (g_path_is_absolute(expand))
 		gs = g_string_new(expand);
-	}
 	else
 	{
 		gs = g_string_new(g_get_current_dir());
 		g_string_append(gs, G_DIR_SEPARATOR_S);
 		g_string_append(gs, expand);
 	}
+	if (!g_str_has_suffix(gs->str, G_DIR_SEPARATOR_S))
+		g_string_append(gs, G_DIR_SEPARATOR_S);
 
-	g_string_append(gs, G_DIR_SEPARATOR_S);
+	/* Si le répertoire cible est hors de la racine courante, on ne change pas
+	   la racine : le sélecteur reste sur ~/Images (ou le dernier répertoire
+	   défini). L'expansion échouera silencieusement et l'utilisateur verra
+	   la racine par défaut. */
+
+	model = gtk_tree_view_get_model(view);
+	path = gtk_tree_path_new_first();
 
 	while (gtk_tree_model_get_iter(model, &iter, path))
 	{
@@ -371,13 +459,15 @@ rs_dir_selector_expand_path(RSDirSelector *selector, const gchar *expand)
 
 		if (filepath && g_str_has_prefix(gs->str, filepath))
 		{
-			gtk_tree_view_expand_row(GTK_TREE_VIEW(view), path, FALSE);
+			gtk_tree_view_expand_row(view, path, FALSE);
 			gtk_tree_path_down(path);
 		}
 		else
 		{
 			gtk_tree_path_next(path);
 		}
+		g_free(filepath);
+		filepath = NULL;
 	}
 
 	g_string_free(gs, TRUE);
@@ -386,7 +476,6 @@ rs_dir_selector_expand_path(RSDirSelector *selector, const gchar *expand)
 		gtk_tree_view_scroll_to_cell(view, path, NULL, TRUE, 0.2, 0.0);
 	else
 	{
-		/* Save this, realize() will catch it later */
 		GtkTreeSelection *selection = gtk_tree_view_get_selection(view);
 		if (gtk_tree_model_get_iter(model, &iter, path))
 			gtk_tree_selection_select_iter(selection, &iter);

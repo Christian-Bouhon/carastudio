@@ -441,7 +441,8 @@ basic_slider(RSToolbox *toolbox, const gint snapshot, GtkTable *table, const gin
 	g_signal_connect(event, "enter-notify-event", G_CALLBACK(value_enterleaveclick), NULL);
 	g_signal_connect(event, "leave-notify-event", G_CALLBACK(value_enterleaveclick), NULL);
 
-	gtk_table_attach(table, label,      0, 1, row, row+1, GTK_SHRINK|GTK_FILL, GTK_SHRINK, 0, 0);
+	gtk_widget_set_halign(label, GTK_ALIGN_END);
+	gtk_table_attach(table, label,      0, 1, row, row+1, GTK_FILL, GTK_SHRINK, 4, 0);
 	gtk_table_attach(table, seperator1, 1, 2, row, row+1, GTK_SHRINK,          GTK_FILL, 0, 0);
 	gtk_table_attach(table, scale,      2, 3, row, row+1, GTK_EXPAND|GTK_FILL, GTK_SHRINK, 0, 0);
 	gtk_table_attach(table, seperator2, 3, 4, row, row+1, GTK_SHRINK,          GTK_FILL, 0, 0);

@@ -1884,6 +1884,14 @@ tif_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *
 	if ((meta->make == MAKE_PHASEONE) || (meta->make == MAKE_SAMSUNG))
 		meta->preview_planar_config = 1;
 
+	/* Fallback pour objectifs intégrés (ex. Panasonic LX100) : si les maker
+	   notes n'ont pas fourni la spec objectif mais que l'EXIF par photo
+	   contient focale et ouverture, on les utilise comme valeurs de référence. */
+	if (meta->lens_min_focal < 0 && meta->focallength > 0)
+		meta->lens_min_focal = meta->lens_max_focal = meta->focallength;
+	if (meta->lens_min_aperture < 0 && meta->aperture > 0)
+		meta->lens_min_aperture = meta->lens_max_aperture = meta->aperture;
+
 	/* Load thumbnail - try thumbnail first - then preview image - then decode the RAW image*/
 	if (!thumbnail_reader(service, rawfile, meta->thumbnail_start, meta->thumbnail_length, meta))
 		if (!thumbnail_reader(service, rawfile, meta->preview_start, meta->preview_length, meta))

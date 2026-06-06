@@ -13,7 +13,6 @@ CaraStudio permet de lire, ajuster et convertir les fichiers RAW de votre appare
 - Interface GTK3 sombre et ergonomique
 - Support complet des profils couleur DNG (Color Profile)
 - Traitement par lot
-- Prise de vue en direct (tethered shooting)
 - Réglages post-capture : balance des blancs, saturation, exposition, courbes…
 - Copier/coller les réglages entre images
 - Correction automatique de la distorsion (Lensfun)

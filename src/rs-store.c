@@ -382,21 +382,30 @@ button(GtkWidget *widget, GdkEventButton *event, RSStore *store)
 static gboolean
 scroll_event(GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
 {
-	gboolean handled = FALSE;
-	GtkAdjustment *adj = gtk_scrolled_window_get_hadjustment(GTK_SCROLLED_WINDOW(widget));
+	/* widget = iconview, user_data = scroller (GtkScrolledWindow) */
+	GtkScrolledWindow *scroller = GTK_SCROLLED_WINDOW(user_data);
+	GtkAdjustment *adj = gtk_scrolled_window_get_hadjustment(scroller);
 	gdouble value = gtk_adjustment_get_value(adj);
-
-	/* Lifted from _gtk_range_get_wheel_delta() */
 	gdouble delta = pow(gtk_adjustment_get_page_size(adj), 2.0 / 3.0);
+	gboolean handled = FALSE;
 
 	switch (event->direction)
 	{
 		case GDK_SCROLL_UP:
+		case GDK_SCROLL_LEFT:
 			gtk_adjustment_set_value(adj, value - delta);
 			handled = TRUE;
 			break;
 		case GDK_SCROLL_DOWN:
-			gtk_adjustment_set_value(adj, CLAMP(value + delta, 0, gtk_adjustment_get_upper(adj) - gtk_adjustment_get_page_size(adj)));
+		case GDK_SCROLL_RIGHT:
+			gtk_adjustment_set_value(adj, CLAMP(value + delta, 0,
+				gtk_adjustment_get_upper(adj) - gtk_adjustment_get_page_size(adj)));
+			handled = TRUE;
+			break;
+		case GDK_SCROLL_SMOOTH:
+			gtk_adjustment_set_value(adj, CLAMP(value + event->delta_x * delta * 0.5
+				+ event->delta_y * delta * 0.5, 0,
+				gtk_adjustment_get_upper(adj) - gtk_adjustment_get_page_size(adj)));
 			handled = TRUE;
 			break;
 		default:
@@ -755,8 +764,11 @@ make_iconview(GtkWidget *iconview, RSStore *store, gint prio)
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroller),
 		GTK_POLICY_AUTOMATIC, GTK_POLICY_NEVER);
 
-	/* Handle scroll events not handled by scroller to allow scrolling in horizontal iconview */
-	g_signal_connect_after(scroller, "scroll-event", G_CALLBACK(scroll_event), NULL);
+	/* La molette sur l'iconview doit défiler horizontalement.
+	   On connecte sur l'iconview (pas le scroller) car GtkIconView
+	   consomme les scroll-events avant qu'ils n'atteignent le parent. */
+	gtk_widget_add_events(iconview, GDK_SCROLL_MASK | GDK_SMOOTH_SCROLL_MASK);
+	g_signal_connect(iconview, "scroll-event", G_CALLBACK(scroll_event), scroller);
 
 	gtk_container_add (GTK_CONTAINER (scroller), iconview);
 
@@ -1224,7 +1236,7 @@ rs_store_load_file(RSStore *store, gchar *fullname)
 
 	/* Global default icon */
 	if (!icon_default)
-		icon_default = gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S PACKAGE ".png", NULL);
+		icon_default = gdk_pixbuf_new_from_file_at_size(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S "carastudio.png", 96, 96, NULL);
 
 	/* Add file to store */
 	gdk_threads_enter();

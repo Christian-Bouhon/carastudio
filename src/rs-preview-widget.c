@@ -1757,12 +1757,12 @@ button(GtkWidget *widget, GdkEventButton *event, RSPreviewWidget *preview)
 
 	g_return_val_if_fail(VIEW_IS_VALID(view), FALSE);
 
-	/* White balance picker */
+	/* White balance picker — Ctrl+clic uniquement */
 	if (inside_image
 		&& (event->type == GDK_BUTTON_PRESS)
 		&& (event->button == 1)
 		&& (preview->state & WB_PICKER)
-	    && !(event->state & GDK_CONTROL_MASK)
+		&& (event->state & GDK_CONTROL_MASK)
 		&& g_signal_has_handler_pending(preview, signals[WB_PICKED], 0, FALSE))
 	{
 		RS_PREVIEW_CALLBACK_DATA cbdata;
@@ -2139,7 +2139,8 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 
 	if ((preview->state & WB_PICKER))
 	{
-		if (inside_image)
+		/* Pipette visible uniquement quand Ctrl est enfoncé */
+		if (inside_image && (mask & GDK_CONTROL_MASK))
 			gdk_window_set_cursor(window, cur_color_picker);
 		else
 			gdk_window_set_cursor(window, cur_normal);

@@ -602,7 +602,7 @@ rs_lens_db_editor(void)
 	fill_model(lens_db, tree_model);
 
 	GtkWidget *editor = gtk_dialog_new();
-	gtk_window_set_title(GTK_WINDOW(editor), _("Rawstudio Lens Library"));
+	gtk_window_set_title(GTK_WINDOW(editor), _("CaraStudio Lens Library"));
 	g_signal_connect_swapped(editor, "delete_event",
 				 G_CALLBACK (gtk_widget_destroy), editor);
 	g_signal_connect_swapped(editor, "response",
@@ -882,7 +882,7 @@ rs_lens_db_editor_single_lens(RSLens *lens)
 		     NULL);
 	
 	GtkWidget *editor = gtk_dialog_new();
-	gtk_window_set_title(GTK_WINDOW(editor), _("Rawstudio Lens Editor"));
+	gtk_window_set_title(GTK_WINDOW(editor), _("CaraStudio Lens Editor"));
 	g_signal_connect_swapped(editor, "delete_event",
 				 G_CALLBACK (gtk_widget_destroy), editor);
 	g_signal_connect_swapped(editor, "response",

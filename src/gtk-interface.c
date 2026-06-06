@@ -1220,6 +1220,7 @@ gui_window_make(RS_BLOB *rs)
 	}
 
 	rs_window_set_title(NULL);
+	gtk_window_set_icon_name(rawstudio_window, "carastudio");
 	g_signal_connect((gpointer) rawstudio_window, "delete_event", G_CALLBACK(gui_window_delete), NULL);
 	g_signal_connect((gpointer) rawstudio_window, "key_press_event", G_CALLBACK(window_key_press_event), NULL);
 
@@ -1408,20 +1409,12 @@ snapshot_changed(RSToolbox *toolbox, gint snapshot, RS_BLOB *rs)
 void
 rs_window_set_title(const char *str)
 {
-	GString * window_title;
 	gboolean client_mode;
 	rs_conf_get_boolean("client-mode", &client_mode);
 	if (client_mode)
-		window_title = g_string_new(_("CaraStudio Client Mode"));
+		gtk_window_set_title(GTK_WINDOW(rawstudio_window), _("CaraStudio — Client Mode"));
 	else
-		window_title = g_string_new(_("CaraStudio"));
-	if (str)
-	{
-		window_title = g_string_append(window_title, " - ");
-		window_title = g_string_append(window_title, str);
-	}
-	gtk_window_set_title(GTK_WINDOW(rawstudio_window), window_title->str);
-	g_string_free(window_title, TRUE);	
+		gtk_window_set_title(GTK_WINDOW(rawstudio_window), _("CaraStudio — Powered by Carafife"));
 }
 
 /* CaraStudio: callbacks pour les boutons de zoom variable */

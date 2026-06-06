@@ -49,6 +49,8 @@ rs_navigator_finalize(GObject *object)
 	g_object_unref(navigator->hadjustment);
 	if (navigator->display_color_space)
 		g_object_unref(navigator->display_color_space);
+	if (navigator->cached_pixbuf)
+		g_object_unref(navigator->cached_pixbuf);
 	G_OBJECT_CLASS (rs_navigator_parent_class)->finalize (object);
 }
 
@@ -339,6 +341,27 @@ rs_navigator_set_colorspace(RSNavigator *navigator, RSColorSpace *display_color_
 static void
 filter_changed(RSFilter *filter, RSFilterChangedMask mask, RSNavigator *navigator)
 {
+	RSFilterRequest *request = rs_filter_request_new();
+	rs_filter_request_set_quick(RS_FILTER_REQUEST(request), TRUE);
+	rs_filter_param_set_object(RS_FILTER_PARAM(request), "colorspace", navigator->display_color_space);
+
+	gdk_threads_leave();
+	RSFilterResponse *response = rs_filter_get_image8(navigator->cache, request);
+	gdk_threads_enter();
+	g_object_unref(request);
+
+	if (navigator->cached_pixbuf)
+	{
+		g_object_unref(navigator->cached_pixbuf);
+		navigator->cached_pixbuf = NULL;
+	}
+
+	if (response && rs_filter_response_has_image8(response))
+		navigator->cached_pixbuf = rs_filter_response_get_image8(response);
+
+	if (response)
+		g_object_unref(response);
+
 	gtk_widget_queue_draw(GTK_WIDGET(navigator));
 }
 
@@ -351,66 +374,28 @@ paint_navigator(RSNavigator *navigator, cairo_t *cr)
 	if (!gtk_widget_is_drawable(GTK_WIDGET(navigator)))
 		return;
 
-	if (!navigator->cache->previous)
-	{
-		cairo_set_source_rgba(cr, 0.5, 0.5, 0.5, 1.0);
-		cairo_paint(cr);
+	cairo_set_source_rgba(cr, 0.5, 0.5, 0.5, 1.0);
+	cairo_paint(cr);
+
+	if (!navigator->cached_pixbuf || navigator->width <= 0 || navigator->height <= 0)
 		return;
-	}
 
-	RSFilterRequest *request = rs_filter_request_new();
-	rs_filter_request_set_quick(RS_FILTER_REQUEST(request), TRUE);
-	rs_filter_param_set_object(RS_FILTER_PARAM(request), "colorspace", navigator->display_color_space);
-
-	gdk_threads_leave();
-	RSFilterResponse *response = rs_filter_get_image8(navigator->cache, request);
-	gdk_threads_enter();
-	g_object_unref(request);
-
-	if (!response || !rs_filter_response_has_image8(response))
-	{
-		if (response)
-			g_object_unref(response);
-		cairo_set_source_rgba(cr, 0.5, 0.5, 0.5, 1.0);
-		cairo_paint(cr);
-		return;
-	}
-
-	GdkPixbuf *pixbuf = rs_filter_response_get_image8(response);
 	GdkRectangle placement, rect;
-
 	get_placement(navigator, &placement);
-
-	if (navigator->width <= 0 || navigator->height <= 0)
-	{
-		g_object_unref(pixbuf);
-		g_object_unref(response);
-		cairo_set_source_rgba(cr, 0.5, 0.5, 0.5, 1.0);
-		cairo_paint(cr);
-		return;
-	}
 
 	const gdouble scale = ((gdouble) placement.width) / navigator->width;
 
-	/* Vignette mise a l'echelle de son emplacement (cf. get_placement). */
-	GdkPixbuf *scaled = gdk_pixbuf_scale_simple(pixbuf,
+	GdkPixbuf *scaled = gdk_pixbuf_scale_simple(navigator->cached_pixbuf,
 		placement.width, placement.height, GDK_INTERP_BILINEAR);
 
-	cairo_set_source_rgba(cr, 0.5, 0.5, 0.5, 1.0);
-	cairo_paint(cr);
 	cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
 
-	/* creates a rectangle that matches the photo */
 	gdk_cairo_rectangle(cr, &placement);
-
-	/* Translate to image placement */
 	cairo_translate(cr, placement.x, placement.y);
 
-	/* Paint the pixbuf */
-	gdk_cairo_set_source_pixbuf(cr, scaled ? scaled : pixbuf, 0.0, 0.0);
+	gdk_cairo_set_source_pixbuf(cr, scaled ? scaled : navigator->cached_pixbuf, 0.0, 0.0);
 	cairo_fill_preserve(cr);
 
-	/* creates a rectangle that matches ROI */
 	rect.x = scale * navigator->x + 0.5;
 	rect.y = scale * navigator->y + 0.5;
 	rect.width = scale * navigator->x_page + 0.5;
@@ -419,19 +404,14 @@ paint_navigator(RSNavigator *navigator, cairo_t *cr)
 
 	cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD);
 	cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.35);
-	/* fill according to rule */
 	cairo_fill_preserve(cr);
-	/* roi rectangle */
 	cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
 	cairo_stroke(cr);
 
-	/* Draw white rectangle */
 	cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.5);
 	gdk_cairo_rectangle(cr, &rect);
 	cairo_stroke(cr);
 
 	if (scaled)
 		g_object_unref(scaled);
-	g_object_unref(pixbuf);
-	g_object_unref(response);
 }

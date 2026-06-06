@@ -643,6 +643,17 @@ main(int argc, char **argv)
 	             "gtk-application-prefer-dark-theme", TRUE,
 	             NULL);
 
+	/* Icône CaraStudio pour toutes les fenêtres (À propos, alt-tab…) */
+	{
+		gchar *icon_path = g_build_filename(PACKAGE_DATA_DIR, "icons", "carastudio.png", NULL);
+		GError *ierr = NULL;
+		if (!gtk_window_set_default_icon_from_file(icon_path, &ierr) && ierr) {
+			g_warning("CaraStudio: icône non chargée: %s", ierr->message);
+			g_error_free(ierr);
+		}
+		g_free(icon_path);
+	}
+
 	/* CaraStudio: thème sombre chargé globalement avant toute fenêtre */
 	{
 		GtkCssProvider *provider = gtk_css_provider_new();
