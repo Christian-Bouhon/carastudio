@@ -1289,6 +1289,12 @@
 		<exif make="Panasonic" model="DMC-LX7"/>
 	</camera>
 
+	<!-- CaraStudio: LX100 / LX100M2 — profil basé sur GX7 (même capteur 4/3") -->
+	<camera unique_id="Panasonic DMC-LX100">
+		<exif make="Panasonic" model="DMC-LX100"/>
+		<exif make="Panasonic" model="DC-LX100M2"/>
+	</camera>
+
 	<camera unique_id="Panasonic DMC-FX150">
 		<exif make="Panasonic" model="DMC-FX150"/>
 	</camera>
@@ -1571,8 +1577,69 @@
 		<exif make="SONY" model="SLT-A77V"/>
 	</camera>
 
+	<camera unique_id="SONY SLT-A57">
+		<exif make="SONY" model="SLT-A57"/>
+	</camera>
+
+	<camera unique_id="SONY SLT-A58">
+		<exif make="SONY" model="SLT-A58"/>
+	</camera>
+
 	<camera unique_id="SONY SLT-A99V">
 		<exif make="SONY" model="SLT-A99V"/>
+	</camera>
+
+	<!-- CaraStudio: appareils Alpha/ILCE manquants -->
+	<camera unique_id="SONY ILCE-3000">
+		<exif make="SONY" model="ILCE-3000"/>
+	</camera>
+
+	<camera unique_id="SONY ILCE-7">
+		<exif make="SONY" model="ILCE-7"/>
+	</camera>
+
+	<camera unique_id="SONY ILCE-7R">
+		<exif make="SONY" model="ILCE-7R"/>
+	</camera>
+
+	<camera unique_id="SONY ILCE-7M2">
+		<exif make="SONY" model="ILCE-7M2"/>
+	</camera>
+
+	<camera unique_id="SONY ILCE-7RM2">
+		<exif make="SONY" model="ILCE-7RM2"/>
+	</camera>
+
+	<camera unique_id="SONY ILCE-7S">
+		<exif make="SONY" model="ILCE-7S"/>
+	</camera>
+
+	<camera unique_id="SONY ILCE-7SM2">
+		<exif make="SONY" model="ILCE-7SM2"/>
+	</camera>
+
+	<camera unique_id="SONY ILCE-5000">
+		<exif make="SONY" model="ILCE-5000"/>
+	</camera>
+
+	<camera unique_id="SONY ILCE-5100">
+		<exif make="SONY" model="ILCE-5100"/>
+	</camera>
+
+	<camera unique_id="SONY ILCE-6000">
+		<exif make="SONY" model="ILCE-6000"/>
+	</camera>
+
+	<camera unique_id="SONY ILCE-6300">
+		<exif make="SONY" model="ILCE-6300"/>
+	</camera>
+
+	<camera unique_id="SONY ILCA-68">
+		<exif make="SONY" model="ILCA-68"/>
+	</camera>
+
+	<camera unique_id="SONY ILCA-77M2">
+		<exif make="SONY" model="ILCA-77M2"/>
 	</camera>
 
 </cameras>

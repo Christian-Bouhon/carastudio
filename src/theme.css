@@ -1,0 +1,682 @@
+/*
+ * CaraStudio Dark Theme
+ * Inspiré de ART Raw Editor — interface sombre professionnelle
+ * GTK3 CSS — chargé via GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+ */
+
+/* ------------------------------------------------------------------ */
+/* Couleurs de base                                                     */
+/* ------------------------------------------------------------------ */
+
+@define-color cs_bg          #424242;
+@define-color cs_bg_dark     #383838;
+@define-color cs_bg_light    #4a4a4a;
+@define-color cs_bg_lighter  #545454;
+@define-color cs_fg          #e0e0e0;
+@define-color cs_fg_dim      #aaaaaa;
+@define-color cs_fg_disabled #707070;
+@define-color cs_border      #2a2a2a;
+@define-color cs_border_soft #555555;
+@define-color cs_accent      #6a9bbf;
+@define-color cs_accent_dark #5580a0;
+@define-color cs_hover       #565656;
+@define-color cs_active      #303030;
+@define-color cs_selected    #4a6f8a;
+@define-color cs_entry_bg    #333333;
+@define-color cs_tooltip_bg  #2a2a2a;
+
+/* ------------------------------------------------------------------ */
+/* Fenêtre et dialogue                                                  */
+/* ------------------------------------------------------------------ */
+
+window, dialog {
+    background-color: @cs_bg;
+    color: @cs_fg;
+}
+
+.background {
+    background-color: @cs_bg;
+    color: @cs_fg;
+}
+
+/* Corrige le fond blanc du viewport/scrolledwindow (toolbox, panneaux) */
+viewport {
+    background-color: @cs_bg;
+}
+
+scrolledwindow {
+    background-color: @cs_bg;
+}
+
+/* GtkBox et conteneurs généraux */
+box {
+    background-color: transparent;
+}
+
+/* Classe .view : utilisée par GtkViewport pour le fond blanc par défaut */
+.view {
+    background-color: @cs_bg;
+    color: @cs_fg;
+}
+
+/* GtkExpander (sections dépliables dans le toolbox) */
+expander {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+}
+
+expander > title {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+    padding: 3px 6px;
+}
+
+expander > title:hover {
+    background-color: @cs_hover;
+}
+
+/* Séparateurs horizontaux dans le toolbox */
+expander + separator {
+    background-color: @cs_border;
+    min-height: 1px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Labels et texte                                                      */
+/* ------------------------------------------------------------------ */
+
+label {
+    color: @cs_fg;
+}
+
+label:disabled {
+    color: @cs_fg_disabled;
+}
+
+/* ------------------------------------------------------------------ */
+/* Boutons                                                              */
+/* ------------------------------------------------------------------ */
+
+button {
+    background-image: none;
+    background-color: @cs_bg_lighter;
+    color: @cs_fg;
+    border: 1px solid @cs_border;
+    border-radius: 3px;
+    padding: 3px 8px;
+    min-height: 0;
+}
+
+button:hover {
+    background-color: @cs_hover;
+    border-color: @cs_accent;
+}
+
+button:active,
+button:checked {
+    background-color: @cs_active;
+    border-color: @cs_accent_dark;
+    color: @cs_fg;
+}
+
+button:disabled {
+    background-color: @cs_bg;
+    color: @cs_fg_disabled;
+    border-color: @cs_border;
+}
+
+button.toggle:checked {
+    background-color: @cs_accent_dark;
+    color: @cs_fg;
+    border-color: @cs_accent;
+}
+
+/* Boutons de la barre d'outils — plus compacts */
+toolbar button,
+.toolbar button {
+    padding: 2px 4px;
+    border-radius: 2px;
+    background-color: transparent;
+    border-color: transparent;
+}
+
+toolbar button:hover,
+.toolbar button:hover {
+    background-color: @cs_hover;
+    border-color: @cs_border_soft;
+}
+
+toolbar button:checked,
+.toolbar button:checked {
+    background-color: @cs_accent_dark;
+    border-color: @cs_accent;
+}
+
+/* ------------------------------------------------------------------ */
+/* Champs de saisie                                                     */
+/* ------------------------------------------------------------------ */
+
+entry {
+    background-color: @cs_entry_bg;
+    color: @cs_fg;
+    border: 1px solid @cs_border_soft;
+    border-radius: 3px;
+    padding: 2px 4px;
+    caret-color: @cs_fg;
+}
+
+entry:focus {
+    border-color: @cs_accent;
+}
+
+entry:disabled {
+    background-color: @cs_bg;
+    color: @cs_fg_disabled;
+}
+
+spinbutton {
+    background-color: @cs_entry_bg;
+    color: @cs_fg;
+    border: 1px solid @cs_border_soft;
+}
+
+spinbutton button {
+    background-color: @cs_bg_light;
+    border: none;
+    padding: 1px 3px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Barre de menus                                                       */
+/* ------------------------------------------------------------------ */
+
+menubar {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+    border-bottom: 1px solid @cs_border;
+    padding: 0;
+}
+
+menubar > menuitem {
+    background-color: transparent;
+    color: @cs_fg;
+    padding: 3px 8px;
+}
+
+menubar > menuitem:hover {
+    background-color: @cs_hover;
+}
+
+/* ------------------------------------------------------------------ */
+/* Menus déroulants                                                     */
+/* ------------------------------------------------------------------ */
+
+menu {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+    border: 1px solid @cs_border;
+    padding: 2px 0;
+}
+
+menuitem {
+    background-color: transparent;
+    color: @cs_fg;
+    padding: 3px 12px;
+}
+
+menuitem:hover {
+    background-color: @cs_selected;
+    color: @cs_fg;
+}
+
+menuitem:disabled {
+    color: @cs_fg_disabled;
+}
+
+separator.horizontal {
+    background-color: @cs_border_soft;
+    min-height: 1px;
+    margin: 2px 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Barres d'outils                                                      */
+/* ------------------------------------------------------------------ */
+
+toolbar,
+.toolbar {
+    background-color: @cs_bg_dark;
+    border-bottom: 1px solid @cs_border;
+    padding: 1px;
+}
+
+toolbutton {
+    background-color: transparent;
+}
+
+/* ------------------------------------------------------------------ */
+/* Onglets (GtkNotebook)                                               */
+/* ------------------------------------------------------------------ */
+
+notebook {
+    background-color: @cs_bg;
+}
+
+notebook > header {
+    background-color: @cs_bg_dark;
+    border-bottom: 1px solid @cs_border;
+    padding: 0;
+}
+
+notebook > header > tabs > tab {
+    background-color: @cs_bg_light;
+    color: @cs_fg_dim;
+    border: 1px solid @cs_border;
+    border-bottom: none;
+    padding: 4px 10px;
+    margin: 0 1px;
+    border-radius: 3px 3px 0 0;
+}
+
+notebook > header > tabs > tab:checked {
+    background-color: @cs_bg;
+    color: @cs_fg;
+    border-bottom-color: @cs_bg;
+}
+
+notebook > header > tabs > tab:hover {
+    background-color: @cs_hover;
+    color: @cs_fg;
+}
+
+/* ------------------------------------------------------------------ */
+/* Barres de défilement                                                 */
+/* ------------------------------------------------------------------ */
+
+scrollbar {
+    background-color: @cs_bg_dark;
+    border: none;
+}
+
+scrollbar trough {
+    background-color: @cs_bg_dark;
+    border: none;
+    min-width: 8px;
+    min-height: 8px;
+}
+
+scrollbar slider {
+    background-color: @cs_bg_lighter;
+    border-radius: 4px;
+    min-width: 6px;
+    min-height: 6px;
+    margin: 1px;
+}
+
+scrollbar slider:hover {
+    background-color: @cs_hover;
+}
+
+scrollbar slider:active {
+    background-color: @cs_accent_dark;
+}
+
+scrollbar.horizontal trough {
+    min-height: 8px;
+}
+
+scrollbar.vertical trough {
+    min-width: 8px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Séparateurs de panneaux (GtkPaned)                                   */
+/* ------------------------------------------------------------------ */
+
+paned > separator {
+    background-color: @cs_border;
+    min-width: 4px;
+    min-height: 4px;
+}
+
+paned > separator:hover {
+    background-color: @cs_accent_dark;
+}
+
+/* ------------------------------------------------------------------ */
+/* Curseurs / Sliders                                                   */
+/* ------------------------------------------------------------------ */
+
+scale {
+    padding: 0;
+}
+
+scale trough {
+    background-color: @cs_entry_bg;
+    border: 1px solid @cs_border_soft;
+    border-radius: 3px;
+    min-height: 4px;
+    min-width: 4px;
+}
+
+scale trough highlight {
+    background-color: @cs_accent_dark;
+    border-radius: 3px;
+    min-height: 4px;
+}
+
+scale slider {
+    background-color: @cs_bg_lighter;
+    border: 1px solid @cs_border_soft;
+    border-radius: 50%;
+    min-width: 14px;
+    min-height: 14px;
+}
+
+scale slider:hover {
+    background-color: @cs_accent;
+    border-color: @cs_accent;
+}
+
+scale slider:active {
+    background-color: @cs_accent_dark;
+}
+
+/* ------------------------------------------------------------------ */
+/* Cases à cocher et boutons radio                                      */
+/* ------------------------------------------------------------------ */
+
+checkbutton,
+radiobutton {
+    color: @cs_fg;
+    padding: 2px;
+}
+
+check,
+radio {
+    background-color: @cs_entry_bg;
+    border: 1px solid @cs_border_soft;
+    border-radius: 2px;
+    min-width: 14px;
+    min-height: 14px;
+}
+
+radio {
+    border-radius: 50%;
+}
+
+check:checked,
+radio:checked {
+    background-color: @cs_accent_dark;
+    border-color: @cs_accent;
+    color: @cs_fg;
+}
+
+check:hover,
+radio:hover {
+    border-color: @cs_accent;
+}
+
+/* ------------------------------------------------------------------ */
+/* Listes et vues arborescentes (navigateur de fichiers)               */
+/* ------------------------------------------------------------------ */
+
+treeview.view {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+}
+
+/* Texte des cellules : cible explicite, sinon le nom des dossiers
+   reste invisible sous GTK 3.24 (le noeud `cell` n'hérite pas
+   toujours de la couleur du treeview). */
+treeview.view cell {
+    color: @cs_fg;
+}
+
+treeview.view:selected,
+treeview.view:selected cell {
+    background-color: @cs_selected;
+    color: #ffffff;
+}
+
+treeview.view:hover {
+    background-color: @cs_bg_light;
+}
+
+/* Fleches de depliage de l'arbre : empeche la regle generique
+   `expander` (sections du toolbox) de deborder dessus. */
+treeview.view expander {
+    background-color: transparent;
+    color: @cs_fg;
+}
+
+treeview header button {
+    background-color: @cs_bg;
+    color: @cs_fg_dim;
+    border-right: 1px solid @cs_border;
+    border-bottom: 1px solid @cs_border;
+    border-top: none;
+    border-left: none;
+    border-radius: 0;
+    padding: 2px 6px;
+}
+
+treeview header button:hover {
+    background-color: @cs_hover;
+}
+
+/* IconView (navigateur d'images) */
+iconview {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+}
+
+iconview:selected {
+    background-color: @cs_selected;
+    color: @cs_fg;
+}
+
+/* ------------------------------------------------------------------ */
+/* Combos                                                               */
+/* ------------------------------------------------------------------ */
+
+combobox button {
+    background-color: @cs_bg_light;
+    color: @cs_fg;
+    border: 1px solid @cs_border_soft;
+    border-radius: 3px;
+    padding: 2px 6px;
+}
+
+combobox button:hover {
+    background-color: @cs_hover;
+    border-color: @cs_accent;
+}
+
+combobox > .popup {
+    background-color: @cs_bg_dark;
+}
+
+/* ------------------------------------------------------------------ */
+/* Cadres (GtkFrame)                                                    */
+/* ------------------------------------------------------------------ */
+
+frame {
+    border: 1px solid @cs_border_soft;
+    border-radius: 3px;
+}
+
+frame > border {
+    border: 1px solid @cs_border_soft;
+}
+
+.frame {
+    border: 1px solid @cs_border_soft;
+}
+
+/* ------------------------------------------------------------------ */
+/* Barre de statut                                                      */
+/* ------------------------------------------------------------------ */
+
+statusbar {
+    background-color: @cs_bg_dark;
+    color: @cs_fg_dim;
+    border-top: 1px solid @cs_border;
+    padding: 2px 6px;
+    font-size: 0.85em;
+}
+
+/* ------------------------------------------------------------------ */
+/* Infobulles                                                           */
+/* ------------------------------------------------------------------ */
+
+tooltip {
+    background-color: @cs_tooltip_bg;
+    color: @cs_fg;
+    border: 1px solid @cs_border_soft;
+    border-radius: 3px;
+    padding: 4px 8px;
+}
+
+tooltip label {
+    color: @cs_fg;
+}
+
+/* ------------------------------------------------------------------ */
+/* Boîtes de dialogue                                                   */
+/* ------------------------------------------------------------------ */
+
+dialog .dialog-action-area {
+    background-color: @cs_bg_dark;
+    border-top: 1px solid @cs_border;
+    padding: 6px;
+}
+
+dialog .titlebar {
+    background-color: @cs_bg_dark;
+}
+
+/* ------------------------------------------------------------------ */
+/* Barre de titre (Client-Side Decorations Wayland)                    */
+/* ------------------------------------------------------------------ */
+
+headerbar {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+    border-bottom: 1px solid @cs_border;
+    padding: 4px 8px;
+}
+
+headerbar button {
+    background-color: @cs_bg_lighter;
+    border: 1px solid @cs_border_soft;
+}
+
+/* ------------------------------------------------------------------ */
+/* Décorations spécifiques CaraStudio                                  */
+/* ------------------------------------------------------------------ */
+
+/* Fenêtre principale */
+#rawstudio-widget {
+    background-color: @cs_bg;
+}
+
+/* Zone de prévisualisation : fond très sombre pour les photos */
+#rawstudio-preview,
+.raw-preview {
+    background-color: @cs_bg_dark;
+}
+
+/* Panneau d'outils de droite */
+#rawstudio-toolbox {
+    background-color: @cs_bg_light;
+    border-left: 1px solid @cs_border;
+}
+
+/* Navigateur de fichiers de gauche */
+#rawstudio-iconbox {
+    background-color: @cs_bg_dark;
+    border-right: 1px solid @cs_border;
+}
+
+/* Barre d'outils principale */
+#rawstudio-tools {
+    background-color: @cs_bg_dark;
+}
+
+/* ------------------------------------------------------------------ */
+/* GtkFileChooserButton (panneau Lot : répertoire de sortie)           */
+/* ------------------------------------------------------------------ */
+
+filechooserbutton {
+    background-color: @cs_bg_light;
+    color: @cs_fg;
+}
+
+filechooserbutton button {
+    background-color: @cs_bg_light;
+    color: @cs_fg;
+    border: 1px solid @cs_border_soft;
+}
+
+filechooserbutton button:hover {
+    background-color: @cs_hover;
+    border-color: @cs_accent;
+}
+
+/* Séparateur interne du GtkFileChooserButton */
+filechooserbutton separator {
+    background-color: @cs_border_soft;
+    min-width: 1px;
+}
+
+/* ------------------------------------------------------------------ */
+/* GtkComboBoxText avec entrée (Filename Template)                     */
+/* ------------------------------------------------------------------ */
+
+combobox {
+    background-color: @cs_bg_light;
+    color: @cs_fg;
+}
+
+/* Popup/liste déroulante des combos */
+.combo .popup,
+.popup {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+    border: 1px solid @cs_border;
+}
+
+.popup treeview,
+.popup treeview.view {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+}
+
+.popup treeview cell {
+    color: @cs_fg;
+    background-color: @cs_bg_dark;
+}
+
+.popup treeview row:selected,
+.popup treeview row:selected cell {
+    background-color: @cs_selected;
+    color: #ffffff;
+}
+
+/* ------------------------------------------------------------------ */
+/* GtkFrame avec label (cadres du panneau Lot)                         */
+/* ------------------------------------------------------------------ */
+
+frame border {
+    border-color: @cs_border_soft;
+}
+
+frame > label {
+    color: @cs_fg_dim;
+}
+
+/* Conteneur interne d'un GtkFrame */
+frame > box {
+    background-color: transparent;
+}

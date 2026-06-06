@@ -18,8 +18,8 @@
  */
 
 #include "rs-filetypes.h"
-#include "rs-metadata.h"
 #include "conf_interface.h"
+#include "rs-metadata.h"
 
 static gint tree_sort(gconstpointer a, gconstpointer b);
 static gpointer filetype_search(GTree *tree, const gchar *filename, gint *priority, const RSLoaderFlags flags);

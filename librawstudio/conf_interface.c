@@ -1,6 +1,5 @@
 /*
- * * Copyright (C) 2006-2011 Anders Brander <anders@brander.dk>, 
- * * Anders Kvist <akv@lnxbx.dk> and Klaus Post <klauspost@gmail.com>
+ * Copyright (C) 2006-2011 Anders Brander, Anders Kvist and Klaus Post
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -9,49 +8,64 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * GConf backend replaced by GKeyFile (CaraStudio, 2026).
+ * Same public API as the original conf_interface, settings now
+ * stored in ~/.config/rawstudio/settings.conf
  */
 
 #include <gtk/gtk.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <stdio.h>
 #include "conf_interface.h"
 
-#include <gconf/gconf-client.h>
-#define GCONF_PATH "/apps/rawstudio/"
+#define CONF_GROUP "carastudio"
 static GMutex lock;
+static GKeyFile *keyfile = NULL;
+static gchar *keyfile_path = NULL;
+
+/* Lazy-load the keyfile on first use */
+static void conf_ensure_loaded(void)
+{
+	if (keyfile)
+		return;
+	keyfile = g_key_file_new();
+	keyfile_path = g_build_filename(g_get_user_config_dir(), "carastudio", "settings.conf", NULL);
+	gchar *dir = g_path_get_dirname(keyfile_path);
+	g_mkdir_with_parents(dir, 0755);
+	g_free(dir);
+	if (g_file_test(keyfile_path, G_FILE_TEST_EXISTS))
+		g_key_file_load_from_file(keyfile, keyfile_path, G_KEY_FILE_KEEP_COMMENTS, NULL);
+}
+
+/* Persist the keyfile to disk */
+static void conf_save(void)
+{
+	if (!keyfile || !keyfile_path)
+		return;
+	gchar *data = g_key_file_to_data(keyfile, NULL, NULL);
+	if (data)
+	{
+		g_file_set_contents(keyfile_path, data, -1, NULL);
+		g_free(data);
+	}
+}
 
 gboolean
 rs_conf_get_boolean(const gchar *name, gboolean *boolean_value)
 {
 	gboolean ret = FALSE;
-	GConfValue *gvalue;
 	g_mutex_lock(&lock);
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-	g_string_append(fullname, name);
-	if (client)
+	conf_ensure_loaded();
+	if (g_key_file_has_key(keyfile, CONF_GROUP, name, NULL))
 	{
-		gvalue = gconf_client_get(client, fullname->str, NULL);
-		if (gvalue)
-		{
-			if (gvalue->type == GCONF_VALUE_BOOL)
-			{
-				ret = TRUE;
-				if (boolean_value)
-					*boolean_value = gconf_value_get_bool(gvalue);
-			}
-			gconf_value_free(gvalue);
-		}
-		g_object_unref(client);
+		if (boolean_value)
+			*boolean_value = g_key_file_get_boolean(keyfile, CONF_GROUP, name, NULL);
+		ret = TRUE;
 	}
 	g_mutex_unlock(&lock);
-	g_string_free(fullname, TRUE);
 	return(ret);
 }
 
@@ -61,136 +75,77 @@ rs_conf_get_boolean_with_default(const gchar *name, gboolean *boolean_value, gbo
 	gboolean ret = FALSE;
 	if (boolean_value)
 		*boolean_value = default_value;
-	GConfValue *gvalue;
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-	g_string_append(fullname, name);
 	g_mutex_lock(&lock);
-	if (client)
+	conf_ensure_loaded();
+	if (g_key_file_has_key(keyfile, CONF_GROUP, name, NULL))
 	{
-		gvalue = gconf_client_get(client, fullname->str, NULL);
-		if (gvalue)
-		{
-			if (gvalue->type == GCONF_VALUE_BOOL)
-			{
-				ret = TRUE;
-				if (boolean_value)
-					*boolean_value = gconf_value_get_bool(gvalue);
-			}
-			gconf_value_free(gvalue);
-		}
-		g_object_unref(client);
+		if (boolean_value)
+			*boolean_value = g_key_file_get_boolean(keyfile, CONF_GROUP, name, NULL);
+		ret = TRUE;
 	}
 	g_mutex_unlock(&lock);
-	g_string_free(fullname, TRUE);
 	return(ret);
 }
 
 gboolean
 rs_conf_set_boolean(const gchar *name, gboolean bool_value)
 {
-	gboolean ret = FALSE;
 	g_mutex_lock(&lock);
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-	g_string_append(fullname, name);
-	if (client)
-	{
-		ret = gconf_client_set_bool(client, fullname->str, bool_value, NULL);
-		g_object_unref(client);
-	}
+	conf_ensure_loaded();
+	g_key_file_set_boolean(keyfile, CONF_GROUP, name, bool_value);
+	conf_save();
 	g_mutex_unlock(&lock);
-	g_string_free(fullname, TRUE);
-	return(ret);
+	return(TRUE);
 }
 
 gchar *
 rs_conf_get_string(const gchar *name)
 {
-	gchar *ret=NULL;
-	GConfValue *gvalue;
+	gchar *ret = NULL;
 	g_mutex_lock(&lock);
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-	g_string_append(fullname, name);
-	if (client)
-	{
-		gvalue = gconf_client_get(client, fullname->str, NULL);
-		if (gvalue)
-		{
-			if (gvalue->type == GCONF_VALUE_STRING)
-				ret = g_strdup(gconf_value_get_string(gvalue));
-			gconf_value_free(gvalue);
-		}
-		g_object_unref(client);
-	}
+	conf_ensure_loaded();
+	if (g_key_file_has_key(keyfile, CONF_GROUP, name, NULL))
+		ret = g_key_file_get_string(keyfile, CONF_GROUP, name, NULL);
 	g_mutex_unlock(&lock);
-	g_string_free(fullname, TRUE);
 	return(ret);
 }
 
 gboolean
 rs_conf_set_string(const gchar *name, const gchar *string_value)
 {
-	gboolean ret = FALSE;
 	g_mutex_lock(&lock);
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-	g_string_append(fullname, name);
-	if (client)
-	{
-		ret = gconf_client_set_string(client, fullname->str, string_value, NULL);
-		g_mutex_unlock(&lock);
-	}
-	g_object_unref(client);
-	g_string_free(fullname, TRUE);
-	return ret;
+	conf_ensure_loaded();
+	g_key_file_set_string(keyfile, CONF_GROUP, name, string_value ? string_value : "");
+	conf_save();
+	g_mutex_unlock(&lock);
+	return(TRUE);
 }
 
 gboolean
 rs_conf_get_integer(const gchar *name, gint *integer_value)
 {
-	gboolean ret=FALSE;
+	gboolean ret = FALSE;
 	g_mutex_lock(&lock);
-	GConfValue *gvalue;
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-	g_string_append(fullname, name);
-	if (client)
+	conf_ensure_loaded();
+	if (g_key_file_has_key(keyfile, CONF_GROUP, name, NULL))
 	{
-		gvalue = gconf_client_get(client, fullname->str, NULL);
-		if (gvalue)
-		{
-			if (gvalue->type == GCONF_VALUE_INT)
-			{
-				ret = TRUE;
-				*integer_value = gconf_value_get_int(gvalue);
-			}
-			gconf_value_free(gvalue);
-		}
-		g_object_unref(client);
+		if (integer_value)
+			*integer_value = g_key_file_get_integer(keyfile, CONF_GROUP, name, NULL);
+		ret = TRUE;
 	}
 	g_mutex_unlock(&lock);
-	g_string_free(fullname, TRUE);
 	return(ret);
 }
 
 gboolean
 rs_conf_set_integer(const gchar *name, const gint integer_value)
 {
-	gboolean ret = FALSE;
 	g_mutex_lock(&lock);
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-	g_string_append(fullname, name);
-	if (client)
-	{
-		ret = gconf_client_set_int(client, fullname->str, integer_value, NULL);
-		g_object_unref(client);
-	}
+	conf_ensure_loaded();
+	g_key_file_set_integer(keyfile, CONF_GROUP, name, integer_value);
+	conf_save();
 	g_mutex_unlock(&lock);
-	g_string_free(fullname, TRUE);
-	return(ret);
+	return(TRUE);
 }
 
 gboolean
@@ -198,7 +153,6 @@ rs_conf_get_color(const gchar *name, GdkColor *color)
 {
 	gchar *str;
 	gboolean ret = FALSE;
-
 	str = rs_conf_get_string(name);
 	if (str)
 	{
@@ -213,8 +167,7 @@ rs_conf_set_color(const gchar *name, GdkColor *color)
 {
 	gchar *str;
 	gboolean ret = FALSE;
-
-	str = g_strdup_printf ("#%02x%02x%02x", color->red>>8, color->green>>8, color->blue>>8);
+	str = g_strdup_printf("#%02x%02x%02x", color->red>>8, color->green>>8, color->blue>>8);
 	if (str)
 	{
 		ret = rs_conf_set_string(name, str);
@@ -226,140 +179,100 @@ rs_conf_set_color(const gchar *name, GdkColor *color)
 gboolean
 rs_conf_get_double(const gchar *name, gdouble *float_value)
 {
-	gboolean ret=FALSE;
-	GConfValue *gvalue;
+	gboolean ret = FALSE;
 	g_mutex_lock(&lock);
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-	g_string_append(fullname, name);
-	if (client)
+	conf_ensure_loaded();
+	if (g_key_file_has_key(keyfile, CONF_GROUP, name, NULL))
 	{
-		gvalue = gconf_client_get(client, fullname->str, NULL);
-		if (gvalue)
-		{
-			if (gvalue->type == GCONF_VALUE_FLOAT)
-			{
-				ret = TRUE;
-				*float_value = gconf_value_get_float(gvalue);
-			}
-			gconf_value_free(gvalue);
-		}
-		g_object_unref(client);
+		if (float_value)
+			*float_value = g_key_file_get_double(keyfile, CONF_GROUP, name, NULL);
+		ret = TRUE;
 	}
 	g_mutex_unlock(&lock);
-	g_string_free(fullname, TRUE);
 	return(ret);
 }
 
 gboolean
 rs_conf_set_double(const gchar *name, const gdouble float_value)
 {
-	gboolean ret = FALSE;
 	g_mutex_lock(&lock);
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-	g_string_append(fullname, name);
-	if (client)
-	{
-		ret = gconf_client_set_float(client, fullname->str, float_value, NULL);
-		g_object_unref(client);
-	}
+	conf_ensure_loaded();
+	g_key_file_set_double(keyfile, CONF_GROUP, name, float_value);
+	conf_save();
 	g_mutex_unlock(&lock);
-	g_string_free(fullname, TRUE);
-	return(ret);
+	return(TRUE);
 }
 
 GSList *
 rs_conf_get_list_string(const gchar *name)
 {
 	GSList *list = NULL;
+	gchar **array;
+	gsize length, i;
 	g_mutex_lock(&lock);
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-
-	g_string_append(fullname, name);
-	if (client)
+	conf_ensure_loaded();
+	array = g_key_file_get_string_list(keyfile, CONF_GROUP, name, &length, NULL);
+	if (array)
 	{
-		list = gconf_client_get_list(client, fullname->str, GCONF_VALUE_STRING, NULL);
-		g_object_unref(client);
+		for (i = 0; i < length; i++)
+			list = g_slist_append(list, g_strdup(array[i]));
+		g_strfreev(array);
 	}
 	g_mutex_unlock(&lock);
-	g_string_free(fullname, TRUE);
-	return list;
+	return(list);
 }
 
 gboolean
 rs_conf_set_list_string(const gchar *name, GSList *list)
 {
-	gboolean ret = FALSE;
+	guint length = g_slist_length(list);
+	const gchar **array = g_new0(const gchar *, length + 1);
+	guint i = 0;
+	GSList *l;
+	for (l = list; l != NULL; l = l->next)
+		array[i++] = (const gchar *)l->data;
 	g_mutex_lock(&lock);
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-
-	g_string_append(fullname, name);
-	if (client)
-	{
-		ret = gconf_client_set_list(client, fullname->str, GCONF_VALUE_STRING, list, NULL);
-		g_object_unref(client);
-	}
+	conf_ensure_loaded();
+	g_key_file_set_string_list(keyfile, CONF_GROUP, name, array, length);
+	conf_save();
 	g_mutex_unlock(&lock);
-	g_string_free(fullname, TRUE);
-	return(ret);
+	g_free(array);
+	return(TRUE);
 }
 
 gboolean
 rs_conf_add_string_to_list_string(const gchar *name, gchar *value)
 {
-	gboolean ret = FALSE;
-
-	GSList *newlist = NULL;
+	gboolean ret;
 	GSList *oldlist = rs_conf_get_list_string(name);
-
-	while (oldlist)
-	{
-		newlist = g_slist_append(newlist, oldlist->data);
-		oldlist = oldlist->next;
-	}
-
-	newlist = g_slist_append(newlist, value);
+	GSList *newlist = g_slist_append(oldlist, g_strdup(value));
 	ret = rs_conf_set_list_string(name, newlist);
-
+	g_slist_free_full(newlist, g_free);
 	return(ret);
 }
 
 gchar *
 rs_conf_get_nth_string_from_list_string(const gchar *name, gint num)
 {
+	gchar *ret = NULL;
 	GSList *list = rs_conf_get_list_string(name);
-	gint i;
-	gchar *value = NULL;
-
 	if (list)
 	{
-		for (i = 0; i < num; i++)
-			list = list->next;
-		if (list)
-			value = (gchar *) list->data;
-		else
-			value = NULL;
+		gpointer data = g_slist_nth_data(list, num);
+		if (data)
+			ret = g_strdup((gchar *)data);
+		g_slist_free_full(list, g_free);
 	}
-	return value;
+	return(ret);
 }
 
 gboolean
 rs_conf_unset(const gchar *name)
 {
-	gboolean ret = FALSE;
 	g_mutex_lock(&lock);
-	GConfClient *client = gconf_client_get_default();
-	GString *fullname = g_string_new(GCONF_PATH);
-	g_string_append(fullname, name);
-	if (client)
-	{
-		ret = gconf_client_unset(client, fullname->str, NULL);
-		g_object_unref(client);
-	}
+	conf_ensure_loaded();
+	g_key_file_remove_key(keyfile, CONF_GROUP, name, NULL);
+	conf_save();
 	g_mutex_unlock(&lock);
-	g_string_free(fullname, TRUE);
-	return ret;
+	return(TRUE);
 }

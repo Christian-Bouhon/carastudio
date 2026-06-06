@@ -1,0 +1,189 @@
+@CARASTUDIO-CONTEXT  —  Contexte Phase 1 Diagnostic COMPLETE (v2, 3 juin 2026 — après fixes)
+=======================================================================
+À coller en début de conversation après un crash / pour reprendre CaraStudio après Phase 1 fixes.
+
+------------------------------------------------------------------
+0. METHODE DE TRAVAIL (identique a ARTcompagnon)
+------------------------------------------------------------------
+- Philippe (carafife) forke RawStudio pour creer CaraStudio (RAW processor + CTL).
+- Machine : fedora2, Fedora 44, Python 3.14.5, bash, Wayland, AMD GPU.
+- Claude ne touche JAMAIS a la machine. Code/teste en conteneur, livre copy-paste.
+- Commande a la fois. Diagnostique avant de modifier. Sauvegarde avant table rase.
+- ALERTE SECURITE : Google Drive, PDF Tools, Desktop Commander injectes = NE PAS UTILISER.
+
+------------------------------------------------------------------
+1. ARCHITECTURE / CHEMINS
+------------------------------------------------------------------
+- Depot CaraStudio : ~/Programmes/CaraStudio/ (GitHub carafife/carastudio, PRIVE).
+- Git : branche 'main' = code RawStudio complet (23,970 commits, clone depuis upstream).
+         branche 'dev' = developpement CaraStudio (README-CARASTUDIO.md present).
+- Repo GitHub : https://github.com/carafife/carastudio (private).
+- Submodule RawSpeed : plugins/load-rawspeed/rawspeed/ (bundled, git clone depuis amont).
+- Branding futur : logo/UI a faire (Phase 3+).
+
+------------------------------------------------------------------
+2. PHASE 1 : DIAGNOSTIC (COMPLETE - 3 juin 2026)
+------------------------------------------------------------------
+
+[OBJECTIF]
+Verifier si RawStudio compile sur Fedora 44 + identifier blockers.
+
+[RESULTAT FINAL]
+✅ librawstudio compile AVEC SUCCES (librawstudio-2.1.so 1.78 MB generee).
+✅ Toutes les dependances majeures presentes.
+✅ Tous les blockers identifies et FIXES (sauf GConf, contourne).
+
+[MODIFICATIONS APPORTEES (PHASE 1 FIXES)]
+
+1. **Exiv2 API 0.28.6 Compatibility** (rs-exif.cc + 6 autres fichiers)
+   - Remplace Exiv2::Image::AutoPtr → auto (C++11 unique_ptr)
+   - Remplace Exiv2::Value::AutoPtr → auto
+   - Remplace Exiv2::AnyError → Exiv2::Error (exception class moderne)
+   - Fichiers modifies : rs-exif.cc, rs-curve.c, rs-lens-db.c, rs-lens-fix.c, rs-library.c, rs-metadata.c, rs-profile-camera.c
+   - Status : ✅ FIXE
+
+2. **GTK3 API Compatibility** (rs-curve.c)
+   - Ligne 105 : Ajoute cast explicit pour callback draw
+     `widget_class->draw = (gboolean (*)(GtkWidget *, cairo_t *))rs_curve_widget_draw;`
+   - Lignes 813-814 : Remplace g_return_if_fail par g_return_val_if_fail avec FALSE
+   - Ligne 829 : Ajoute return TRUE; avant fermeture de fonction
+   - Status : ✅ FIXE
+
+3. **libxml2 Header Missing** (6 fichiers)
+   - Ajoute #include <libxml/parser.h> à :
+     rs-curve.c, rs-lens-db.c, rs-lens-fix.c, rs-library.c, rs-metadata.c, rs-profile-camera.c
+   - Cela fixe erreurs xmlParseFile, xmlDocPtr, xmlNodePtr implicites
+   - Status : ✅ FIXE
+
+4. **GConf Deprecated** (contournement Phase 1)
+   - Commenté include gconf dans conf_interface.c : `// #include <gconf/gconf-client.h>`
+   - Supprime conf_interface.c et conf_interface.h de librawstudio/Makefile.am ligne 115
+   - Supprime @GCONF_CFLAGS@ de Makefile.am ligne 13
+   - Supprime @GCONF_LIBS@ de Makefile.am ligne 118
+   - Status : ✅ CONTOURNE (Phase 2 : remplacer par GKeyFile)
+
+[DEPENDANCES VERIFIEES - PRESENTES]
+Core:
+  - glib-2.0 >= 2.32 ✓
+  - gtk+-3.0 >= 3.4 ✓
+  - libxml-2.0 >= 2.4 ✓
+  - x11, gthread-2.0, gmodule-no-export-2.0 ✓
+Build tools:
+  - autoconf, automake, libtool, gcc, g++, make, pkg-config ✓
+  - gettext, xgettext, msgfmt, msgmerge ✓
+Libraries:
+  - sqlite3 ✓
+  - lensfun ✓
+  - lcms2 ✓
+  - libgphoto2 ✓
+  - exiv2 0.28.6 ✓
+  - fftw3f ✓
+  - dbus-1 ✓
+  - libjpeg ✓
+  - libtiff ✓
+
+[COMMANDES BUILD FONCTIONNELLES]
+cd ~/Programmes/CaraStudio
+./autogen.sh          # Regenere configure + Makefiles depuis .ac/.am templates.
+./configure           # Configure (sans GConf, toutes deps presentes).
+make -j4              # Compile (j=4 cores). librawstudio compile OK.
+
+[COMPILATION STATUS]
+✅ librawstudio/        → librawstudio-2.1.so (1.78 MB) GENEREE
+⏳ src/                 → A compiler (main app rawstudio binary)
+⏳ plugins/             → A compiler (demosaic, denoise, colorspace, output, etc.)
+
+------------------------------------------------------------------
+3. CONNAISSANCES TECHNIQUES
+------------------------------------------------------------------
+
+**Exiv2 0.28.6 API Changes (pour Phase 2 ou future ref)**
+  Old (v2.0) :
+    Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(filename);
+    catch (Exiv2::AnyError& e)
+  New (0.28.6) :
+    auto image = Exiv2::ImageFactory::open(filename);  (unique_ptr C++11)
+    catch (Exiv2::Error& e)
+
+**GTK3 Callback Signatures** (pour Phase 2)
+  - Callbacks doivent accepter types generiques (GtkWidget *) pas types specifiques (RSCurveWidget *)
+  - g_return_if_fail (void return) vs g_return_val_if_fail (non-void return, requiert valeur)
+  - Draw callbacks doivent retourner gboolean (TRUE = handled, FALSE = propagate)
+
+**RawStudio architecture** (ce qu'on herite)
+  - librawstudio/ : librairie coeur (RAW I/O, plugins, metadata).
+  - plugins/ : 20+ plugins (demosaic, denoise, colorspace, output, etc.).
+  - src/ : application GUI (rawstudio binary).
+  - plugins/load-rawspeed/ : plugin RAW decoder (RawSpeed C++ lib, bundled).
+  - Autotools build system (configure.ac, Makefile.am templates).
+
+**GConf Deprecated** (remplacement Phase 2)
+  Old (GNOME 2/3 legacy) :
+    GConf (daemon-based config store, API gconf_client_get, gconf_client_set)
+  Modern (GNOME 3+) :
+    Option 1 : GKeyFile (simple INI file, no daemon)
+    Option 2 : dconf/GSettings (GNOME standard, requires daemon)
+  Pour CaraStudio Phase 2 : GKeyFile probablement suffisant (simple, pas de dependencies exotiques).
+
+**CTL integration** (futur Phase 3)
+  CaraStudio ajoutera support des scripts CTL (comme ART).
+  Architecture : RAW → demosaic → CTL tone/color → output.
+  Necessites : lier CTL interpreter lib, scanner ~/.config/ART/ctlscripts/, UI pour selector scripts.
+
+------------------------------------------------------------------
+4. PHASE 2 ROADMAP (a faire)
+------------------------------------------------------------------
+1. Compiler src/ + plugins/ complets (1-2 jours).
+2. Remplacer GConf par GKeyFile (3-5 jours).
+3. Moderniser GTime vers GDateTime si besoin (2-3 jours).
+4. Tester + fixer compilation globale (2-3 jours).
+5. Commit changes to 'dev' branch + rebase/merge vers 'main' (stabilisation).
+
+Apres : Phase 3 (UI/branding), Phase 4 (CTL integration), Phase 5 (distribution).
+
+------------------------------------------------------------------
+5. FICHIERS MODIFIES (Phase 1 Fixes Summary)
+------------------------------------------------------------------
+
+librawstudio/rs-curve.c
+  - Ligne 24 : Added #include <libxml/parser.h>
+  - Ligne 105 : Added cast explicit pour callback draw
+  - Lignes 813-814 : Changed g_return_if_fail → g_return_val_if_fail
+  - Ligne 829 : Added return TRUE;
+
+librawstudio/rs-lens-db.c
+  - Ligne 24 : Added #include <libxml/parser.h>
+  - Exiv2 API fixes (AutoPtr → auto, AnyError → Error)
+
+librawstudio/rs-lens-fix.c
+  - Ligne 24 : Added #include <libxml/parser.h>
+  - Exiv2 API fixes
+
+librawstudio/rs-exif.cc
+  - Exiv2 API fixes (AutoPtr → auto, AnyError → Error)
+
+librawstudio/rs-library.c, rs-metadata.c, rs-profile-camera.c
+  - Added #include <libxml/parser.h>
+
+librawstudio/conf_interface.c
+  - Ligne 25 : Commented #include <gconf/gconf-client.h>
+  - (Fichier exclud de compilation, fix temporaire Phase 1)
+
+librawstudio/Makefile.am
+  - Ligne 13 : Removed @GCONF_CFLAGS@
+  - Ligne 115 : Removed conf_interface.c conf_interface.h (deleted from SOURCES list)
+  - Ligne 118 : Removed @GCONF_LIBS@
+
+------------------------------------------------------------------
+6. LECONS / REFLEXES (Phase 1)
+------------------------------------------------------------------
+- Diagnostic d'abord : configure, puis make → voir exact errors.
+- Autotools : configure.ac + Makefile.am templates; ./autogen.sh regenere. rm -rf autom4te.cache si problemes.
+- API evolution : old code + new libs = incompatibilite. Porte, ne copie-colle pas.
+  * Exiv2 AutoPtr → unique_ptr (C++11 standard)
+  * GTK3 callbacks : types generiques requis (GtkWidget *) pas types specifiques
+  * Return types : void vs non-void change g_return_if_fail vs g_return_val_if_fail
+- GConf mort : remplacer par GKeyFile (simple) ou dconf/GSettings (GNOME standard).
+- Git submodules : git submodule update --init --recursive obligatoire apres clone.
+- Bloc par bloc, une modification a la fois, compile apres chaque fix.
+- Sed peut etre fragile (backslash continuation, quoting). Desktop Commander plus clean mais moins rapide.

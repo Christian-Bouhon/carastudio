@@ -22,7 +22,9 @@
 #include <glib/gprintf.h>
 #include <config.h>
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
+#include <libxml/parser.h>
 #include <glib.h>
 #include <math.h>
 #include <memory.h>
@@ -370,7 +372,7 @@ button(GtkWidget *widget, GdkEventButton *event, RSStore *store)
 		if (event->type == GDK_BUTTON_PRESS)
 		{
 			GtkWidget *menu = gtk_ui_manager_get_widget (ui_manager, "/IconviewPopup");
-			gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, 0, GDK_CURRENT_TIME);
+			gtk_menu_popup_at_pointer(GTK_MENU(menu), (GdkEvent *) event);
 			return TRUE;
 		}
 	}
@@ -380,21 +382,30 @@ button(GtkWidget *widget, GdkEventButton *event, RSStore *store)
 static gboolean
 scroll_event(GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
 {
-	gboolean handled = FALSE;
-	GtkAdjustment *adj = gtk_scrolled_window_get_hadjustment(GTK_SCROLLED_WINDOW(widget));
+	/* widget = iconview, user_data = scroller (GtkScrolledWindow) */
+	GtkScrolledWindow *scroller = GTK_SCROLLED_WINDOW(user_data);
+	GtkAdjustment *adj = gtk_scrolled_window_get_hadjustment(scroller);
 	gdouble value = gtk_adjustment_get_value(adj);
-
-	/* Lifted from _gtk_range_get_wheel_delta() */
 	gdouble delta = pow(gtk_adjustment_get_page_size(adj), 2.0 / 3.0);
+	gboolean handled = FALSE;
 
 	switch (event->direction)
 	{
 		case GDK_SCROLL_UP:
+		case GDK_SCROLL_LEFT:
 			gtk_adjustment_set_value(adj, value - delta);
 			handled = TRUE;
 			break;
 		case GDK_SCROLL_DOWN:
-			gtk_adjustment_set_value(adj, CLAMP(value + delta, 0, gtk_adjustment_get_upper(adj) - gtk_adjustment_get_page_size(adj)));
+		case GDK_SCROLL_RIGHT:
+			gtk_adjustment_set_value(adj, CLAMP(value + delta, 0,
+				gtk_adjustment_get_upper(adj) - gtk_adjustment_get_page_size(adj)));
+			handled = TRUE;
+			break;
+		case GDK_SCROLL_SMOOTH:
+			gtk_adjustment_set_value(adj, CLAMP(value + event->delta_x * delta * 0.5
+				+ event->delta_y * delta * 0.5, 0,
+				gtk_adjustment_get_upper(adj) - gtk_adjustment_get_page_size(adj)));
 			handled = TRUE;
 			break;
 		default:
@@ -753,8 +764,11 @@ make_iconview(GtkWidget *iconview, RSStore *store, gint prio)
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroller),
 		GTK_POLICY_AUTOMATIC, GTK_POLICY_NEVER);
 
-	/* Handle scroll events not handled by scroller to allow scrolling in horizontal iconview */
-	g_signal_connect_after(scroller, "scroll-event", G_CALLBACK(scroll_event), NULL);
+	/* La molette sur l'iconview doit défiler horizontalement.
+	   On connecte sur l'iconview (pas le scroller) car GtkIconView
+	   consomme les scroll-events avant qu'ils n'atteignent le parent. */
+	gtk_widget_add_events(iconview, GDK_SCROLL_MASK | GDK_SMOOTH_SCROLL_MASK);
+	g_signal_connect(iconview, "scroll-event", G_CALLBACK(scroll_event), scroller);
 
 	gtk_container_add (GTK_CONTAINER (scroller), iconview);
 
@@ -1222,7 +1236,7 @@ rs_store_load_file(RSStore *store, gchar *fullname)
 
 	/* Global default icon */
 	if (!icon_default)
-		icon_default = gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S PACKAGE ".png", NULL);
+		icon_default = gdk_pixbuf_new_from_file_at_size(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S "carastudio.png", 96, 96, NULL);
 
 	/* Add file to store */
 	gdk_threads_enter();
@@ -1250,6 +1264,18 @@ rs_store_load_file(RSStore *store, gchar *fullname)
 
 	g_atomic_int_inc(&store->jobs_to_do);
 }
+
+/* Garde-fou anti-gel pour le chargement recursif : un scan recursif lance
+   sur une arborescence demesuree (ex. le dossier personnel entier avec ses
+   caches, .git, etc.) parcourt des centaines de milliers d'entrees sur le
+   thread principal -> l'interface se fige ("ne repond pas"). On borne donc le
+   nombre total d'entrees examinees. Une photothèque normale reste tres en
+   dessous ; seule une arborescence pathologique est tronquee.
+   Compteurs partages entre les appels recursifs, remis a zero par
+   rs_store_load_directory() avant chaque chargement. */
+#define LOAD_DIRECTORY_MAX_ENTRIES 50000
+static guint load_entries_examined = 0;
+static gboolean load_entries_limit_hit = FALSE;
 
 static gint
 load_directory(RSStore *store, const gchar *path, RSLibrary *library, const gboolean load_8bit, const gboolean load_recursive)
@@ -1285,6 +1311,20 @@ load_directory(RSStore *store, const gchar *path, RSLibrary *library, const gboo
 			count += load_directory(store, fullname, library, load_8bit, load_recursive);
 
 		g_free(fullname);
+
+		/* Stoppe net si l'arborescence est trop grosse (cf. garde-fou). */
+		if (++load_entries_examined > LOAD_DIRECTORY_MAX_ENTRIES)
+		{
+			if (!load_entries_limit_hit)
+			{
+				load_entries_limit_hit = TRUE;
+				g_warning("rs-store: arborescence trop volumineuse, "
+					"chargement tronque a %d entrees. Decochez "
+					"\"Open Recursive\" ou ouvrez un sous-dossier plus precis.",
+					LOAD_DIRECTORY_MAX_ENTRIES);
+			}
+			break;
+		}
 	}
 
 	g_free(path_normalized);
@@ -1424,6 +1464,10 @@ rs_store_load_directory(RSStore *store, const gchar *path)
 	gtk_label_set_markup(GTK_LABEL(store->label[5]), _("D <small>(-)</small>"));
 	g_signal_handler_block(store->store, store->counthandler);
 	store->counter_blocked = TRUE;
+
+	/* Reinitialise le garde-fou anti-gel (cf. load_directory). */
+	load_entries_examined = 0;
+	load_entries_limit_hit = FALSE;
 
 	/* While we're loading, we keep the IO lock to ourself. We need to read very basic meta and directory data */
 	rs_io_lock();

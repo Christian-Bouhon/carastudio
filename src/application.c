@@ -635,6 +635,44 @@ main(int argc, char **argv)
 #endif
 
 	gtk_init(&argc, &argv);
+
+	/* Demande la variante sombre du thème GTK (Adwaita-dark sur GNOME).
+	   Cela couvre les widgets internes (GtkFileChooserButton, popups…)
+	   que le CSS application-level n'atteint pas toujours. */
+	g_object_set(gtk_settings_get_default(),
+	             "gtk-application-prefer-dark-theme", TRUE,
+	             NULL);
+
+	/* Icône CaraStudio pour toutes les fenêtres (À propos, alt-tab…) */
+	{
+		gchar *icon_path = g_build_filename(PACKAGE_DATA_DIR, "icons", "carastudio.png", NULL);
+		GError *ierr = NULL;
+		if (!gtk_window_set_default_icon_from_file(icon_path, &ierr) && ierr) {
+			g_warning("CaraStudio: icône non chargée: %s", ierr->message);
+			g_error_free(ierr);
+		}
+		g_free(icon_path);
+	}
+
+	/* CaraStudio: thème sombre chargé globalement avant toute fenêtre */
+	{
+		GtkCssProvider *provider = gtk_css_provider_new();
+		GError *err = NULL;
+		gchar *css_path = g_build_filename(PACKAGE_DATA_DIR, PACKAGE,
+		                                   "theme.css", NULL);
+		if (gtk_css_provider_load_from_path(provider, css_path, &err))
+			gtk_style_context_add_provider_for_screen(
+				gdk_screen_get_default(),
+				GTK_STYLE_PROVIDER(provider),
+				GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+		else if (err) {
+			g_warning("CaraStudio: chargement thème CSS échoué: %s", err->message);
+			g_error_free(err);
+		}
+		g_free(css_path);
+		g_object_unref(provider);
+	}
+
 	check_install();
 
 	rs_filetype_init();

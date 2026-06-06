@@ -2,13 +2,13 @@
 Version=1.0
 Type=Application
 Categories=Graphics;Photography;GTK;
-Name=Rawstudio
-Name[de]=Rawstudio
-Name[es]=Rawstudio
-Name[it]=Rawstudio
-Name[pl]=Rawstudio
-Name[ru]=Rawstudio
-Name[sv]=Rawstudio
+Name=CaraStudio
+Name[de]=CaraStudio
+Name[es]=CaraStudio
+Name[it]=CaraStudio
+Name[pl]=CaraStudio
+Name[ru]=CaraStudio
+Name[sv]=CaraStudio
 GenericName=Raw image converter
 GenericName[de]=Ein RAW Bildkonverter
 GenericName[es]=Un convertidor de imágenes raw
@@ -23,8 +23,9 @@ Comment[it]=Converte e manipola immagini raw
 Comment[pl]=Program Open Source do konwersji plików RAW i manipulacji na nich
 Comment[ru]=Свободная программа для проявки цифровых негативов
 Comment[sv]=Läs, bearbeta och konvertera råbilder från digitalkameror
-Exec=env LIBOVERLAY_SCROLLBAR=0 rawstudio %F
+Exec=env LIBOVERLAY_SCROLLBAR=0 carastudio %F
 StartupNotify=true
-Icon=rawstudio
+StartupWMClass=carastudio
+Icon=carastudio
 MimeType=image/x-dcraw;
 

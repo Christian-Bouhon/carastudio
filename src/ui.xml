@@ -82,7 +82,6 @@
    <menuitem action="Split" />
    <menuitem action="Lightsout" />
    <menuitem action="LensDbEditor" />
-   <menuitem action="TetheredShooting" />
   </menu>
   <menu action="BatchMenu">
    <menuitem action="AddToBatch" />

@@ -155,7 +155,7 @@ jpeg_fail:
 #endif
 
 	try {
-		Image::AutoPtr img = ImageFactory::open(filename);
+		auto img = ImageFactory::open(filename);
 		img->readMetadata();
 		ExifData &exifData = img->exifData();
 		*gamma_guess = 2.2f;
@@ -173,13 +173,13 @@ jpeg_fail:
 			ExifData::const_iterator i;
 			i = exifData.findKey(ExifKey("Exif.Image.BitsPerSample"));
 			if (i != exifData.end())
-				if (i->toLong() == 16)
+				if (i->value().toUint32() == 16)
 					*gamma_guess = 1.0f;
 			
 			i = exifData.findKey(ExifKey("Exif.Photo.ColorSpace"));
 			if (i != exifData.end())
 			{
-				if (i->toLong() == 1)
+				if (i->value().toUint32() == 1)
 					return rs_color_space_new_singleton("RSSrgb");
 			}
 
@@ -188,10 +188,10 @@ jpeg_fail:
 			if (i != exifData.end())
 			{
 				DataBuf buf(i->size());
-				i->copy(buf.pData_, Exiv2::invalidByteOrder);
-				if (buf.pData_ && buf.size_)
+				i->copy(buf.data(), Exiv2::invalidByteOrder);
+				if (buf.data() && buf.size())
 				{
-					RSIccProfile *icc = rs_icc_profile_new_from_memory((gchar*)buf.pData_, buf.size_, TRUE);
+					RSIccProfile *icc = rs_icc_profile_new_from_memory((gchar*)buf.data(), buf.size(), TRUE);
 					return rs_color_space_icc_new_from_icc(icc);
 				}
 			}

@@ -19,6 +19,7 @@
 
 #include <rawstudio.h>
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include "config.h"
 
 static GHashTable *lens_fix_hash_table;

@@ -64,6 +64,8 @@ typedef struct {
 	RSPreviewWidget *preview;
 	RSColorSpace *display_color_space;
 
+	GdkPixbuf *cached_pixbuf;
+
 } RSNavigator;
 
 typedef struct {

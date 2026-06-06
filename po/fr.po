@@ -251,7 +251,7 @@ msgstr "(Sélectionnez le profile de colorimétrie)"
 #. @TRANSLATORS: "Expos" is short version of "Exposure". You cannot use more than 5 characters for this!
 #: librawstudio/rs-settings.c:80
 msgid "Expos"
-msgstr "Expos"
+msgstr "Exposition"
 
 #: librawstudio/rs-settings.c:80
 msgid "Exposure Compensation"
@@ -260,7 +260,7 @@ msgstr "Compensation d'exposition"
 #. @TRANSLATORS: "Satur" is short version of "Saturation". You cannot use more than 5 characters for this!
 #: librawstudio/rs-settings.c:86
 msgid "Satur"
-msgstr "Satur"
+msgstr "Saturation"
 
 #: librawstudio/rs-settings.c:86 src/rs-actions.c:465
 msgid "Saturation"
@@ -278,7 +278,7 @@ msgstr "Décalage de couleur"
 #. @TRANSLATORS: "Contr" is short version of "Contrast". You cannot use more than 5 characters for this!
 #: librawstudio/rs-settings.c:98
 msgid "Contr"
-msgstr "Contr"
+msgstr "Contraste"
 
 #: librawstudio/rs-settings.c:98 src/rs-actions.c:467
 msgid "Contrast"
@@ -287,7 +287,7 @@ msgstr "Contraste"
 #. @TRANSLATORS: "Temp" is short version of "Temperature". You cannot use more than 5 characters for this!
 #: librawstudio/rs-settings.c:104 librawstudio/rs-settings.c:116
 msgid "Temp"
-msgstr "Temp"
+msgstr "Température"
 
 #: librawstudio/rs-settings.c:104 librawstudio/rs-settings.c:116
 msgid "Temperature"
@@ -318,7 +318,7 @@ msgstr "Force du filtre de netteté"
 #. @TRANSLATORS: "Denoi" is short version of "Denoise". You cannot use more than 5 characters for this!
 #: librawstudio/rs-settings.c:139
 msgid "Denoi"
-msgstr "AntiBruit"
+msgstr "Anti-bruit"
 
 #: librawstudio/rs-settings.c:139
 msgid "Light Denoising"
@@ -327,7 +327,7 @@ msgstr "Filtre antibruit de luminosité"
 #. @TRANSLATORS: "ColDn" is short version of "Colour Denoise". You cannot use more than 5 characters for this!
 #: librawstudio/rs-settings.c:145
 msgid "ColDn"
-msgstr "AntiBruitClr"
+msgstr "Anti-bruit coul."
 
 #: librawstudio/rs-settings.c:145
 msgid "Colour Denoising"

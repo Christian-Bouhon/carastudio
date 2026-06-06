@@ -1220,6 +1220,7 @@ gui_window_make(RS_BLOB *rs)
 	}
 
 	rs_window_set_title(NULL);
+	gtk_window_set_icon_name(rawstudio_window, "carastudio");
 	g_signal_connect((gpointer) rawstudio_window, "delete_event", G_CALLBACK(gui_window_delete), NULL);
 	g_signal_connect((gpointer) rawstudio_window, "key_press_event", G_CALLBACK(window_key_press_event), NULL);
 
@@ -1408,20 +1409,33 @@ snapshot_changed(RSToolbox *toolbox, gint snapshot, RS_BLOB *rs)
 void
 rs_window_set_title(const char *str)
 {
-	GString * window_title;
 	gboolean client_mode;
 	rs_conf_get_boolean("client-mode", &client_mode);
 	if (client_mode)
-		window_title = g_string_new(_("Rawstudio Client Mode"));
+		gtk_window_set_title(GTK_WINDOW(rawstudio_window), _("CaraStudio — Client Mode"));
 	else
-		window_title = g_string_new(_("Rawstudio"));
-	if (str)
-	{
-		window_title = g_string_append(window_title, " - ");
-		window_title = g_string_append(window_title, str);
-	}
-	gtk_window_set_title(GTK_WINDOW(rawstudio_window), window_title->str);
-	g_string_free(window_title, TRUE);	
+		gtk_window_set_title(GTK_WINDOW(rawstudio_window), _("CaraStudio — Powered by Carafife"));
+}
+
+/* CaraStudio: callbacks pour les boutons de zoom variable */
+static void
+cs_zoom_in(GtkButton *button, gpointer user_data)
+{
+	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
+	rs_preview_widget_set_zoom(preview, rs_preview_widget_get_zoom(preview) * 1.25);
+}
+
+static void
+cs_zoom_out(GtkButton *button, gpointer user_data)
+{
+	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
+	rs_preview_widget_set_zoom(preview, rs_preview_widget_get_zoom(preview) * 0.8);
+}
+
+static void
+cs_zoom_100(GtkButton *button, gpointer user_data)
+{
+	rs_preview_widget_set_zoom(RS_PREVIEW_WIDGET(user_data), 1.0);
 }
 
 int
@@ -1559,6 +1573,40 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	gtk_container_add (GTK_CONTAINER (rs->window), vbox);
 
 	gtk_box_pack_start (GTK_BOX (vbox), menubar, FALSE, TRUE, 0);
+
+	/* CaraStudio : barre de boutons d'affichage (toggle des panneaux) */
+	{
+		GtkWidget *view_toolbar = gtk_hbox_new(FALSE, 2);
+		GtkWidget *btn_iconbox = gtk_button_new_with_label(_("Bande d'images"));
+		GtkWidget *btn_toolbox = gtk_button_new_with_label(_("Panneau d'outils"));
+		GtkWidget *btn_fullscreen = gtk_button_new_with_label(_("Plein écran"));
+		gtk_widget_set_tooltip_text(btn_iconbox, _("Afficher/masquer la bande d'images (Ctrl+I)"));
+		gtk_widget_set_tooltip_text(btn_toolbox, _("Afficher/masquer le panneau d'outils (Ctrl+T)"));
+		gtk_widget_set_tooltip_text(btn_fullscreen, _("Plein écran (F11)"));
+		g_signal_connect_swapped(btn_iconbox, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Iconbox");
+		g_signal_connect_swapped(btn_toolbox, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Toolbox");
+		g_signal_connect_swapped(btn_fullscreen, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Fullscreen");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_iconbox, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_toolbox, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_fullscreen, FALSE, FALSE, 0);
+
+		/* Separateur + boutons de zoom variable (CaraStudio) */
+		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
+		GtkWidget *btn_zoom_out = gtk_button_new_with_label(_("Zoom -"));
+		GtkWidget *btn_zoom_100 = gtk_button_new_with_label(_("100%"));
+		GtkWidget *btn_zoom_in = gtk_button_new_with_label(_("Zoom +"));
+		gtk_widget_set_tooltip_text(btn_zoom_out, _("Dezoomer"));
+		gtk_widget_set_tooltip_text(btn_zoom_100, _("Zoom 100% (taille reelle)"));
+		gtk_widget_set_tooltip_text(btn_zoom_in, _("Zoomer"));
+		g_signal_connect(btn_zoom_out, "clicked", G_CALLBACK(cs_zoom_out), rs->preview);
+		g_signal_connect(btn_zoom_100, "clicked", G_CALLBACK(cs_zoom_100), rs->preview);
+		g_signal_connect(btn_zoom_in, "clicked", G_CALLBACK(cs_zoom_in), rs->preview);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_out, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_100, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_in, FALSE, FALSE, 0);
+
+		gtk_box_pack_start(GTK_BOX(vbox), view_toolbar, FALSE, TRUE, 0);
+	}
     
     rs_conf_get_boolean("client-mode", &client_mode);
     if (!client_mode)
@@ -1660,7 +1708,7 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 
 	}
 	/* Construct this to load dcp profiles early */
-	rs_window_set_title(_("Rawstudio: Loading Color Profiles"));
+	rs_window_set_title(_("CaraStudio: Loading Color Profiles"));
 	GUI_CATCHUP();
 	rs_profile_factory_new_default();
 

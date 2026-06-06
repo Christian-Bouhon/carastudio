@@ -1,5 +1,5 @@
 icondir = $(datadir)/icons
-icon_DATA = rawstudio.png
+icon_DATA = rawstudio.png carastudio.png
 
 rawstudiodir = $(datadir)/pixmaps/rawstudio
 rawstudio_DATA = 	overlay_deleted.png \

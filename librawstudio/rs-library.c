@@ -55,12 +55,13 @@
 */
 
 #include "rs-library.h"
-#include "conf_interface.h"
 #include "config.h"
 #include "gettext.h"
 #include "rs-debug.h"
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
+#include <libxml/parser.h>
 #include <sqlite3.h>
 
 #define LIBRARY_VERSION 2

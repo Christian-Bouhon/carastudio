@@ -448,8 +448,7 @@ static void row_clicked (GtkTreeView *tree_view, GtkTreePath *path, GtkTreeViewC
 
 	g_free(lens_search);
 
-	gtk_menu_popup (GTK_MENU (data->LensMenu), NULL, NULL, NULL, NULL,
-			0, gtk_get_current_event_time ());
+	gtk_menu_popup_at_pointer(GTK_MENU(data->LensMenu), NULL);
 }
 
 static gboolean
@@ -603,7 +602,7 @@ rs_lens_db_editor(void)
 	fill_model(lens_db, tree_model);
 
 	GtkWidget *editor = gtk_dialog_new();
-	gtk_window_set_title(GTK_WINDOW(editor), _("Rawstudio Lens Library"));
+	gtk_window_set_title(GTK_WINDOW(editor), _("CaraStudio Lens Library"));
 	g_signal_connect_swapped(editor, "delete_event",
 				 G_CALLBACK (gtk_widget_destroy), editor);
 	g_signal_connect_swapped(editor, "response",
@@ -825,8 +824,7 @@ static void set_lens (GtkButton *button, SingleLensData *single_lens_data)
 
 	g_free(lens_search);
 
-	gtk_menu_popup (GTK_MENU (data->LensMenu), NULL, NULL, NULL, NULL,
-			0, gtk_get_current_event_time ());
+	gtk_menu_popup_at_pointer(GTK_MENU(data->LensMenu), NULL);
 }
 
 static void
@@ -884,7 +882,7 @@ rs_lens_db_editor_single_lens(RSLens *lens)
 		     NULL);
 	
 	GtkWidget *editor = gtk_dialog_new();
-	gtk_window_set_title(GTK_WINDOW(editor), _("Rawstudio Lens Editor"));
+	gtk_window_set_title(GTK_WINDOW(editor), _("CaraStudio Lens Editor"));
 	g_signal_connect_swapped(editor, "delete_event",
 				 G_CALLBACK (gtk_widget_destroy), editor);
 	g_signal_connect_swapped(editor, "response",

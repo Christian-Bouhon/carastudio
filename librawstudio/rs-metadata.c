@@ -21,7 +21,16 @@
 #include <glib/gstdio.h> /* g_unlink() */
 #include <config.h>
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
+
+/* CaraStudio: écriture XML locale-safe */
+#define RS_XML_WRITE_FLOAT(writer, name, val) do { \
+	gchar _b[G_ASCII_DTOSTR_BUF_SIZE]; \
+	xmlTextWriterWriteElement(writer, BAD_CAST name, \
+		BAD_CAST g_ascii_dtostr(_b, sizeof(_b), (gdouble)(val))); \
+} while(0)
+#include <libxml/parser.h>
 #include "gettext.h"
 
 G_DEFINE_TYPE (RSMetadata, rs_metadata, G_TYPE_OBJECT)
@@ -156,33 +165,43 @@ rs_metadata_cache_save(RSMetadata *metadata, const gchar *filename)
 		/* Can we make orientation conditional? */
 		xmlTextWriterWriteFormatElement(writer, BAD_CAST "orientation", "%u", metadata->orientation);
 		if (metadata->aperture > -1.0)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "aperture", "%f", metadata->aperture);
+			RS_XML_WRITE_FLOAT(writer, "aperture", metadata->aperture);
 		if (metadata->exposurebias != -999.0)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "exposurebias", "%f", metadata->exposurebias);
+			RS_XML_WRITE_FLOAT(writer, "exposurebias", metadata->exposurebias);
 		if (metadata->iso > 0)
 			xmlTextWriterWriteFormatElement(writer, BAD_CAST "iso", "%u", metadata->iso);
 		if (metadata->shutterspeed > -1.0)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "shutterspeed", "%f", metadata->shutterspeed);
+			RS_XML_WRITE_FLOAT(writer, "shutterspeed", metadata->shutterspeed);
 		if (metadata->cam_mul[0] > 0.0)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "cam_mul", "%f %f %f %f", metadata->cam_mul[0], metadata->cam_mul[1], metadata->cam_mul[2], metadata->cam_mul[3]);
+		{
+			gchar b0[G_ASCII_DTOSTR_BUF_SIZE], b1[G_ASCII_DTOSTR_BUF_SIZE];
+			gchar b2[G_ASCII_DTOSTR_BUF_SIZE], b3[G_ASCII_DTOSTR_BUF_SIZE];
+			gchar *mul_str = g_strdup_printf("%s %s %s %s",
+				g_ascii_dtostr(b0, sizeof(b0), metadata->cam_mul[0]),
+				g_ascii_dtostr(b1, sizeof(b1), metadata->cam_mul[1]),
+				g_ascii_dtostr(b2, sizeof(b2), metadata->cam_mul[2]),
+				g_ascii_dtostr(b3, sizeof(b3), metadata->cam_mul[3]));
+			xmlTextWriterWriteElement(writer, BAD_CAST "cam_mul", BAD_CAST mul_str);
+			g_free(mul_str);
+		}
 		if (metadata->contrast > -1.0)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "contrast", "%f", metadata->contrast);
+			RS_XML_WRITE_FLOAT(writer, "contrast", metadata->contrast);
 		if (metadata->saturation > -1.0)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "saturation", "%f", metadata->saturation);
+			RS_XML_WRITE_FLOAT(writer, "saturation", metadata->saturation);
 		if (metadata->color_tone > -1.0)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "color_tone", "%f", metadata->color_tone);
+			RS_XML_WRITE_FLOAT(writer, "color_tone", metadata->color_tone);
 		if (metadata->focallength > 0)
 			xmlTextWriterWriteFormatElement(writer, BAD_CAST "focallength", "%d", metadata->focallength);
 		if (metadata->lens_id > -1.0)
 			xmlTextWriterWriteFormatElement(writer, BAD_CAST "lens_id", "%d", metadata->lens_id);
 		if (metadata->lens_min_focal > -1)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "lens_min_focal", "%f", metadata->lens_min_focal);
+			RS_XML_WRITE_FLOAT(writer, "lens_min_focal", metadata->lens_min_focal);
 		if (metadata->lens_max_focal > -1.0)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "lens_max_focal", "%f", metadata->lens_max_focal);
+			RS_XML_WRITE_FLOAT(writer, "lens_max_focal", metadata->lens_max_focal);
 		if (metadata->lens_min_aperture > -1.0)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "lens_min_aperture", "%f", metadata->lens_min_aperture);
+			RS_XML_WRITE_FLOAT(writer, "lens_min_aperture", metadata->lens_min_aperture);
 		if (metadata->lens_max_aperture > -1.0)
-			xmlTextWriterWriteFormatElement(writer, BAD_CAST "lens_max_aperture", "%f", metadata->lens_max_aperture);
+			RS_XML_WRITE_FLOAT(writer, "lens_max_aperture", metadata->lens_max_aperture);
 		if (metadata->fixed_lens_identifier)
 			xmlTextWriterWriteFormatElement(writer, BAD_CAST "fixed_lens_identifier", "%s", metadata->fixed_lens_identifier);
 		xmlTextWriterEndDocument(writer);
@@ -356,25 +375,25 @@ rs_metadata_cache_load(RSMetadata *metadata, const gchar *filename)
 			else if ((!xmlStrcmp(cur->name, BAD_CAST "lens_min_focal")))
 			{
 				val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
-				metadata->lens_min_focal = atof((gchar *) val);
+				metadata->lens_min_focal = rs_atof((gchar *) val);
 				xmlFree(val);
 			}
 			else if ((!xmlStrcmp(cur->name, BAD_CAST "lens_max_focal")))
 			{
 				val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
-				metadata->lens_max_focal = atof((gchar *) val);
+				metadata->lens_max_focal = rs_atof((gchar *) val);
 				xmlFree(val);
 			}
 			else if ((!xmlStrcmp(cur->name, BAD_CAST "lens_min_aperture")))
 			{
 				val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
-				metadata->lens_min_aperture = atof((gchar *) val);
+				metadata->lens_min_aperture = rs_atof((gchar *) val);
 				xmlFree(val);
 			}
 			else if ((!xmlStrcmp(cur->name, BAD_CAST "lens_max_aperture")))
 			{
 				val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
-				metadata->lens_max_aperture = atof((gchar *) val);
+				metadata->lens_max_aperture = rs_atof((gchar *) val);
 				xmlFree(val);
 			}
 			else if ((!xmlStrcmp(cur->name, BAD_CAST "fixed_lens_identifier")))

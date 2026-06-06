@@ -20,7 +20,6 @@
 #include <rawstudio.h>
 #include <gtk/gtk.h>
 #include <config.h>
-#include <gconf/gconf-client.h>
 #include "gettext.h"
 #include "rs-toolbox.h"
 #include "gtk-interface.h"
@@ -97,8 +96,6 @@ struct _RSToolbox {
 	rs_profile_camera last_camera;
 
 	guint histogram_connection; /* Got GConf notification */
-	GConfClient *gconf;
-
 	gboolean mute_from_sliders;
 	gboolean mute_from_photo;
 };
@@ -114,7 +111,6 @@ static guint signals[LAST_SIGNAL] = { 0 };
 static void dcp_profile_selected(RSProfileSelector *selector, RSDcpFile *dcp, RSToolbox *toolbox);
 static void icc_profile_selected(RSProfileSelector *selector, RSIccProfile *icc, RSToolbox *toolbox);
 static void add_profile_selected(RSProfileSelector *selector, RSToolbox *toolbox);
-static void conf_histogram_height_changed(GConfClient *client, guint cnxn_id, GConfEntry *entry, gpointer user_data);
 static void notebook_switch_page(GtkNotebook *notebook, gpointer page, guint page_num, RSToolbox *toolbox);
 static void basic_range_value_changed(GtkRange *range, gpointer user_data);
 static gboolean basic_range_reset(GtkWidget *widget, GdkEventButton *event, gpointer user_data);
@@ -134,9 +130,6 @@ static void
 rs_toolbox_finalize (GObject *object)
 {
 	RSToolbox *toolbox = RS_TOOLBOX(object);
-
-	gconf_client_notify_remove(toolbox->gconf, toolbox->histogram_connection);
-	g_object_unref(toolbox->gconf);
 
 	g_free(toolbox->last_camera.make);
 	g_free(toolbox->last_camera.model);
@@ -189,9 +182,6 @@ rs_toolbox_init (RSToolbox *self)
 	gtk_scrolled_window_set_hadjustment(scrolled_window, NULL);
 	gtk_scrolled_window_set_vadjustment(scrolled_window, NULL);
 
-	/* Get a GConfClient */
-	self->gconf = gconf_client_get_default();
-
 	/* Snapshot labels */
 	label[0] = gtk_label_new(_(" A "));
 	label[1] = gtk_label_new(_(" B "));
@@ -216,9 +206,6 @@ rs_toolbox_init (RSToolbox *self)
 		height = 70;
 	gtk_widget_set_size_request(self->histogram, 64, height); /* FIXME: Get height from gconf */
 	gtk_box_pack_start(self->toolbox, gui_box(_("Histogram"), self->histogram, "show_histogram", TRUE), FALSE, FALSE, 0);
-
-	/* Watch out for gconf-changes */
-	self->histogram_connection = gconf_client_notify_add(self->gconf, "/apps/" PACKAGE "/histogram_height", conf_histogram_height_changed, self, NULL, NULL);
 
 	/* Pack everything nice with scrollers */
 	viewport = gtk_viewport_new (gtk_scrolled_window_get_hadjustment (scrolled_window),
@@ -251,19 +238,6 @@ static void
 add_profile_selected(RSProfileSelector *selector, RSToolbox *toolbox)
 {
 	rs_core_action_group_activate("AddProfile");
-}
-
-static void
-conf_histogram_height_changed(GConfClient *client, guint cnxn_id, GConfEntry *entry, gpointer user_data)
-{
-	RSToolbox *toolbox = RS_TOOLBOX(user_data);
-
-	if (entry->value)
-	{
-		gint height = gconf_value_get_int(entry->value);
-		height = CLAMP(height, 30, 500);
-		gtk_widget_set_size_request(toolbox->histogram, 64, height);
-	}
 }
 
 static void
@@ -467,7 +441,8 @@ basic_slider(RSToolbox *toolbox, const gint snapshot, GtkTable *table, const gin
 	g_signal_connect(event, "enter-notify-event", G_CALLBACK(value_enterleaveclick), NULL);
 	g_signal_connect(event, "leave-notify-event", G_CALLBACK(value_enterleaveclick), NULL);
 
-	gtk_table_attach(table, label,      0, 1, row, row+1, GTK_SHRINK|GTK_FILL, GTK_SHRINK, 0, 0);
+	gtk_widget_set_halign(label, GTK_ALIGN_END);
+	gtk_table_attach(table, label,      0, 1, row, row+1, GTK_FILL, GTK_SHRINK, 4, 0);
 	gtk_table_attach(table, seperator1, 1, 2, row, row+1, GTK_SHRINK,          GTK_FILL, 0, 0);
 	gtk_table_attach(table, scale,      2, 3, row, row+1, GTK_EXPAND|GTK_FILL, GTK_SHRINK, 0, 0);
 	gtk_table_attach(table, seperator2, 3, 4, row, row+1, GTK_SHRINK,          GTK_FILL, 0, 0);
@@ -703,7 +678,7 @@ curve_context_callback(GtkWidget *widget, gpointer user_data)
 	gtk_widget_show (i);
 	gtk_menu_attach (GTK_MENU (menu), i, 0, 1, n, n+1); n++;
 	g_signal_connect (i, "activate", G_CALLBACK (curve_context_callback_white_black_point), widget);
-	gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, 0, GDK_CURRENT_TIME);
+	gtk_menu_popup_at_pointer(GTK_MENU(menu), NULL);
 }
 
 static GtkWidget*

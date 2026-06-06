@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([rawstudio],[2.1])
+AC_INIT([carastudio],[2.1])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_HEADERS(config.h)
 AM_MAINTAINER_MODE
@@ -88,9 +88,6 @@ PKG_CHECK_MODULES(PACKAGE, [$pkg_modules])
 AC_SUBST(PACKAGE_CFLAGS)
 AC_SUBST(PACKAGE_LIBS)
 
-PKG_CHECK_MODULES(GCONF, [gconf-2.0 >= 2.0])
-AC_SUBST(GCONF_CFLAGS)
-AC_SUBST(GCONF_LIBS)
 
 PKG_CHECK_MODULES(SQLITE3, [sqlite3])
 AC_SUBST(SQLITE3_CFLAGS)
@@ -112,6 +109,10 @@ PKG_CHECK_MODULES(EXIV2, [exiv2])
 AC_SUBST(EXIV2_CFLAGS)
 AC_SUBST(EXIV2_LIBS)
 
+PKG_CHECK_MODULES(LIBRAW, [libraw >= 0.20])
+AC_SUBST(LIBRAW_CFLAGS)
+AC_SUBST(LIBRAW_LIBS)
+
 PKG_CHECK_MODULES(FFTW3F, [fftw3f])
 AC_SUBST(FFTW3F_CFLAGS)
 AC_SUBST(FFTW3F_LIBS)
@@ -120,7 +121,7 @@ PKG_CHECK_MODULES(DBUS, [dbus-1])
 AC_SUBST(DBUS_CFLAGS)
 AC_SUBST(DBUS_LIBS)
 
-GETTEXT_PACKAGE=rawstudio
+GETTEXT_PACKAGE=carastudio
 AC_SUBST(GETTEXT_PACKAGE)
 AC_DEFINE_UNQUOTED(GETTEXT_PACKAGE,"$GETTEXT_PACKAGE", [Gettext package.])
 
@@ -148,7 +149,7 @@ RAWSTUDIO_VERSION="${VERSION}${SRCINFO}"
 AC_DEFINE_UNQUOTED([RAWSTUDIO_VERSION], ["$RAWSTUDIO_VERSION"], ["Public revision"])
 
 
-RAWSTUDIO_PLUGINS_LIBS_DIR="$libdir/rawstudio/plugins"
+RAWSTUDIO_PLUGINS_LIBS_DIR="$libdir/carastudio/plugins"
 AC_SUBST(RAWSTUDIO_PLUGINS_LIBS_DIR)
 
 AC_CONFIG_FILES([
@@ -171,6 +172,7 @@ plugins/input-file/Makefile
 plugins/input-image16/Makefile
 plugins/lensfun/Makefile
 plugins/load-gdk/Makefile
+plugins/load-libraw/Makefile
 plugins/load-png/Makefile
 plugins/load-rawspeed/Makefile
 plugins/meta-ciff/Makefile

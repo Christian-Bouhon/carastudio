@@ -23,7 +23,9 @@
 #include <gtk/gtk.h>
 #include <config.h>
 #include <libxml/encoding.h>
+#include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
+#include <libxml/parser.h>
 #include "application.h"
 #include "rs-batch.h"
 #include "conf_interface.h"
