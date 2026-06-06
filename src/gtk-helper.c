@@ -558,7 +558,7 @@ gui_button_new_from_stock_with_label(const gchar *stock_id, const gchar *label)
 	g_assert(stock_id);
 	g_assert(label);
 
-	stock = gtk_image_new_from_stock(stock_id, GTK_ICON_SIZE_BUTTON);
+	stock = gtk_image_new_from_icon_name(stock_id, GTK_ICON_SIZE_BUTTON);
 	button = gtk_button_new_with_label(label);
 	gtk_button_set_image(GTK_BUTTON(button), stock);
 

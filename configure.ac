@@ -166,6 +166,7 @@ plugins/crop/Makefile
 plugins/dcp/Makefile
 plugins/demosaic/Makefile
 plugins/denoise/Makefile
+plugins/effects/Makefile
 plugins/exposure-mask/Makefile
 plugins/fuji-rotate/Makefile
 plugins/input-file/Makefile

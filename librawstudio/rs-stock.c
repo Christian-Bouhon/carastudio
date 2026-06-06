@@ -1,5 +1,5 @@
 /*
- * * Copyright (C) 2006-2011 Anders Brander <anders@brander.dk>, 
+ * * Copyright (C) 2006-2011 Anders Brander <anders@brander.dk>,
  * * Anders Kvist <akv@lnxbx.dk> and Klaus Post <klauspost@gmail.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -20,18 +20,6 @@
 #include <rawstudio.h>
 #include <config.h>
 
-static GtkIconFactory *rs_icon_factory = NULL;
-
-static GtkStockItem rs_stock_items[] = {
-	{ RS_STOCK_CROP, NULL, 0, 0, NULL },
-	{ RS_STOCK_ROTATE, NULL, 0, 0, NULL },
-	{ RS_STOCK_COLOR_PICKER, NULL, 0, 0, NULL },
-	{ RS_STOCK_ROTATE_CLOCKWISE, NULL, 0, 0, NULL },
-	{ RS_STOCK_ROTATE_COUNTER_CLOCKWISE, NULL, 0, 0, NULL },
-	{ RS_STOCK_FLIP, NULL, 0, 0, NULL },
-	{ RS_STOCK_MIRROR, NULL, 0, 0, NULL },
-};
-
 typedef struct _RSCursorItem RSCursorItem;
 
 struct _RSCursorItem {
@@ -46,54 +34,51 @@ static RSCursorItem rs_cursor_items[] = {
 };
 
 static void
-add_stock_icon (const gchar  *stock_id, const GdkPixbuf *pixbuf)
+icon_theme_append_path(GtkIconTheme *theme, const gchar *new_path)
 {
-	GtkIconSource *source;
-	GtkIconSet    *set;
+	gchar **paths = NULL;
+	gint n = 0;
+	gchar **extended;
+	gint i;
 
-	source = gtk_icon_source_new ();
+	gtk_icon_theme_get_search_path(theme, &paths, &n);
 
-	gtk_icon_source_set_size (source, GTK_ICON_SIZE_SMALL_TOOLBAR);
-	gtk_icon_source_set_size_wildcarded (source, TRUE);
+	extended = g_new(gchar *, n + 2);
+	for (i = 0; i < n; i++)
+		extended[i] = paths[i];
+	extended[n]     = (gchar *) new_path;
+	extended[n + 1] = NULL;
 
-	gtk_icon_source_set_pixbuf (source, GDK_PIXBUF(pixbuf));
-	g_object_unref (GDK_PIXBUF(pixbuf));
+	gtk_icon_theme_set_search_path(theme, (const gchar **) extended, n + 1);
 
-	set = gtk_icon_set_new ();
-
-	gtk_icon_set_add_source (set, source);
-	gtk_icon_source_free (source);
-
-	gtk_icon_factory_add (rs_icon_factory, stock_id, set);
-
-	gtk_icon_set_unref (set);
+	g_free(extended);
+	if (paths)
+		g_strfreev(paths);
 }
 
 void
 rs_stock_init(void)
 {
-	rs_icon_factory = gtk_icon_factory_new ();
+	GtkIconTheme *theme = gtk_icon_theme_get_default();
 
-	add_stock_icon (RS_STOCK_CROP, gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "tool-crop.png", NULL));
-	add_stock_icon (RS_STOCK_ROTATE, gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "tool-rotate.png", NULL));
-	add_stock_icon (RS_STOCK_COLOR_PICKER, gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "tool-color-picker.png", NULL));
-	add_stock_icon (RS_STOCK_ROTATE_CLOCKWISE, gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "transform_90.png", NULL));
-	add_stock_icon (RS_STOCK_ROTATE_COUNTER_CLOCKWISE, gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "transform_270.png", NULL));
-	add_stock_icon (RS_STOCK_FLIP, gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "transform_flip.png", NULL));
-	add_stock_icon (RS_STOCK_MIRROR, gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "transform_mirror.png", NULL));
+	/* Installed path: $(datadir)/carastudio/icons */
+	icon_theme_append_path(theme,
+		PACKAGE_DATA_DIR G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "icons");
 
-	gtk_icon_factory_add_default (rs_icon_factory);
-
-	gtk_stock_add_static (rs_stock_items, G_N_ELEMENTS (rs_stock_items));
+	/* Dev path: running from source tree without install */
+	if (g_file_test("data/icons", G_FILE_TEST_IS_DIR))
+		icon_theme_append_path(theme, "data/icons");
 }
 
-GdkCursor* 
+GdkCursor*
 rs_cursor_new(GdkDisplay *display, RSCursorType cursor_type)
 {
 	RSCursorItem *cursor = &rs_cursor_items[cursor_type];
 	GdkPixbuf *pixbuf = NULL;
 
-	pixbuf = gdk_pixbuf_new_from_file(g_build_filename (PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE, cursor->filename, NULL), NULL);
+	pixbuf = gdk_pixbuf_new_from_file(g_build_filename(
+		PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE,
+		cursor->filename, NULL), NULL);
 
-	return gdk_cursor_new_from_pixbuf(display, pixbuf, cursor->x_hot,cursor->y_hot);
+	return gdk_cursor_new_from_pixbuf(display, pixbuf, cursor->x_hot, cursor->y_hot);
 }

@@ -84,6 +84,13 @@ const static BasicSettings artvignette[] = {
 };
 #define NARTVIGNETTE (3)
 
+const static BasicSettings bw_channels[] = {
+	{ "bw-red",   1.0, MASK_BW_RED   },
+	{ "bw-green", 1.0, MASK_BW_GREEN },
+	{ "bw-blue",  1.0, MASK_BW_BLUE  },
+};
+#define NBW (3)
+
 struct _RSToolbox {
 	GtkScrolledWindow parent;
 
@@ -96,6 +103,8 @@ struct _RSToolbox {
 	GtkRange *lens[3][NLENS];
 	GtkRange *softlight[3][NSOFTLIGHT];
 	GtkRange *artvignette[3][NARTVIGNETTE];
+	GtkRange *bw[3][NBW];
+	GtkWidget *bw_enable[3];
 	GtkWidget *lenslabel[3];
 	GtkWidget *lensbutton[3];
 	RSLens *rs_lens;
@@ -215,12 +224,11 @@ rs_toolbox_init (RSToolbox *self)
 	self->transforms = new_transform(self, TRUE);
 	gtk_box_pack_start(self->toolbox, self->transforms, FALSE, FALSE, 0);
 
-	/* Histogram */
+	/* Histogram — créé ici, mais affiché en haut de la colonne droite (gtk-interface.c) */
 	self->histogram = rs_histogram_new();
 	if (!rs_conf_get_integer(CONF_HISTHEIGHT, &height))
-		height = 70;
-	gtk_widget_set_size_request(self->histogram, 64, height); /* FIXME: Get height from gconf */
-	gtk_box_pack_start(self->toolbox, gui_box(_("Histogram"), self->histogram, "show_histogram", TRUE), FALSE, FALSE, 0);
+		height = 150;
+	gtk_widget_set_size_request(self->histogram, 64, height);
 
 	/* Pack everything nice with scrollers */
 	viewport = gtk_viewport_new (gtk_scrolled_window_get_hadjustment (scrolled_window),
@@ -785,6 +793,66 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 /* Onglet Effets artistiques : un sous-onglet A/B/C par snapshot       */
 /* ------------------------------------------------------------------ */
 
+/* Callback : activation/désactivation du mode N&B */
+static void
+bw_enable_toggled(GtkToggleButton *btn, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (!toolbox->photo || toolbox->mute_from_sliders) return;
+	gint snapshot = toolbox->selected_snapshot;
+	toolbox->mute_from_photo = TRUE;
+	g_object_set(toolbox->photo->settings[snapshot],
+		"bw-enabled", gtk_toggle_button_get_active(btn), NULL);
+	toolbox->mute_from_photo = FALSE;
+}
+
+/* Callback : mode (film) sélectionné */
+static void
+bw_preset_changed(GtkComboBox *combo, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (!toolbox->photo || toolbox->mute_from_sliders) return;
+	gint snapshot = toolbox->selected_snapshot;
+	gint idx = gtk_combo_box_get_active(combo);
+
+	/* R, Orange, Jaune, G, Cyan, B, Violet — valeur neutre = 33 */
+	static const gfloat presets[][7] = {
+		/*  R      O      Y      G      C      B      V   */
+		{ 33.0f, 33.0f, 33.0f, 33.0f, 33.0f, 33.0f, 33.0f }, /* 0 Naturel             */
+		{ 43.0f, 38.0f, 35.0f, 30.0f, 28.0f, 28.0f, 40.0f }, /* 1 Panchromatique      */
+		{ 55.0f, 48.0f, 40.0f, 22.0f, 18.0f, 20.0f, 50.0f }, /* 2 Hyperpanchromatique */
+		{  0.0f,  8.0f, 30.0f, 55.0f, 48.0f, 38.0f,  5.0f }, /* 3 Orthochromatique    */
+	};
+	if (idx < 0 || idx >= (gint)G_N_ELEMENTS(presets)) return;
+
+	toolbox->mute_from_photo = TRUE;
+	g_object_set(toolbox->photo->settings[snapshot],
+		"bw-red",    presets[idx][0],
+		"bw-orange", presets[idx][1],
+		"bw-yellow", presets[idx][2],
+		"bw-green",  presets[idx][3],
+		"bw-cyan",   presets[idx][4],
+		"bw-blue",   presets[idx][5],
+		"bw-violet", presets[idx][6],
+		NULL);
+	toolbox->mute_from_photo = FALSE;
+}
+
+/* Callback : filtre coloré sélectionné */
+static void
+bw_filter_changed(GtkComboBox *combo, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (!toolbox->photo || toolbox->mute_from_sliders) return;
+	gint snapshot = toolbox->selected_snapshot;
+	gint idx = gtk_combo_box_get_active(combo);
+	if (idx < 0) return;
+
+	toolbox->mute_from_photo = TRUE;
+	g_object_set(toolbox->photo->settings[snapshot], "bw-filter", idx, NULL);
+	toolbox->mute_from_photo = FALSE;
+}
+
 static GtkWidget *
 new_effects_page(RSToolbox *toolbox, const gint snapshot)
 {
@@ -800,6 +868,56 @@ new_effects_page(RSToolbox *toolbox, const gint snapshot)
 
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Soft Light"), GTK_WIDGET(softlighttable), "show_softlight", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Vignette"), GTK_WIDGET(artvignettetable), "show_artvignette", TRUE), FALSE, FALSE, 0);
+
+	/* Section Noir & Blanc */
+	GtkWidget *bw_vbox = gtk_vbox_new(FALSE, 2);
+
+	/* Ligne 1 : checkbox activer + combo modes de film */
+	GtkWidget *bw_top = gtk_hbox_new(FALSE, 6);
+	toolbox->bw_enable[snapshot] = gtk_check_button_new_with_label(_("Noir & Blanc"));
+	gtk_widget_set_sensitive(toolbox->bw_enable[snapshot], FALSE);
+	g_signal_connect(toolbox->bw_enable[snapshot], "toggled", G_CALLBACK(bw_enable_toggled), toolbox);
+
+	GtkWidget *bw_mode_combo = gtk_combo_box_text_new();
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_mode_combo), _("Naturel"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_mode_combo), _("Panchromatique"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_mode_combo), _("Hyperpanchromatique"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_mode_combo), _("Orthochromatique"));
+	gtk_combo_box_set_active(GTK_COMBO_BOX(bw_mode_combo), 0);
+	g_signal_connect(bw_mode_combo, "changed", G_CALLBACK(bw_preset_changed), toolbox);
+
+	gtk_box_pack_start(GTK_BOX(bw_top), toolbox->bw_enable[snapshot], FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(bw_top), bw_mode_combo, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(bw_vbox), bw_top, FALSE, FALSE, 0);
+
+	/* Ligne 2 : filtre coloré (combo séparé) */
+	GtkWidget *bw_filter_row = gtk_hbox_new(FALSE, 6);
+	GtkWidget *bw_filter_label = gtk_label_new(_("Filtre coloré :"));
+	gtk_widget_set_halign(bw_filter_label, GTK_ALIGN_END);
+	GtkWidget *bw_filter_combo = gtk_combo_box_text_new();
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_filter_combo), _("Aucun"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_filter_combo), _("Rouge"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_filter_combo), _("Rouge-Jaune"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_filter_combo), _("Jaune"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_filter_combo), _("Vert-Jaune"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_filter_combo), _("Vert"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_filter_combo), _("Bleu-Vert"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_filter_combo), _("Bleu"));
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(bw_filter_combo), _("Violet"));
+	gtk_combo_box_set_active(GTK_COMBO_BOX(bw_filter_combo), 0);
+	g_signal_connect(bw_filter_combo, "changed", G_CALLBACK(bw_filter_changed), toolbox);
+
+	gtk_box_pack_start(GTK_BOX(bw_filter_row), bw_filter_label, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(bw_filter_row), bw_filter_combo, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(bw_vbox), bw_filter_row, FALSE, FALSE, 4);
+
+	/* Curseurs canaux */
+	GtkTable *bwtable = GTK_TABLE(gtk_table_new(NBW, 5, FALSE));
+	for (row = 0; row < NBW; row++)
+		toolbox->bw[snapshot][row] = basic_slider(toolbox, snapshot, bwtable, row, &bw_channels[row]);
+	gtk_box_pack_start(GTK_BOX(bw_vbox), GTK_WIDGET(bwtable), FALSE, FALSE, 0);
+
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Noir &amp; Blanc"), bw_vbox, "show_bw", TRUE), FALSE, FALSE, 0);
 
 	return vbox;
 }
@@ -851,10 +969,10 @@ new_transform(RSToolbox *toolbox, gboolean show)
 	GtkWidget *rot270;
 
 	hbox = gtk_hbox_new(FALSE, 0);
-	flip = GTK_WIDGET(gtk_tool_button_new_from_stock(RS_STOCK_FLIP));
-	mirror = GTK_WIDGET(gtk_tool_button_new_from_stock(RS_STOCK_MIRROR));
-	rot90 = GTK_WIDGET(gtk_tool_button_new_from_stock(RS_STOCK_ROTATE_CLOCKWISE));
-	rot270 = GTK_WIDGET(gtk_tool_button_new_from_stock(RS_STOCK_ROTATE_COUNTER_CLOCKWISE));
+	flip   = GTK_WIDGET(gtk_tool_button_new(gtk_image_new_from_icon_name(RS_STOCK_FLIP,                     GTK_ICON_SIZE_SMALL_TOOLBAR), NULL));
+	mirror = GTK_WIDGET(gtk_tool_button_new(gtk_image_new_from_icon_name(RS_STOCK_MIRROR,                   GTK_ICON_SIZE_SMALL_TOOLBAR), NULL));
+	rot90  = GTK_WIDGET(gtk_tool_button_new(gtk_image_new_from_icon_name(RS_STOCK_ROTATE_CLOCKWISE,         GTK_ICON_SIZE_SMALL_TOOLBAR), NULL));
+	rot270 = GTK_WIDGET(gtk_tool_button_new(gtk_image_new_from_icon_name(RS_STOCK_ROTATE_COUNTER_CLOCKWISE, GTK_ICON_SIZE_SMALL_TOOLBAR), NULL));
 
 	gtk_widget_set_tooltip_text(flip, _("Flip the photo over the x-axis"));
 	gtk_widget_set_tooltip_text(mirror, _("Mirror the photo over the y-axis"));
@@ -987,6 +1105,11 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 		{
 			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->artvignette[snapshot][i]), FALSE);
 		}
+		for(i=0;i<NBW;i++)
+			if (toolbox->bw[snapshot][i])
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->bw[snapshot][i]), FALSE);
+		if (toolbox->bw_enable[snapshot])
+			gtk_widget_set_sensitive(toolbox->bw_enable[snapshot], FALSE);
 		rs_curve_widget_reset(RS_CURVE_WIDGET(toolbox->curve[snapshot]));
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 0.0,0.0);
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 1.0,1.0);
@@ -1027,6 +1150,39 @@ toolbox_copy_from_photo(RSToolbox *toolbox, const gint snapshot, const RSSetting
 				gfloat value;
 				g_object_get(toolbox->photo->settings[snapshot], lens[i].property_name, &value, NULL);
 				gtk_range_set_value(toolbox->lens[snapshot][i], value);
+			}
+
+		/* Update softlight */
+		for(i=0;i<NSOFTLIGHT;i++)
+			if (mask)
+			{
+				gfloat value;
+				g_object_get(toolbox->photo->settings[snapshot], softlight[i].property_name, &value, NULL);
+				gtk_range_set_value(toolbox->softlight[snapshot][i], value);
+			}
+
+		/* Update artvignette */
+		for(i=0;i<NARTVIGNETTE;i++)
+			if (mask)
+			{
+				gfloat value;
+				g_object_get(toolbox->photo->settings[snapshot], artvignette[i].property_name, &value, NULL);
+				gtk_range_set_value(toolbox->artvignette[snapshot][i], value);
+			}
+
+		/* Update B&W */
+		if ((mask & MASK_BW_ENABLED) && toolbox->bw_enable[snapshot])
+		{
+			gboolean enabled;
+			g_object_get(toolbox->photo->settings[snapshot], "bw-enabled", &enabled, NULL);
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(toolbox->bw_enable[snapshot]), enabled);
+		}
+		for(i=0;i<NBW;i++)
+			if (mask && toolbox->bw[snapshot][i])
+			{
+				gfloat value;
+				g_object_get(toolbox->photo->settings[snapshot], bw_channels[i].property_name, &value, NULL);
+				gtk_range_set_value(toolbox->bw[snapshot][i], value);
 			}
 
 		/* Update curve */
@@ -1131,6 +1287,11 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->softlight[snapshot][i]), TRUE);
 			for(i=0;i<NARTVIGNETTE;i++)
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->artvignette[snapshot][i]), TRUE);
+			for(i=0;i<NBW;i++)
+				if (toolbox->bw[snapshot][i])
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->bw[snapshot][i]), TRUE);
+			if (toolbox->bw_enable[snapshot])
+				gtk_widget_set_sensitive(toolbox->bw_enable[snapshot], TRUE);
 		}
 	}
 	else
@@ -1307,4 +1468,10 @@ extern GtkWidget *
 rs_toolbox_get_curve(RSToolbox *toolbox, gint setting)
 {
   return toolbox->curve[setting];
+}
+
+extern GtkWidget *
+rs_toolbox_get_histogram_widget(RSToolbox *toolbox)
+{
+	return toolbox->histogram;
 }

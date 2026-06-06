@@ -1438,6 +1438,17 @@ cs_zoom_100(GtkButton *button, gpointer user_data)
 	rs_preview_widget_set_zoom(RS_PREVIEW_WIDGET(user_data), 1.0);
 }
 
+static GtkWidget *
+cs_icon_label_button(const gchar *icon_name, const gchar *label_text)
+{
+	GtkWidget *btn = gtk_button_new();
+	GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+	gtk_box_pack_start(GTK_BOX(box), gtk_image_new_from_icon_name(icon_name, GTK_ICON_SIZE_LARGE_TOOLBAR), FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(box), gtk_label_new(label_text), FALSE, FALSE, 0);
+	gtk_container_add(GTK_CONTAINER(btn), box);
+	return btn;
+}
+
 int
 gui_init(int argc, char **argv, RS_BLOB *rs)
 {
@@ -1563,13 +1574,33 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	g_signal_connect(G_OBJECT(rs->preview), "motion", G_CALLBACK(preview_motion), valuefield);
 	g_signal_connect(G_OBJECT(rs->preview), "leave", G_CALLBACK(preview_leave), valuefield);
 
-	/* Split pane below iconbox */
-	pane = gtk_hpaned_new ();
+	/* Colonne gauche : filmstrip + prévisualisation */
+	GtkWidget *left_vbox = gtk_vbox_new(FALSE, 0);
 	frame_preview_toolbox = gtk_frame_new(NULL);
 	gtk_container_add(GTK_CONTAINER(frame_preview_toolbox), rs->preview);
+
+	rs_conf_get_boolean("client-mode", &client_mode);
+	if (!client_mode)
+	{
+		gtk_widget_set_size_request(rs->iconbox, -1, 140);
+		gtk_box_pack_start(GTK_BOX(left_vbox), rs->iconbox, FALSE, FALSE, 0);
+	}
+	gtk_box_pack_start(GTK_BOX(left_vbox), frame_preview_toolbox, TRUE, TRUE, 0);
+
+	/* Colonne droite : histogramme fixe + onglets outils */
+	GtkWidget *right_vbox = gtk_vbox_new(FALSE, 0);
+	GtkWidget *hist_widget = rs_toolbox_get_histogram_widget(RS_TOOLBOX(rs->tools));
+	GtkWidget *hist_section = gui_box(_("Histogramme"), hist_widget, "show_histogram", TRUE);
+	gtk_box_pack_start(GTK_BOX(right_vbox), hist_section, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(right_vbox), rs->toolbox, TRUE, TRUE, 0);
+	/* Le toggle "Panneau d'outils" masque tout le panneau droit (histogramme + onglets) */
+	rs->toolbox = right_vbox;
+
+	/* Paned principal */
+	pane = gtk_hpaned_new();
 	g_signal_connect_after(G_OBJECT(pane), "notify::position", G_CALLBACK(pane_position), NULL);
-	gtk_paned_pack1 (GTK_PANED (pane), frame_preview_toolbox, TRUE, TRUE);
-	gtk_paned_pack2 (GTK_PANED (pane), rs->toolbox, FALSE, TRUE);
+	gtk_paned_pack1(GTK_PANED(pane), left_vbox,  TRUE,  TRUE);
+	gtk_paned_pack2(GTK_PANED(pane), right_vbox, FALSE, TRUE);
 
 	/* Vertical packing box */
 	vbox = gtk_vbox_new (FALSE, 0);
@@ -1580,40 +1611,40 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	/* CaraStudio : barre de boutons d'affichage (toggle des panneaux) */
 	{
 		GtkWidget *view_toolbar = gtk_hbox_new(FALSE, 2);
-		GtkWidget *btn_iconbox = gtk_button_new_with_label(_("Bande d'images"));
-		GtkWidget *btn_toolbox = gtk_button_new_with_label(_("Panneau d'outils"));
-		GtkWidget *btn_fullscreen = gtk_button_new_with_label(_("Plein écran"));
-		gtk_widget_set_tooltip_text(btn_iconbox, _("Afficher/masquer la bande d'images (Ctrl+I)"));
-		gtk_widget_set_tooltip_text(btn_toolbox, _("Afficher/masquer le panneau d'outils (Ctrl+T)"));
+
+		/* Boutons toggle avec icône + libellé */
+		GtkWidget *btn_iconbox    = cs_icon_label_button("camera-photo",          _("Bande d'images"));
+		GtkWidget *btn_toolbox    = cs_icon_label_button("preferences-system",    _("Panneau d'outils"));
+		GtkWidget *btn_fullscreen = cs_icon_label_button("view-fullscreen",       _("Plein écran"));
+
+		gtk_widget_set_tooltip_text(btn_iconbox,    _("Afficher/masquer la bande d'images (Ctrl+I)"));
+		gtk_widget_set_tooltip_text(btn_toolbox,    _("Afficher/masquer le panneau d'outils (Ctrl+T)"));
 		gtk_widget_set_tooltip_text(btn_fullscreen, _("Plein écran (F11)"));
-		g_signal_connect_swapped(btn_iconbox, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Iconbox");
-		g_signal_connect_swapped(btn_toolbox, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Toolbox");
+		g_signal_connect_swapped(btn_iconbox,    "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Iconbox");
+		g_signal_connect_swapped(btn_toolbox,    "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Toolbox");
 		g_signal_connect_swapped(btn_fullscreen, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Fullscreen");
-		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_iconbox, FALSE, FALSE, 0);
-		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_toolbox, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_iconbox,    FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_toolbox,    FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_fullscreen, FALSE, FALSE, 0);
 
-		/* Separateur + boutons de zoom variable (CaraStudio) */
+		/* Séparateur + boutons de zoom (icône seule) */
 		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
-		GtkWidget *btn_zoom_out = gtk_button_new_with_label(_("Zoom -"));
-		GtkWidget *btn_zoom_100 = gtk_button_new_with_label(_("100%"));
-		GtkWidget *btn_zoom_in = gtk_button_new_with_label(_("Zoom +"));
-		gtk_widget_set_tooltip_text(btn_zoom_out, _("Dezoomer"));
-		gtk_widget_set_tooltip_text(btn_zoom_100, _("Zoom 100% (taille reelle)"));
-		gtk_widget_set_tooltip_text(btn_zoom_in, _("Zoomer"));
+		GtkWidget *btn_zoom_out = gtk_button_new_from_icon_name("zoom-out",        GTK_ICON_SIZE_LARGE_TOOLBAR);
+		GtkWidget *btn_zoom_100 = gtk_button_new_from_icon_name("zoom-original",   GTK_ICON_SIZE_LARGE_TOOLBAR);
+		GtkWidget *btn_zoom_in  = gtk_button_new_from_icon_name("zoom-in",         GTK_ICON_SIZE_LARGE_TOOLBAR);
+		gtk_widget_set_tooltip_text(btn_zoom_out, _("Dézoomer"));
+		gtk_widget_set_tooltip_text(btn_zoom_100, _("Zoom 100% (taille réelle)"));
+		gtk_widget_set_tooltip_text(btn_zoom_in,  _("Zoomer"));
 		g_signal_connect(btn_zoom_out, "clicked", G_CALLBACK(cs_zoom_out), rs->preview);
 		g_signal_connect(btn_zoom_100, "clicked", G_CALLBACK(cs_zoom_100), rs->preview);
-		g_signal_connect(btn_zoom_in, "clicked", G_CALLBACK(cs_zoom_in), rs->preview);
+		g_signal_connect(btn_zoom_in,  "clicked", G_CALLBACK(cs_zoom_in),  rs->preview);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_out, FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_100, FALSE, FALSE, 0);
-		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_in, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_in,  FALSE, FALSE, 0);
 
 		gtk_box_pack_start(GTK_BOX(vbox), view_toolbar, FALSE, TRUE, 0);
 	}
     
-    rs_conf_get_boolean("client-mode", &client_mode);
-    if (!client_mode)
-        gtk_box_pack_start (GTK_BOX (vbox), rs->iconbox, FALSE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (vbox), pane, TRUE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (vbox), hbox, FALSE, TRUE, 0);
 

@@ -71,6 +71,9 @@ rs_toolbox_hover_value_updated(RSToolbox *toolbox, const guchar *rgb_value);
 extern GtkWidget *
 rs_toolbox_get_curve(RSToolbox *toolbox, gint setting);
 
+GtkWidget *
+rs_toolbox_get_histogram_widget(RSToolbox *toolbox);
+
 extern GtkWidget *
 rs_toolbox_get_effects_widget(RSToolbox *toolbox);
 

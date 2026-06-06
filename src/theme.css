@@ -1,6 +1,6 @@
 /*
- * CaraStudio Dark Theme
- * Inspiré de ART Raw Editor — interface sombre professionnelle
+ * CaraStudio Studio Theme
+ * Gris neutre studio, inspiré de Darktable — professionnel et lisible
  * GTK3 CSS — chargé via GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
  */
 
@@ -8,22 +8,22 @@
 /* Couleurs de base                                                     */
 /* ------------------------------------------------------------------ */
 
-@define-color cs_bg          #424242;
-@define-color cs_bg_dark     #383838;
-@define-color cs_bg_light    #4a4a4a;
-@define-color cs_bg_lighter  #545454;
-@define-color cs_fg          #e0e0e0;
-@define-color cs_fg_dim      #aaaaaa;
-@define-color cs_fg_disabled #707070;
-@define-color cs_border      #2a2a2a;
-@define-color cs_border_soft #555555;
+@define-color cs_bg          #787878;
+@define-color cs_bg_dark     #5c5c5c;
+@define-color cs_bg_light    #888888;
+@define-color cs_bg_lighter  #969696;
+@define-color cs_fg          #f0f0f0;
+@define-color cs_fg_dim      #d8d8d8;
+@define-color cs_fg_disabled #b0b0b0;
+@define-color cs_border      #444444;
+@define-color cs_border_soft #7a7a7a;
 @define-color cs_accent      #6a9bbf;
 @define-color cs_accent_dark #5580a0;
-@define-color cs_hover       #565656;
-@define-color cs_active      #303030;
+@define-color cs_hover       #848484;
+@define-color cs_active      #505050;
 @define-color cs_selected    #4a6f8a;
-@define-color cs_entry_bg    #333333;
-@define-color cs_tooltip_bg  #2a2a2a;
+@define-color cs_entry_bg    #585858;
+@define-color cs_tooltip_bg  #444444;
 
 /* ------------------------------------------------------------------ */
 /* Fenêtre et dialogue                                                  */
@@ -581,16 +581,16 @@ headerbar button {
     background-color: @cs_bg;
 }
 
-/* Zone de prévisualisation : fond très sombre pour les photos */
+/* Zone de prévisualisation : fond neutre studio */
 #rawstudio-preview,
 .raw-preview {
-    background-color: @cs_bg_dark;
+    background-color: @cs_bg;
 }
 
 /* Panneau d'outils de droite */
 #rawstudio-toolbox {
-    background-color: @cs_bg_light;
-    border-left: 1px solid @cs_border;
+    background-color: #606060;
+    border-left: 2px solid #2a2a2a;
 }
 
 /* Navigateur de fichiers de gauche */
@@ -602,6 +602,59 @@ headerbar button {
 /* Barre d'outils principale */
 #rawstudio-tools {
     background-color: @cs_bg_dark;
+}
+
+/* ------------------------------------------------------------------ */
+/* Film strip : délimitation harmonisée avec le panneau d'outils       */
+/* ------------------------------------------------------------------ */
+
+#filmstrip-notebook {
+    background-color: #606060;
+    border-top:    2px solid #6c6c6c;
+    border-bottom: 2px solid #6c6c6c;
+}
+
+#filmstrip-notebook viewport,
+#filmstrip-notebook iconview {
+    background-color: #606060;
+}
+
+#filmstrip-notebook iconview:selected {
+    background-color: @cs_selected;
+}
+
+/* Scrollbar horizontale dans le filmstrip — reste stylée normalement */
+#filmstrip-notebook scrollbar trough {
+    background-color: #3a3a3a;
+}
+
+#filmstrip-notebook scrollbar slider {
+    background-color: #707070;
+    border-radius: 4px;
+    min-height: 6px;
+    margin: 1px;
+}
+
+#filmstrip-notebook scrollbar slider:hover {
+    background-color: #8a8a8a;
+}
+
+#filmstrip-notebook > header.left > tabs > tab {
+    padding: 1px 3px;
+    min-height: 0;
+    min-width: 0;
+    background-color: #555555;
+    color: #dddddd;
+}
+
+#filmstrip-notebook > header.left > tabs > tab:checked {
+    background-color: #686868;
+    color: #f0f0f0;
+}
+
+#filmstrip-notebook > header.left {
+    padding: 0;
+    background-color: #484848;
 }
 
 /* ------------------------------------------------------------------ */

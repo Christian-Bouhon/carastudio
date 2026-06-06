@@ -8,6 +8,9 @@
  * Vignettage artistique : adapté de ART/RawTherapee iptransform.cc
  *   GPL v3+
  *
+ * Noir & Blanc : mélangeur de canaux libres (style ART/Lightroom)
+ *   Copyright (C) 2026 Carafife — GPL v3+
+ *
  * Adaptation C pour pipeline RS_IMAGE16 CaraStudio :
  *   Copyright (C) 2026 Carafife — GPL v3+
  */
@@ -26,6 +29,15 @@ typedef struct {
 	gfloat art_vignette_strength;
 	gfloat art_vignette_feather;
 	gfloat art_vignette_roundness;
+	gboolean bw_enabled;
+	gint bw_filter;
+	gfloat bw_red;
+	gfloat bw_orange;
+	gfloat bw_yellow;
+	gfloat bw_green;
+	gfloat bw_cyan;
+	gfloat bw_blue;
+	gfloat bw_violet;
 } RSEffects;
 
 typedef struct {
@@ -92,6 +104,15 @@ set_property(GObject *obj, guint id, const GValue *val, GParamSpec *pspec)
 				"art-vignette-strength", &e->art_vignette_strength,
 				"art-vignette-feather",  &e->art_vignette_feather,
 				"art-vignette-roundness",&e->art_vignette_roundness,
+				"bw-enabled",            &e->bw_enabled,
+				"bw-filter",             &e->bw_filter,
+				"bw-red",                &e->bw_red,
+				"bw-orange",             &e->bw_orange,
+				"bw-yellow",             &e->bw_yellow,
+				"bw-green",              &e->bw_green,
+				"bw-cyan",               &e->bw_cyan,
+				"bw-blue",               &e->bw_blue,
+				"bw-violet",             &e->bw_violet,
 				NULL);
 			g_signal_connect(e->settings, "settings-changed",
 				G_CALLBACK(settings_changed), e);
@@ -109,6 +130,15 @@ settings_changed(RSSettings *settings, RSSettingsMask mask, RSEffects *effects)
 		"art-vignette-strength", &effects->art_vignette_strength,
 		"art-vignette-feather",  &effects->art_vignette_feather,
 		"art-vignette-roundness",&effects->art_vignette_roundness,
+		"bw-enabled",            &effects->bw_enabled,
+		"bw-filter",             &effects->bw_filter,
+		"bw-red",                &effects->bw_red,
+		"bw-orange",             &effects->bw_orange,
+		"bw-yellow",             &effects->bw_yellow,
+		"bw-green",              &effects->bw_green,
+		"bw-cyan",               &effects->bw_cyan,
+		"bw-blue",               &effects->bw_blue,
+		"bw-violet",             &effects->bw_violet,
 		NULL);
 	rs_filter_changed(RS_FILTER(effects), RS_FILTER_CHANGED_PIXELDATA);
 }
@@ -212,6 +242,90 @@ apply_vignette(RS_IMAGE16 *img, gfloat strength, gfloat feather, gfloat roundnes
 }
 
 /* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* Noir & Blanc — mélangeur 7 canaux hue-weighted (style ART)         */
+/* Algorithme d'après RawTherapee/ART Color::computeBWMixerConstants  */
+/* Valeur neutre = 33, plage 0-200                                     */
+/* ------------------------------------------------------------------ */
+
+static void
+apply_bw(RS_IMAGE16 *img,
+         gint filter,
+         gfloat bw_r, gfloat bw_o, gfloat bw_y,
+         gfloat bw_g, gfloat bw_c, gfloat bw_b, gfloat bw_v)
+{
+	/* Filtre coloré : multiplicateurs R/G/B + correction d'exposition (ART) */
+	/* Ordre : { fR, fG, fB, corr } — 0=Aucun 1=Rouge 2=Rouge-Jaune 3=Jaune
+	            4=Vert-Jaune 5=Vert 6=Bleu-Vert 7=Bleu 8=Violet             */
+	static const gfloat filters[9][4] = {
+		{ 1.00f, 1.00f, 1.00f, 1.00f }, /* 0 Aucun       */
+		{ 1.00f, 0.05f, 0.00f, 1.08f }, /* 1 Rouge        */
+		{ 1.00f, 0.60f, 0.00f, 1.35f }, /* 2 Rouge-Jaune  */
+		{ 1.00f, 1.00f, 0.05f, 1.23f }, /* 3 Jaune        */
+		{ 0.60f, 1.00f, 0.30f, 1.32f }, /* 4 Vert-Jaune   */
+		{ 0.20f, 1.00f, 0.30f, 1.41f }, /* 5 Vert         */
+		{ 0.05f, 1.00f, 1.00f, 1.23f }, /* 6 Bleu-Vert    */
+		{ 0.00f, 0.05f, 1.00f, 1.20f }, /* 7 Bleu         */
+		{ 1.00f, 0.05f, 1.00f, 1.23f }, /* 8 Violet       */
+	};
+	gint fi = CLAMP(filter, 0, 8);
+	const gfloat fR = filters[fi][0];
+	const gfloat fG = filters[fi][1];
+	const gfloat fB = filters[fi][2];
+	const gfloat fC = filters[fi][3];
+
+	/* Canaux de base (Rouge, Vert, Bleu) modulés par le filtre */
+	gfloat rM = bw_r / 100.0f * fR;
+	gfloat gM = bw_g / 100.0f * fG;
+	gfloat bM = bw_b / 100.0f * fB;
+
+	/* Orange → modifie R et G (formules ART) */
+	gfloat orM = (bw_o > 33.0f)
+		? (bw_o * 0.67f - 22.11f) / 100.0f
+		: (-0.3f * bw_o + 9.9f) / 100.0f;
+	gfloat ogM = (bw_o > 33.0f)
+		? (-0.164f * bw_o + 5.412f) / 100.0f
+		: (0.4f * bw_o - 13.2f) / 100.0f;
+
+	/* Jaune → modifie R et G */
+	gfloat yrM = (-0.134f * bw_y + 4.422f) / 100.0f;
+	gfloat ygM = (0.5f * bw_y - 16.5f) / 100.0f;
+
+	/* Cyan → modifie G et B */
+	gfloat cgM = (-0.134f * bw_c + 4.422f) / 100.0f;
+	gfloat cbM = (0.5f * bw_c - 16.5f) / 100.0f;
+
+	/* Violet → modifie R et B (comme Magenta dans ART) */
+	gfloat vrM = (bw_v > 33.0f)
+		? (0.67f * bw_v - 22.11f) / 100.0f
+		: (-0.3f * bw_v + 9.9f) / 100.0f;
+	gfloat vbM = (bw_v > 33.0f)
+		? (-0.164f * bw_v + 5.412f) / 100.0f
+		: (0.4f * bw_v - 13.2f) / 100.0f;
+
+	/* Accumulation */
+	rM += orM + yrM + vrM;
+	gM += ogM + ygM + cgM;
+	bM += cbM + vbM;
+
+	/* Normalisation + correction d'exposition du filtre */
+	gfloat total = rM + gM + bM;
+	if (total > 0.001f) { rM /= total; gM /= total; bM /= total; }
+	rM *= fC; gM *= fC; bM *= fC;
+
+	const gint pixels = img->w * img->h;
+	gushort *p = GET_PIXEL(img, 0, 0);
+	const gint step = img->pixelsize;
+
+	for (gint i = 0; i < pixels; i++, p += step)
+	{
+		gfloat gray = rM * p[R] + gM * p[G] + bM * p[B];
+		gushort v = (gushort) CLAMP(gray, 0.0f, 65535.0f);
+		p[R] = p[G] = p[B] = v;
+	}
+}
+
+/* ------------------------------------------------------------------ */
 /* Entrée principale                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -223,8 +337,11 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 
 	if (!previous) return NULL;
 
-	if (effects->softlight_strength < 0.001f &&
-	    fabsf(effects->art_vignette_strength) < 0.001f)
+	const gboolean need_bw = effects->bw_enabled;
+	const gboolean need_sl = (effects->softlight_strength >= 0.001f);
+	const gboolean need_vg = (fabsf(effects->art_vignette_strength) >= 0.001f);
+
+	if (!need_bw && !need_sl && !need_vg)
 		return previous;
 
 	RS_IMAGE16 *img = rs_filter_response_get_image(previous);
@@ -235,10 +352,18 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	rs_filter_response_set_image(response, out);
 	g_object_unref(previous);
 
-	apply_softlight(out, effects->softlight_strength);
-	apply_vignette(out, effects->art_vignette_strength,
-	               effects->art_vignette_feather,
-	               effects->art_vignette_roundness);
+	if (need_bw)
+		apply_bw(out, effects->bw_filter,
+		         effects->bw_red, effects->bw_orange, effects->bw_yellow,
+		         effects->bw_green, effects->bw_cyan, effects->bw_blue, effects->bw_violet);
+
+	if (need_sl)
+		apply_softlight(out, effects->softlight_strength);
+
+	if (need_vg)
+		apply_vignette(out, effects->art_vignette_strength,
+		               effects->art_vignette_feather,
+		               effects->art_vignette_roundness);
 
 	g_object_unref(out);
 	return response;

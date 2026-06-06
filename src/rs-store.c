@@ -334,6 +334,7 @@ rs_store_init(RSStore *store)
 	store->current_priority = priorities[0];
 
 	gtk_notebook_set_tab_pos(store->notebook, GTK_POS_LEFT);
+	gtk_widget_set_name(GTK_WIDGET(store->notebook), "filmstrip-notebook");
 
 	g_signal_connect(store->notebook, "switch-page", G_CALLBACK(switch_page), store);
 	store->counthandler = g_signal_connect(store->store, "row-changed", G_CALLBACK(count_priorities), store->label);
@@ -762,7 +763,11 @@ make_iconview(GtkWidget *iconview, RSStore *store, gint prio)
 
 	scroller = gtk_scrolled_window_new (NULL, NULL);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroller),
-		GTK_POLICY_AUTOMATIC, GTK_POLICY_NEVER);
+		GTK_POLICY_ALWAYS, GTK_POLICY_NEVER);
+	/* Scrollbar permanente (non-overlay) : contenu 116 px + scrollbar ~14 px */
+	gtk_scrolled_window_set_overlay_scrolling(GTK_SCROLLED_WINDOW(scroller), FALSE);
+	gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scroller), 116);
+	gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(scroller), 116);
 
 	/* La molette sur l'iconview doit défiler horizontalement.
 	   On connecte sur l'iconview (pas le scroller) car GtkIconView

@@ -69,7 +69,17 @@ enum {
 	PROP_SOFTLIGHT_STRENGTH,
 	PROP_ART_VIGNETTE_STRENGTH,
 	PROP_ART_VIGNETTE_FEATHER,
-	PROP_ART_VIGNETTE_ROUNDNESS
+	PROP_ART_VIGNETTE_ROUNDNESS,
+	/* Noir & Blanc */
+	PROP_BW_ENABLED,
+	PROP_BW_FILTER,
+	PROP_BW_RED,
+	PROP_BW_ORANGE,
+	PROP_BW_YELLOW,
+	PROP_BW_GREEN,
+	PROP_BW_CYAN,
+	PROP_BW_BLUE,
+	PROP_BW_VIOLET
 };
 
 static void
@@ -213,6 +223,52 @@ rs_settings_class_init (RSSettingsClass *klass)
 			"art-vignette-roundness", _("Vign. rondeur"), _("Artistic Vignette Roundness"),
 			0.0, 100.0, 50.0, G_PARAM_READWRITE)
 	);
+	/* Noir & Blanc */
+	g_object_class_install_property(object_class,
+		PROP_BW_ENABLED, g_param_spec_boolean(
+			"bw-enabled", _("NB"), _("Black and White enabled"),
+			FALSE, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_FILTER, g_param_spec_int(
+			"bw-filter", _("Filtre"), _("N&B filtre coloré (0=aucun)"),
+			0, 8, 0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_RED, g_param_spec_float(
+			"bw-red", _("Rouge"), _("N&B canal Rouge"),
+			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_ORANGE, g_param_spec_float(
+			"bw-orange", _("Orange"), _("N&B canal Orange"),
+			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_YELLOW, g_param_spec_float(
+			"bw-yellow", _("Jaune"), _("N&B canal Jaune"),
+			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_GREEN, g_param_spec_float(
+			"bw-green", _("Vert"), _("N&B canal Vert"),
+			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_CYAN, g_param_spec_float(
+			"bw-cyan", _("Cyan"), _("N&B canal Cyan"),
+			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_BLUE, g_param_spec_float(
+			"bw-blue", _("Bleu"), _("N&B canal Bleu"),
+			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_VIOLET, g_param_spec_float(
+			"bw-violet", _("Violet"), _("N&B canal Violet"),
+			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+	);
 
 	signals[SETTINGS_CHANGED] = g_signal_new ("settings-changed",
 		G_TYPE_FROM_CLASS (klass),
@@ -283,6 +339,19 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		CASE(ART_VIGNETTE_STRENGTH, art_vignette_strength);
 		CASE(ART_VIGNETTE_FEATHER, art_vignette_feather);
 		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
+	case PROP_BW_ENABLED:
+		g_value_set_boolean(value, settings->bw_enabled);
+		break;
+	case PROP_BW_FILTER:
+		g_value_set_int(value, settings->bw_filter);
+		break;
+		CASE(BW_RED, bw_red);
+		CASE(BW_ORANGE, bw_orange);
+		CASE(BW_YELLOW, bw_yellow);
+		CASE(BW_GREEN, bw_green);
+		CASE(BW_CYAN, bw_cyan);
+		CASE(BW_BLUE, bw_blue);
+		CASE(BW_VIOLET, bw_violet);
 	case PROP_RECALC_TEMP:
 		g_value_set_boolean(value, settings->recalc_temp);
 		break;
@@ -363,6 +432,27 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		CASE(ART_VIGNETTE_STRENGTH, art_vignette_strength);
 		CASE(ART_VIGNETTE_FEATHER, art_vignette_feather);
 		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
+	case PROP_BW_ENABLED:
+		if (settings->bw_enabled != g_value_get_boolean(value))
+		{
+			settings->bw_enabled = g_value_get_boolean(value);
+			changed_mask |= MASK_BW_ENABLED;
+		}
+		break;
+	case PROP_BW_FILTER:
+		if (settings->bw_filter != g_value_get_int(value))
+		{
+			settings->bw_filter = g_value_get_int(value);
+			changed_mask |= MASK_BW_FILTER;
+		}
+		break;
+		CASE(BW_RED, bw_red);
+		CASE(BW_ORANGE, bw_orange);
+		CASE(BW_YELLOW, bw_yellow);
+		CASE(BW_GREEN, bw_green);
+		CASE(BW_CYAN, bw_cyan);
+		CASE(BW_BLUE, bw_blue);
+		CASE(BW_VIOLET, bw_violet);
 		case PROP_RECALC_TEMP:
 			settings->recalc_temp = g_value_get_boolean(value);
 			if (settings->recalc_temp)
@@ -508,6 +598,15 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	rs_object_class_property_reset(object, "art-vignette-strength");
 	rs_object_class_property_reset(object, "art-vignette-feather");
 	rs_object_class_property_reset(object, "art-vignette-roundness");
+	rs_object_class_property_reset(object, "bw-enabled");
+	rs_object_class_property_reset(object, "bw-filter");
+	rs_object_class_property_reset(object, "bw-red");
+	rs_object_class_property_reset(object, "bw-orange");
+	rs_object_class_property_reset(object, "bw-yellow");
+	rs_object_class_property_reset(object, "bw-green");
+	rs_object_class_property_reset(object, "bw-cyan");
+	rs_object_class_property_reset(object, "bw-blue");
+	rs_object_class_property_reset(object, "bw-violet");
 
 	if (mask & MASK_CURVE)
 	{
@@ -618,6 +717,17 @@ do { \
 	SETTINGS_COPY(ART_VIGNETTE_STRENGTH, art_vignette_strength);
 	SETTINGS_COPY(ART_VIGNETTE_FEATHER, art_vignette_feather);
 	SETTINGS_COPY(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
+	if (mask & MASK_BW_ENABLED)
+		target->bw_enabled = source->bw_enabled;
+	if (mask & MASK_BW_FILTER)
+		target->bw_filter = source->bw_filter;
+	SETTINGS_COPY(BW_RED, bw_red);
+	SETTINGS_COPY(BW_ORANGE, bw_orange);
+	SETTINGS_COPY(BW_YELLOW, bw_yellow);
+	SETTINGS_COPY(BW_GREEN, bw_green);
+	SETTINGS_COPY(BW_CYAN, bw_cyan);
+	SETTINGS_COPY(BW_BLUE, bw_blue);
+	SETTINGS_COPY(BW_VIOLET, bw_violet);
 #undef SETTINGS_COPY
 
 	if (mask & MASK_WB)

@@ -1,8 +1,8 @@
 icondir = $(datadir)/icons
 icon_DATA = rawstudio.png carastudio.png
 
-rawstudiodir = $(datadir)/pixmaps/rawstudio
-rawstudio_DATA = 	overlay_deleted.png \
+rawstudiodir = $(datadir)/pixmaps/$(PACKAGE)
+rawstudio_DATA =	overlay_deleted.png \
 		overlay_priority1.png \
 		overlay_priority2.png \
 		overlay_priority3.png \

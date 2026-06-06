@@ -120,7 +120,7 @@ librawstudio_la_LDFLAGS = -release $(PACKAGE_VERSION)
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = rawstudio-$(PACKAGE_VERSION).pc
 
-sharedir = $(datadir)/rawstudio/
+sharedir = $(datadir)/$(PACKAGE)/
 share_DATA = lens_fix.xml
 
 EXTRA_DIST = \

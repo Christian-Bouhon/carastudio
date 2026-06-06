@@ -64,6 +64,15 @@ typedef enum {
 	MASK_ART_VIGNETTE_STRENGTH = (1<<18),
 	MASK_ART_VIGNETTE_FEATHER  = (1<<19),
 	MASK_ART_VIGNETTE_ROUNDNESS= (1<<20),
+	MASK_BW_ENABLED            = (1<<21),
+	MASK_BW_RED                = (1<<22),
+	MASK_BW_GREEN              = (1<<23),
+	MASK_BW_BLUE               = (1<<24),
+	MASK_BW_ORANGE             = (1<<25),
+	MASK_BW_YELLOW             = (1<<26),
+	MASK_BW_CYAN               = (1<<27),
+	MASK_BW_VIOLET             = (1<<28),
+	MASK_BW_FILTER             = (1<<29),
 	MASK_TRANSFORM     = (1<<30),
 	MASK_ALL            = 0x00ffffff,
 } RSSettingsMask;
@@ -98,6 +107,16 @@ typedef struct _RSsettings {
 	gfloat art_vignette_strength;
 	gfloat art_vignette_feather;
 	gfloat art_vignette_roundness;
+	/* Noir & Blanc */
+	gboolean bw_enabled;
+	gint bw_filter;   /* 0=aucun 1=rouge 2=rouge-jaune 3=jaune 4=vert-jaune 5=vert 6=bleu-vert 7=bleu 8=violet */
+	gfloat bw_red;
+	gfloat bw_orange;
+	gfloat bw_yellow;
+	gfloat bw_green;
+	gfloat bw_cyan;
+	gfloat bw_blue;
+	gfloat bw_violet;
 } RSSettings;
 
 typedef struct {
