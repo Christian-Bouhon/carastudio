@@ -1412,9 +1412,9 @@ rs_window_set_title(const char *str)
 	gboolean client_mode;
 	rs_conf_get_boolean("client-mode", &client_mode);
 	if (client_mode)
-		window_title = g_string_new(_("Rawstudio Client Mode"));
+		window_title = g_string_new(_("CaraStudio Client Mode"));
 	else
-		window_title = g_string_new(_("Rawstudio"));
+		window_title = g_string_new(_("CaraStudio"));
 	if (str)
 	{
 		window_title = g_string_append(window_title, " - ");
@@ -1715,7 +1715,7 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 
 	}
 	/* Construct this to load dcp profiles early */
-	rs_window_set_title(_("Rawstudio: Loading Color Profiles"));
+	rs_window_set_title(_("CaraStudio: Loading Color Profiles"));
 	GUI_CATCHUP();
 	rs_profile_factory_new_default();
 

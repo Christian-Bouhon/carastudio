@@ -13,15 +13,15 @@ AM_CFLAGS +=\
 
 AM_CXXFLAGS = $(AM_CFLAGS)
 
-uidir = $(datadir)/rawstudio/
+uidir = $(datadir)/carastudio/
 ui_DATA = ui.xml ui-client.xml theme.css
 
-bin_PROGRAMS = rawstudio
+bin_PROGRAMS = carastudio
 
 EXTRA_DIST = \
 	$(ui_DATA)
 
-rawstudio_SOURCES = \
+carastudio_SOURCES = \
 	application.c application.h \
 	rs-actions.c rs-actions.h \
 	gtk-helper.c gtk-helper.h \
@@ -46,5 +46,5 @@ rawstudio_SOURCES = \
 	rs-tethered-shooting.c rs-tethered-shooting.h \
 	rs-enfuse.c rs-enfuse.h
 
-rawstudio_LDADD = ../librawstudio/librawstudio.la @PACKAGE_LIBS@ @LENSFUN_LIBS@ @LIBGPHOTO2_LIBS@ @DBUS_LIBS@ @SQLITE3_LIBS@ $(INTLLIBS)
+carastudio_LDADD = ../librawstudio/librawstudio.la @PACKAGE_LIBS@ @LENSFUN_LIBS@ @LIBGPHOTO2_LIBS@ @DBUS_LIBS@ @SQLITE3_LIBS@ $(INTLLIBS)
 

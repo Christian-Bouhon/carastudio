@@ -66,11 +66,17 @@ finalize(GObject *object)
 
 	if (dcp->curve_samples)
 		free(dcp->curve_samples);
+
+	/* free_dcp_profile() accede a dcp->huesatmap_precalc->lookups et
+	   dcp->looktable_precalc->lookups -- ces structures vivent DANS les
+	   tampons _*_precalc_unaligned. Il faut donc l'appeler AVANT de liberer
+	   ces tampons, sinon use-after-free (corruption du tas a chaque
+	   destruction d'un filtre DCP, p.ex. vignettes RAW ; localise via ASan). */
+	free_dcp_profile(dcp);
+
 	g_free(dcp->_huesatmap_precalc_unaligned);
 	g_free(dcp->_looktable_precalc_unaligned);
 
-	free_dcp_profile(dcp);	
-	
 	if (dcp->settings_signal_id && dcp->settings)
 	{
 		g_signal_handler_disconnect(dcp->settings, dcp->settings_signal_id);
@@ -552,8 +558,8 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	RSFilterResponse *previous_response;
 	RSFilterResponse *response;
 	RS_IMAGE16 *input;
-	RS_IMAGE16 *output;
-	RS_IMAGE16 *tmp;
+	RS_IMAGE16 *output = NULL;
+	RS_IMAGE16 *tmp = NULL;
 
 	gint j;
 
@@ -585,16 +591,32 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 		/* Align so we start at even pixel counts */
 		roi->width += (roi->x&1);
 		roi->x -= (roi->x&1);
-		roi->width = MIN(input->w - roi->x, roi->width);
+		/* Clamp le ROI a l'image. Un ROI hors limites (qui survient pendant
+		   un redimensionnement / zoom / defilement de l'apercu) faisait
+		   renvoyer NULL a rs_image16_new_subframe, puis planter par
+		   dereferencement NULL dans bit_blt -- crash dcp.c get_image
+		   reproduit et localise sous AddressSanitizer. */
+		roi->x = CLAMP(roi->x, 0, MAX(0, input->w - 1));
+		roi->y = CLAMP(roi->y, 0, MAX(0, input->h - 1));
+		roi->width = CLAMP(roi->width, 1, input->w - roi->x);
+		roi->height = CLAMP(roi->height, 1, input->h - roi->y);
 		output = rs_image16_copy(input, FALSE);
 		tmp = rs_image16_new_subframe(output, roi);
-		bit_blt((char*)GET_PIXEL(tmp,0,0), tmp->rowstride * 2, 
-			(const char*)GET_PIXEL(input,roi->x,roi->y), input->rowstride * 2, tmp->w * tmp->pixelsize * 2, tmp->h);
 	}
-	else
+
+	/* Si le subframe a echoue (ROI degenere) ou s'il n'y a pas de ROI, on
+	   travaille sur l'image complete plutot que de dereferencer NULL. */
+	if (!tmp)
 	{
+		if (output)
+			g_object_unref(output);
 		output = rs_image16_copy(input, TRUE);
 		tmp = g_object_ref(output);
+	}
+	else if (roi)
+	{
+		bit_blt((char*)GET_PIXEL(tmp,0,0), tmp->rowstride * 2,
+			(const char*)GET_PIXEL(input,roi->x,roi->y), input->rowstride * 2, tmp->w * tmp->pixelsize * 2, tmp->h);
 	}
 	g_object_unref(input);
 	rs_filter_response_set_image(response, output);

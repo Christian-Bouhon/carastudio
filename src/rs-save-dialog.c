@@ -331,11 +331,14 @@ job(RSJobQueueSlot *slot, gpointer data)
 			"model", meta->model_ascii,
 			"lens", lens,
 			"focal", (gfloat) meta->focallength,
-			"aperture", meta->aperture,
 			"tca_kr", dialog->photo->settings[dialog->snapshot]->tca_kr,
 			"tca_kb", dialog->photo->settings[dialog->snapshot]->tca_kb,
 			"vignetting", dialog->photo->settings[dialog->snapshot]->vignetting,
 			NULL);
+		/* Voir rs-photo.c : ouverture absente (0.0) hors plage du param
+		   spec lensfun (min 1.0) ; on ne l'envoie que si elle est valide. */
+		if (meta->aperture >= 1.0)
+			rs_filter_set_recursive(dialog->fend, "aperture", meta->aperture, NULL);
 		g_object_unref(lens);
 	}
 

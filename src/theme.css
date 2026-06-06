@@ -421,18 +421,33 @@ radio:hover {
 /* Listes et vues arborescentes (navigateur de fichiers)               */
 /* ------------------------------------------------------------------ */
 
-treeview {
+treeview.view {
     background-color: @cs_bg_dark;
     color: @cs_fg;
 }
 
-treeview:selected {
-    background-color: @cs_selected;
+/* Texte des cellules : cible explicite, sinon le nom des dossiers
+   reste invisible sous GTK 3.24 (le noeud `cell` n'hérite pas
+   toujours de la couleur du treeview). */
+treeview.view cell {
     color: @cs_fg;
 }
 
-treeview:hover {
+treeview.view:selected,
+treeview.view:selected cell {
+    background-color: @cs_selected;
+    color: #ffffff;
+}
+
+treeview.view:hover {
     background-color: @cs_bg_light;
+}
+
+/* Fleches de depliage de l'arbre : empeche la regle generique
+   `expander` (sections du toolbox) de deborder dessus. */
+treeview.view expander {
+    background-color: transparent;
+    color: @cs_fg;
 }
 
 treeview header button {
@@ -587,4 +602,81 @@ headerbar button {
 /* Barre d'outils principale */
 #rawstudio-tools {
     background-color: @cs_bg_dark;
+}
+
+/* ------------------------------------------------------------------ */
+/* GtkFileChooserButton (panneau Lot : répertoire de sortie)           */
+/* ------------------------------------------------------------------ */
+
+filechooserbutton {
+    background-color: @cs_bg_light;
+    color: @cs_fg;
+}
+
+filechooserbutton button {
+    background-color: @cs_bg_light;
+    color: @cs_fg;
+    border: 1px solid @cs_border_soft;
+}
+
+filechooserbutton button:hover {
+    background-color: @cs_hover;
+    border-color: @cs_accent;
+}
+
+/* Séparateur interne du GtkFileChooserButton */
+filechooserbutton separator {
+    background-color: @cs_border_soft;
+    min-width: 1px;
+}
+
+/* ------------------------------------------------------------------ */
+/* GtkComboBoxText avec entrée (Filename Template)                     */
+/* ------------------------------------------------------------------ */
+
+combobox {
+    background-color: @cs_bg_light;
+    color: @cs_fg;
+}
+
+/* Popup/liste déroulante des combos */
+.combo .popup,
+.popup {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+    border: 1px solid @cs_border;
+}
+
+.popup treeview,
+.popup treeview.view {
+    background-color: @cs_bg_dark;
+    color: @cs_fg;
+}
+
+.popup treeview cell {
+    color: @cs_fg;
+    background-color: @cs_bg_dark;
+}
+
+.popup treeview row:selected,
+.popup treeview row:selected cell {
+    background-color: @cs_selected;
+    color: #ffffff;
+}
+
+/* ------------------------------------------------------------------ */
+/* GtkFrame avec label (cadres du panneau Lot)                         */
+/* ------------------------------------------------------------------ */
+
+frame border {
+    border-color: @cs_border_soft;
+}
+
+frame > label {
+    color: @cs_fg_dim;
+}
+
+/* Conteneur interne d'un GtkFrame */
+frame > box {
+    background-color: transparent;
 }

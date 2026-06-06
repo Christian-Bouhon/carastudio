@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Copyright (C) 2006-2011 Anders Brander <anders@brander.dk> -->
 <component type="desktop">
-  <id>rawstudio.desktop</id>
+  <id>carastudio.desktop</id>
   <metadata_license>CC0</metadata_license>
-  <name>Rawstudio</name>
+  <name>CaraStudio</name>
   <summary>Convert raw images</summary>
   <description>
     <p>
-      Rawstudio is an open-source program to read and manipulate RAW
+      CaraStudio is an open-source program to read and manipulate RAW
       images from digital cameras.
     </p>
 
@@ -21,18 +21,11 @@
     </p>
 
     <p>
-      The main focus of Rawstudio is to enable efficient review and fast
+      The main focus of CaraStudio is to enable efficient review and fast
       processing of large image collections. We aim to supply you with a
       tool that makes it possible for you to review and process several
       hundred images in a matter of a few hours.
     </p>
   </description>
-  <screenshots>
-    <screenshot type="default">
-     <image>http://rawstudio.org/screenshots/RS3-preview1.png</image>
-     <caption>Rawstudio main window</caption>
-    </screenshot>
-  </screenshots>
-  <url type="homepage">http://rawstudio.org/</url>
-  <updatecontact>anders@brander.dk</updatecontact>
+  <url type="homepage">https://github.com/carafife/CaraStudio</url>
 </component>

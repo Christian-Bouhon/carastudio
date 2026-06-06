@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include "conf_interface.h"
 
-#define CONF_GROUP "rawstudio"
+#define CONF_GROUP "carastudio"
 static GMutex lock;
 static GKeyFile *keyfile = NULL;
 static gchar *keyfile_path = NULL;
@@ -32,7 +32,7 @@ static void conf_ensure_loaded(void)
 	if (keyfile)
 		return;
 	keyfile = g_key_file_new();
-	keyfile_path = g_build_filename(g_get_user_config_dir(), "rawstudio", "settings.conf", NULL);
+	keyfile_path = g_build_filename(g_get_user_config_dir(), "carastudio", "settings.conf", NULL);
 	gchar *dir = g_path_get_dirname(keyfile_path);
 	g_mkdir_with_parents(dir, 0755);
 	g_free(dir);

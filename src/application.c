@@ -636,6 +636,13 @@ main(int argc, char **argv)
 
 	gtk_init(&argc, &argv);
 
+	/* Demande la variante sombre du thème GTK (Adwaita-dark sur GNOME).
+	   Cela couvre les widgets internes (GtkFileChooserButton, popups…)
+	   que le CSS application-level n'atteint pas toujours. */
+	g_object_set(gtk_settings_get_default(),
+	             "gtk-application-prefer-dark-theme", TRUE,
+	             NULL);
+
 	/* CaraStudio: thème sombre chargé globalement avant toute fenêtre */
 	{
 		GtkCssProvider *provider = gtk_css_provider_new();

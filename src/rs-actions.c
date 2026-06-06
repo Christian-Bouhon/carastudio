@@ -1536,14 +1536,14 @@ ACTION(about)
 		"Ger Siemerink";
 
 	gtk_show_about_dialog(GTK_WINDOW(rawstudio_window),
-		"program-name", "Rawstudio",
+		"program-name", "CaraStudio",
 		"authors", authors,
 		"artists", artists,
-		"translator-credits", translators, 
+		"translator-credits", translators,
 		"comments", _("A raw image converter for GTK+/GNOME"),
 		"version", RAWSTUDIO_VERSION,
-		"website", "http://rawstudio.org/",
-		"name", "Rawstudio",
+		"website", "https://github.com/carafife/CaraStudio",
+		"name", "CaraStudio",
 		NULL
 	);
 }

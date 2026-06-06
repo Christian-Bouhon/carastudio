@@ -5,15 +5,15 @@ ACLOCAL_AMFLAGS = -I m4
 SUBDIRS = librawstudio plugins src po pixmaps profiles
 
 desktopdir = $(datadir)/applications
-desktop_DATA = rawstudio.desktop
+desktop_DATA = carastudio.desktop
 
 appdatadir = $(datarootdir)/appdata
-dist_appdata_DATA = rawstudio.appdata.xml
+dist_appdata_DATA = carastudio.appdata.xml
 
 EXTRA_DIST = \
 	autogen.sh \
 	ChangeLog \
-	rawstudio.desktop \
+	carastudio.desktop \
 	gettext.h
 
 ChangeLog:

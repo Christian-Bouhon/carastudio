@@ -1253,6 +1253,18 @@ rs_store_load_file(RSStore *store, gchar *fullname)
 	g_atomic_int_inc(&store->jobs_to_do);
 }
 
+/* Garde-fou anti-gel pour le chargement recursif : un scan recursif lance
+   sur une arborescence demesuree (ex. le dossier personnel entier avec ses
+   caches, .git, etc.) parcourt des centaines de milliers d'entrees sur le
+   thread principal -> l'interface se fige ("ne repond pas"). On borne donc le
+   nombre total d'entrees examinees. Une photothèque normale reste tres en
+   dessous ; seule une arborescence pathologique est tronquee.
+   Compteurs partages entre les appels recursifs, remis a zero par
+   rs_store_load_directory() avant chaque chargement. */
+#define LOAD_DIRECTORY_MAX_ENTRIES 50000
+static guint load_entries_examined = 0;
+static gboolean load_entries_limit_hit = FALSE;
+
 static gint
 load_directory(RSStore *store, const gchar *path, RSLibrary *library, const gboolean load_8bit, const gboolean load_recursive)
 {
@@ -1287,6 +1299,20 @@ load_directory(RSStore *store, const gchar *path, RSLibrary *library, const gboo
 			count += load_directory(store, fullname, library, load_8bit, load_recursive);
 
 		g_free(fullname);
+
+		/* Stoppe net si l'arborescence est trop grosse (cf. garde-fou). */
+		if (++load_entries_examined > LOAD_DIRECTORY_MAX_ENTRIES)
+		{
+			if (!load_entries_limit_hit)
+			{
+				load_entries_limit_hit = TRUE;
+				g_warning("rs-store: arborescence trop volumineuse, "
+					"chargement tronque a %d entrees. Decochez "
+					"\"Open Recursive\" ou ouvrez un sous-dossier plus precis.",
+					LOAD_DIRECTORY_MAX_ENTRIES);
+			}
+			break;
+		}
 	}
 
 	g_free(path_normalized);
@@ -1426,6 +1452,10 @@ rs_store_load_directory(RSStore *store, const gchar *path)
 	gtk_label_set_markup(GTK_LABEL(store->label[5]), _("D <small>(-)</small>"));
 	g_signal_handler_block(store->store, store->counthandler);
 	store->counter_blocked = TRUE;
+
+	/* Reinitialise le garde-fou anti-gel (cf. load_directory). */
+	load_entries_examined = 0;
+	load_entries_limit_hit = FALSE;
 
 	/* While we're loading, we keep the IO lock to ourself. We need to read very basic meta and directory data */
 	rs_io_lock();

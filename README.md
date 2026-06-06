@@ -1,89 +1,68 @@
-About Rawstudio
-===============
+<img src="pixmaps/carastudio-logo.png" alt="CaraStudio" width="200"/>
 
-Rawstudio is an open-source program to read and manipulate RAW images from 
-digital cameras.
+# CaraStudio
 
-To get the best quality out of your digital camera, it is often recommended
-that you record your pictures in RAW format. This format is mostly specific
-to a camera and cannot be read by most image editing applications. 
-Our goal is to supply you with a tool, where you can have the benefits of 
-RAW images and the ease of use of JPEG images.
+**CaraStudio** est un convertisseur RAW open-source pour Linux, fork de [RawStudio](https://github.com/rawstudio/rawstudio), développé et maintenu par [Carafife](https://github.com/carafife).
 
-The main focus of Rawstudio is to enable efficient review and fast processing 
-of large image collections. We aim to supply you with a tool that makes it
-possible for you to review and process several hundred images
-in a matter of a few hours.
+CaraStudio permet de lire, ajuster et convertir les fichiers RAW de votre appareil photo numérique en JPEG, PNG ou TIFF, avec une interface sombre professionnelle inspirée des logiciels de retouche modernes.
 
-Rawstudio will convert your RAW files into JPEG, PNG or TIF images which you
-can then print or send to friends and clients.
+---
 
-Rawstudio is intended as the first tool in your image processing chain. 
-After you have made your overall image adjustments to your image, you can 
-use an image editing application to further work on your images. 
-Rawstudio itself is a highly specialized application for reviewing and 
-processing RAW images, not a fully featured image editing application.
+## Fonctionnalités
 
-Feature List
-============
+- Interface GTK3 sombre et ergonomique
+- Support complet des profils couleur DNG (Color Profile)
+- Traitement par lot
+- Prise de vue en direct (tethered shooting)
+- Réglages post-capture : balance des blancs, saturation, exposition, courbes…
+- Copier/coller les réglages entre images
+- Correction automatique de la distorsion (Lensfun)
+- Réduction du bruit avancée
+- Correction des aberrations chromatiques et du vignettage
+- Masque d'exposition, recadrage, redressement
+- Mode plein écran et support multi-moniteur
+- Traitement multithread optimisé SSE/SSE2
+- Nommage automatique des fichiers basé sur les données EXIF
 
-* Intuitive GTK+ interface
-* Full DNG Color Profile support
-* Batch processing
-* Tethered shooting
-* Various post-shot controls (white balance, saturation and exposure compensation among others)
-* Easy and flexible copy&paste settings between images
-* Develop images directly on storage card
-* Image tagging and sorting
-* Automatic lens distortion correction
-* Advanced noise reduction
-* Unique intelligent sharpening
-* Chromatic aberration and vignetting correction
-* Exposure mask
-* Cropping
-* Straighten
-* Fullscreen mode
-* Secondary monitor support
-* Image location independent
-* Automatic filenaming based on EXIF information
-* 32 bit float point precision image processing
-* Optimized for and SSE and SSE2 (detected runtime) and fully multithreaded
-* And much more...
+---
 
-Building from git
-=================
+## Construction sur Fedora
 
-Building Rawstudio yourself is possible with a few library requirements.
-
-For Ubuntu 19.10 the following should install all build dependencies:
+### Dépendances
 
 ```bash
-$ sudo apt install make \
-    gcc \
-    g++ \
-    autoconf \
-    libtool-bin \
-    libglib2.0-dev-bin \
-    automake \
-    gettext \
-    libjpeg-turbo8-dev \
-    libtiff5-dev \
-    libglib2.0-dev \
-    libgtk-3-dev \
-    libxml2-dev \
-    libgconf2-dev \
-    libsqlite3-dev \
-    liblensfun-dev \
-    liblcms2-dev \
-    libgphoto2-dev \
-    libexiv2-dev \
-    libfftw3-dev
+sudo dnf install gcc g++ autoconf automake libtool make gettext \
+    gtk3-devel glib2-devel libxml2-devel sqlite-devel \
+    lensfun-devel lcms2-devel libgphoto2-devel exiv2-devel \
+    libjpeg-turbo-devel libtiff-devel fftw-devel libasan
 ```
 
-The following should install Rawstudio to `/tmp/rs-prefix/bin/rawstudio`:
+### Compiler et installer (préfixe local)
 
 ```bash
-$ ./autogen.sh --prefix=/tmp/rs-prefix
-$ make
-$ make install
+./autogen.sh --prefix=/tmp/casan \
+    CFLAGS="-fsanitize=address -g -O1 -fno-omit-frame-pointer" \
+    CXXFLAGS="-fsanitize=address -g -O1 -fno-omit-frame-pointer" \
+    LDFLAGS="-fsanitize=address"
+make -j$(nproc)
+make install
 ```
+
+### Lancer
+
+```bash
+LD_LIBRARY_PATH=/tmp/casan/lib ASAN_OPTIONS="detect_leaks=0" /tmp/casan/bin/carastudio
+```
+
+---
+
+## À propos du fork
+
+CaraStudio est un fork de RawStudio (© Anders Brander, Anders Kvist, Klaus Post), distribué sous licence **GNU GPL v2 ou ultérieure**.
+
+Les modifications apportées par Carafife incluent notamment :
+- Portage et corrections pour Fedora 44 / Wayland / GTK3
+- Thème sombre professionnel
+- Corrections de crashes (use-after-free DCP, ROI hors limites)
+- Amélioration du navigateur et du zoom
+- Renommage et rebranding CaraStudio

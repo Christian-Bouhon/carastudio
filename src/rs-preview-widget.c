@@ -751,14 +751,18 @@ rs_preview_widget_get_zoom(RSPreviewWidget *preview)
 	 * pour que les boutons +/- partent du niveau affiché, pas de 1.0. */
 	if (preview->zoom_to_fit && preview->photo)
 	{
-		gint native_w = 0, native_h = 0;
-		rs_filter_get_size_simple(preview->filter_cache0[0], preview->request[0], &native_w, &native_h);
-		if (native_w > 0 && native_h > 0)
+		/* IMPORTANT : utiliser la PLEINE resolution. En mode fit, le demosaic
+		   tourne avec downscale active, donc filter_cache0 renvoie une taille
+		   deja reduite (~= canvas) -> le ratio vaudrait ~1.0 et le zoom
+		   sauterait a 100%. rs_photo_get_original_size donne la vraie taille. */
+		gint full_w = 0, full_h = 0;
+		if (rs_photo_get_original_size(preview->photo, TRUE, &full_w, &full_h)
+			&& full_w > 0 && full_h > 0)
 		{
 			gint canvas_w = gtk_widget_get_allocated_width(GTK_WIDGET(preview->canvas));
 			gint canvas_h = gtk_widget_get_allocated_height(GTK_WIDGET(preview->canvas));
-			gdouble zoom_w = (gdouble)canvas_w / native_w;
-			gdouble zoom_h = (gdouble)canvas_h / native_h;
+			gdouble zoom_w = (gdouble)canvas_w / full_w;
+			gdouble zoom_h = (gdouble)canvas_h / full_h;
 			return MIN(zoom_w, zoom_h);
 		}
 	}
@@ -1661,7 +1665,9 @@ scroll(GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
 	gdouble cursor_x = event->x;
 	gdouble cursor_y = event->y;
 
-	rs_preview_widget_set_zoom(preview, preview->zoom_factor * factor);
+	/* Part de l'echelle reellement affichee (gere le mode fit), sinon le 1er
+	   cran sauterait a 100% au lieu d'incrementer. Idem boutons Zoom +/-. */
+	rs_preview_widget_set_zoom(preview, rs_preview_widget_get_zoom(preview) * factor);
 
 	/* Recentre la vue sur le curseur (sauf depuis zoom-to-fit) */
 	if (!was_fit)

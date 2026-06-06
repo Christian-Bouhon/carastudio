@@ -430,8 +430,13 @@ rs_photo_apply_to_filters(RS_PHOTO *photo, GList *filters, const gint snapshot)
 				"model", meta->model_ascii,
 				"lens", lens,
 				"focal", (gfloat) meta->focallength,
-				"aperture", meta->aperture,
 				NULL);
+			/* Ouverture EXIF absente => meta->aperture == 0.0, hors plage
+			   (min 1.0) du param spec lensfun : ne pas ecraser la valeur
+			   par defaut, sinon GObject emet un avertissement et la
+			   correction de vignettage est faussee. */
+			if (meta->aperture >= 1.0)
+				rs_filter_set_recursive(filter, "aperture", meta->aperture, NULL);
 			g_object_unref(lens);
 		}
 	}
