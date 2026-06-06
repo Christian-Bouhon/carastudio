@@ -163,6 +163,7 @@ struct _RSPreviewWidget
 	RSFilter *filter_resample[MAX_VIEWS];
 	RSFilter *filter_cache1[MAX_VIEWS];
 	RSFilter *filter_denoise[MAX_VIEWS];
+	RSFilter *filter_effects[MAX_VIEWS];
 	RSFilter *filter_cache2[MAX_VIEWS];
 	RSFilter *filter_transform_input[MAX_VIEWS];
 	RSFilter *filter_dcp[MAX_VIEWS];
@@ -399,7 +400,8 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 		preview->filter_dcp[i] = rs_filter_new("RSDcp", preview->filter_transform_input[i]);
 		preview->filter_cache2[i] = rs_filter_new("RSCache", preview->filter_dcp[i]);
 		preview->filter_denoise[i] = rs_filter_new("RSDenoise", preview->filter_cache2[i]);
-		preview->filter_transform_display[i] = rs_filter_new("RSColorspaceTransform", preview->filter_denoise[i]);
+		preview->filter_effects[i] = rs_filter_new("RSEffects", preview->filter_denoise[i]);
+		preview->filter_transform_display[i] = rs_filter_new("RSColorspaceTransform", preview->filter_effects[i]);
 		preview->filter_cache3[i] = rs_filter_new("RSCache", preview->filter_transform_display[i]);
 		preview->filter_mask[i] = rs_filter_new("RSExposureMask", preview->filter_cache3[i]);
 		preview->filter_end[i] = preview->filter_mask[i];
@@ -1585,8 +1587,11 @@ get_image_coord(RSPreviewWidget *preview, gint view, const gint x, const gint y,
 	{
 		_scaled_x = x + gtk_adjustment_get_value(preview->hadjustment);
 		_scaled_y = y + gtk_adjustment_get_value(preview->vadjustment);
-		_real_x = _scaled_x;
-		_real_y = _scaled_y;
+		/* En zoom manuel, scaled est en pixels zoomés. real est en pixels
+		   image originaux : on divise par le facteur de zoom. */
+		gdouble zf = (preview->zoom_factor > 0.0) ? preview->zoom_factor : 1.0;
+		_real_x = (gint)(_scaled_x / zf);
+		_real_y = (gint)(_scaled_y / zf);
 	}
 
 	if ((_scaled_x < filter_width) && (_scaled_y < filter_height) && (_scaled_x >= 0) && (_scaled_y >= 0))
@@ -2014,7 +2019,7 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 		/* Do aspect restriction */
 		crop_find_size_from_aspect(&preview->roi, preview->crop_aspect, preview->crop_near);
 
-		canvas_draw(preview, NULL, TRUE);
+		canvas_draw(preview, NULL, FALSE);
 	}
 
 	if ((mask & GDK_BUTTON1_MASK) && (preview->state & CROP_MOVE_SIDE))
@@ -2044,7 +2049,7 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 		preview->roi.x2 = MIN(max_w, preview->roi.x2);
 		preview->roi.y2 = MIN(max_h, preview->roi.y2);
 
-		canvas_draw(preview, NULL, TRUE);
+		canvas_draw(preview, NULL, FALSE);
 	}
 
 	if ((mask & GDK_BUTTON1_MASK) && (preview->state & CROP_MOVE_ALL))
@@ -2068,7 +2073,7 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 		preview->roi.x2 = preview->crop_move.x2+dist_x;
 		preview->roi.y2 = preview->crop_move.y2+dist_y;
 
-		canvas_draw(preview, NULL, TRUE);
+		canvas_draw(preview, NULL, FALSE);
 	}
 
 	/* Update crop_near if mouse button 1 is NOT pressed */
@@ -2155,7 +2160,7 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 		preview->straighten_end.y = y;
 		vx = preview->straighten_start.x - preview->straighten_end.x;
 		vy = preview->straighten_start.y - preview->straighten_end.y;
-		canvas_draw(preview, NULL, TRUE);
+		canvas_draw(preview, NULL, FALSE);
 		degrees = -atan2(vy,vx)*180/M_PI;
 		if (degrees>=0.0)
 		{
@@ -2574,27 +2579,14 @@ static void
 canvas_draw(RSPreviewWidget *preview, GdkRectangle *rect, gboolean now)
 {
 	GtkWidget *widget = GTK_WIDGET(preview->canvas);
-	GdkWindow *window = gtk_widget_get_window(widget);
 
-	if (now)
-	{
-		cairo_t *cr = gdk_cairo_create(window);
-
-		if (rect)
-		{
-			cairo_new_path(cr);
-			cairo_rectangle(cr, rect->x, rect->y, rect->width, rect->height);
-			cairo_clip(cr);
-		}
-		canvas_draw_handler(widget, cr, preview);
-	}
+	/* Sur Wayland, gdk_cairo_create() hors du signal draw est sans effet.
+	   On passe toujours par gtk_widget_queue_draw pour que GTK fournisse
+	   un cairo_t valide via le callback draw. */
+	if (rect)
+		gtk_widget_queue_draw_area(widget, rect->x, rect->y, rect->width, rect->height);
 	else
-	{
-		if (rect)
-			gtk_widget_queue_draw_area(widget, rect->x, rect->y, rect->width, rect->height);
-		else
-			gtk_widget_queue_draw(widget);
-	}
+		gtk_widget_queue_draw(widget);
 }
 
 static void
@@ -2625,28 +2617,52 @@ canvas_draw_handler(GtkWidget *widget, cairo_t *cr, RSPreviewWidget *preview)
 
 	for(i=0;i<preview->views;i++)
 	{
+		/* Dimensions et offset de cette vue dans le canvas */
+		gint view_w = rect.width;
+		gint view_h = rect.height;
+		gint view_x0 = 0;
+		gint view_y0 = 0;
+
+		if (preview->split == SPLIT_VERTICAL)
+		{
+			view_w = (rect.width - (preview->views-1)*SPLITTER_WIDTH) / preview->views;
+			view_x0 = i * (view_w + SPLITTER_WIDTH);
+		}
+		else if (preview->split == SPLIT_HORIZONTAL)
+		{
+			view_h = (rect.height - (preview->views-1)*SPLITTER_WIDTH) / preview->views;
+			view_y0 = i * (view_h + SPLITTER_WIDTH);
+		}
+
+		/* Zone sale restreinte à cette vue — sans cairo_save/restore
+		   pour éviter les problèmes avec les return prématurés */
+		GdkRectangle view_rect = { view_x0, view_y0, view_w, view_h };
+		GdkRectangle view_dirty;
+		if (!gdk_rectangle_intersect(&dirty_area, &view_rect, &view_dirty))
+			continue;
+
 		rs_filter_get_size_simple(preview->filter_end[i], preview->request[i], &width, &height);
 
 		if (preview->zoom_to_fit)
 			get_placement(preview, i, &placement);
 		else
 		{
-			if (width > rect.width)
-				placement.x = -gtk_adjustment_get_value(preview->hadjustment);
+			if (width > view_w)
+				placement.x = view_x0 - gtk_adjustment_get_value(preview->hadjustment);
 			else
-				placement.x = ((rect.width)-width)/2;
+				placement.x = view_x0 + (view_w - width) / 2;
 
-			if (height > rect.height)
-				placement.y = -gtk_adjustment_get_value(preview->vadjustment);
+			if (height > view_h)
+				placement.y = view_y0 - gtk_adjustment_get_value(preview->vadjustment);
 			else
-				placement.y = ((rect.height)-height)/2;
+				placement.y = view_y0 + (view_h - height) / 2;
 
 			placement.width = width;
 			placement.height = height;
 		}
 
 		/* Render the photo itself */
-		if (preview->photo && gdk_rectangle_intersect(&dirty_area, &placement, &area))
+		if (preview->photo && gdk_rectangle_intersect(&view_dirty, &placement, &area))
 		{
 			GdkRectangle roi = area;
 			roi.x -= placement.x;
@@ -2926,6 +2942,7 @@ canvas_draw_handler(GtkWidget *widget, cairo_t *cr, RSPreviewWidget *preview)
 			cairo_text_path(cr, txt);
 			cairo_stroke(cr);
 		}
+
 	}
 
 	/* Draw straighten-line */

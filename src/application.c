@@ -129,7 +129,8 @@ rs_photo_save(RS_PHOTO *photo, RSFilter *prior_to_resample, RSOutput *output, gi
 	RSFilter *fcrop = rs_filter_new("RSCrop", fdcp);
 	RSFilter *fresample= rs_filter_new("RSResample", fcrop);
 	RSFilter *fdenoise= rs_filter_new("RSDenoise", fresample);
-	RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", fdenoise);
+	RSFilter *feffects = rs_filter_new("RSEffects", fdenoise);
+	RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", feffects);
 	RSFilter *fend = ftransform_display;
 
 	gint input_width;
@@ -154,6 +155,7 @@ rs_photo_save(RS_PHOTO *photo, RSFilter *prior_to_resample, RSOutput *output, gi
 	g_object_unref(ftransform_display);
 	g_object_unref(fresample);
 	g_object_unref(fdenoise);
+	g_object_unref(feffects);
 	g_object_unref(fdcp);
 
 	return exported;
@@ -169,7 +171,8 @@ rs_photo_copy_to_clipboard(RS_PHOTO *photo, RSFilter *prior_to_resample, gint wi
 	RSFilter *fdcp = rs_filter_new("RSDcp", ftransform_input);
 	RSFilter *fresample= rs_filter_new("RSResample", fdcp);
 	RSFilter *fdenoise= rs_filter_new("RSDenoise", fresample);
-	RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", fdenoise);
+	RSFilter *feffects = rs_filter_new("RSEffects", fdenoise);
+	RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", feffects);
 	RSFilter *fend = ftransform_display;
 
 	gint input_width;

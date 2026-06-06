@@ -410,7 +410,8 @@ rs_batch_process(RS_QUEUE *queue)
 	RSFilter *fcache = rs_filter_new("RSCache", fdcp);
 	RSFilter *fresample= rs_filter_new("RSResample", fcache);
 	RSFilter *fdenoise= rs_filter_new("RSDenoise", fresample);
-	RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", fdenoise);
+	RSFilter *feffects = rs_filter_new("RSEffects", fdenoise);
+	RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", feffects);
 	RSFilter *fend = ftransform_display;
 	RSFilterResponse *filter_response;
 	RSColorSpace *display_color_space;

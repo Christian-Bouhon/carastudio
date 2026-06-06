@@ -64,7 +64,12 @@ enum {
 	PROP_CHANNELMIXER_RED,
 	PROP_CHANNELMIXER_GREEN,
 	PROP_CHANNELMIXER_BLUE,
-	PROP_RECALC_TEMP
+	PROP_RECALC_TEMP,
+	/* Effets artistiques CaraStudio */
+	PROP_SOFTLIGHT_STRENGTH,
+	PROP_ART_VIGNETTE_STRENGTH,
+	PROP_ART_VIGNETTE_FEATHER,
+	PROP_ART_VIGNETTE_ROUNDNESS
 };
 
 static void
@@ -187,6 +192,27 @@ rs_settings_class_init (RSSettingsClass *klass)
 			"recalc-temp", "recalc-temp", "Recalculate Temperature",
 			FALSE, G_PARAM_READWRITE)
 	);
+	/* Effets artistiques CaraStudio */
+	g_object_class_install_property(object_class,
+		PROP_SOFTLIGHT_STRENGTH, g_param_spec_float(
+			"softlight-strength", _("Lum. douce"), _("Soft Light Strength"),
+			0.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ART_VIGNETTE_STRENGTH, g_param_spec_float(
+			"art-vignette-strength", _("Vign. force"), _("Artistic Vignette Strength"),
+			-6.0, 6.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ART_VIGNETTE_FEATHER, g_param_spec_float(
+			"art-vignette-feather", _("Vign. plume"), _("Artistic Vignette Feather"),
+			0.0, 100.0, 50.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ART_VIGNETTE_ROUNDNESS, g_param_spec_float(
+			"art-vignette-roundness", _("Vign. rondeur"), _("Artistic Vignette Roundness"),
+			0.0, 100.0, 50.0, G_PARAM_READWRITE)
+	);
 
 	signals[SETTINGS_CHANGED] = g_signal_new ("settings-changed",
 		G_TYPE_FROM_CLASS (klass),
@@ -253,6 +279,10 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		CASE(CHANNELMIXER_RED, channelmixer_red);
 		CASE(CHANNELMIXER_GREEN, channelmixer_green);
 		CASE(CHANNELMIXER_BLUE, channelmixer_blue);
+		CASE(SOFTLIGHT_STRENGTH, softlight_strength);
+		CASE(ART_VIGNETTE_STRENGTH, art_vignette_strength);
+		CASE(ART_VIGNETTE_FEATHER, art_vignette_feather);
+		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
 	case PROP_RECALC_TEMP:
 		g_value_set_boolean(value, settings->recalc_temp);
 		break;
@@ -329,6 +359,10 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		CASE(CHANNELMIXER_RED, channelmixer_red);
 		CASE(CHANNELMIXER_GREEN, channelmixer_green);
 		CASE(CHANNELMIXER_BLUE, channelmixer_blue);
+		CASE(SOFTLIGHT_STRENGTH, softlight_strength);
+		CASE(ART_VIGNETTE_STRENGTH, art_vignette_strength);
+		CASE(ART_VIGNETTE_FEATHER, art_vignette_feather);
+		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
 		case PROP_RECALC_TEMP:
 			settings->recalc_temp = g_value_get_boolean(value);
 			if (settings->recalc_temp)
@@ -470,6 +504,11 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	if (mask & MASK_CHANNELMIXER_BLUE)
 		rs_object_class_property_reset(object, "channelmixer_blue");
 
+	rs_object_class_property_reset(object, "softlight-strength");
+	rs_object_class_property_reset(object, "art-vignette-strength");
+	rs_object_class_property_reset(object, "art-vignette-feather");
+	rs_object_class_property_reset(object, "art-vignette-roundness");
+
 	if (mask & MASK_CURVE)
 	{
 		if (settings->curve_knots)
@@ -575,6 +614,10 @@ do { \
 	SETTINGS_COPY(CHANNELMIXER_RED, channelmixer_red);
 	SETTINGS_COPY(CHANNELMIXER_GREEN, channelmixer_green);
 	SETTINGS_COPY(CHANNELMIXER_BLUE, channelmixer_blue);
+	SETTINGS_COPY(SOFTLIGHT_STRENGTH, softlight_strength);
+	SETTINGS_COPY(ART_VIGNETTE_STRENGTH, art_vignette_strength);
+	SETTINGS_COPY(ART_VIGNETTE_FEATHER, art_vignette_feather);
+	SETTINGS_COPY(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
 #undef SETTINGS_COPY
 
 	if (mask & MASK_WB)

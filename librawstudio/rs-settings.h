@@ -59,6 +59,11 @@ typedef enum {
 	MASK_CHANNELMIXER = MASK_CHANNELMIXER_RED | MASK_CHANNELMIXER_GREEN | MASK_CHANNELMIXER_BLUE,
 	MASK_VIGNETTING  = (1<<15),
 	MASK_PROFILE  = (1<<16),
+	/* Effets artistiques CaraStudio */
+	MASK_SOFTLIGHT_STRENGTH    = (1<<17),
+	MASK_ART_VIGNETTE_STRENGTH = (1<<18),
+	MASK_ART_VIGNETTE_FEATHER  = (1<<19),
+	MASK_ART_VIGNETTE_ROUNDNESS= (1<<20),
 	MASK_TRANSFORM     = (1<<30),
 	MASK_ALL            = 0x00ffffff,
 } RSSettingsMask;
@@ -88,6 +93,11 @@ typedef struct _RSsettings {
 	gint curve_nknots;
 	gfloat *curve_knots;
 	gboolean recalc_temp;
+	/* Effets artistiques CaraStudio */
+	gfloat softlight_strength;
+	gfloat art_vignette_strength;
+	gfloat art_vignette_feather;
+	gfloat art_vignette_roundness;
 } RSSettings;
 
 typedef struct {

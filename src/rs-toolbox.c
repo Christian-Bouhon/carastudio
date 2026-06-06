@@ -71,6 +71,19 @@ const static BasicSettings lens[] = {
 };
 #define NLENS (3)
 
+/* Effets artistiques CaraStudio */
+const static BasicSettings softlight[] = {
+	{ "softlight-strength", 1.0, MASK_SOFTLIGHT_STRENGTH },
+};
+#define NSOFTLIGHT (1)
+
+const static BasicSettings artvignette[] = {
+	{ "art-vignette-strength", 0.1, MASK_ART_VIGNETTE_STRENGTH },
+	{ "art-vignette-feather",  1.0, MASK_ART_VIGNETTE_FEATHER  },
+	{ "art-vignette-roundness",1.0, MASK_ART_VIGNETTE_ROUNDNESS },
+};
+#define NARTVIGNETTE (3)
+
 struct _RSToolbox {
 	GtkScrolledWindow parent;
 
@@ -81,6 +94,8 @@ struct _RSToolbox {
 	GtkRange *ranges[3][NBASICS];
 	GtkRange *channelmixer[3][NCHANNELMIXER];
 	GtkRange *lens[3][NLENS];
+	GtkRange *softlight[3][NSOFTLIGHT];
+	GtkRange *artvignette[3][NARTVIGNETTE];
 	GtkWidget *lenslabel[3];
 	GtkWidget *lensbutton[3];
 	RSLens *rs_lens;
@@ -721,18 +736,24 @@ static GtkWidget *
 new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 {
 	GtkWidget *vbox = gtk_vbox_new(FALSE, 1);
-	GtkTable *table, *channelmixertable, *lenstable;
+	GtkTable *table, *channelmixertable, *lenstable, *softlighttable, *artvignettetable;
 	gint row;
 
 	table = GTK_TABLE(gtk_table_new(NBASICS, 5, FALSE));
 	channelmixertable = GTK_TABLE(gtk_table_new(NCHANNELMIXER, 5, FALSE));
 	lenstable = GTK_TABLE(gtk_table_new(NLENS, 5, FALSE));
+	softlighttable = GTK_TABLE(gtk_table_new(NSOFTLIGHT, 5, FALSE));
+	artvignettetable = GTK_TABLE(gtk_table_new(NARTVIGNETTE, 5, FALSE));
 
 	/* Add basic sliders */
 	for(row=0;row<NBASICS;row++)
 		toolbox->ranges[snapshot][row] = basic_slider(toolbox, snapshot, table, row, &basic[row]);
 	for(row=0;row<NCHANNELMIXER;row++)
 		toolbox->channelmixer[snapshot][row] = basic_slider(toolbox, snapshot, channelmixertable, row, &channelmixer[row]);
+	for(row=0;row<NSOFTLIGHT;row++)
+		toolbox->softlight[snapshot][row] = basic_slider(toolbox, snapshot, softlighttable, row, &softlight[row]);
+	for(row=0;row<NARTVIGNETTE;row++)
+		toolbox->artvignette[snapshot][row] = basic_slider(toolbox, snapshot, artvignettetable, row, &artvignette[row]);
 
 	/* ROW HARDCODED TO 0 */
 	toolbox->lensbutton[snapshot] = gtk_button_new_with_label(_("Edit Lens"));
@@ -758,6 +779,42 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Curve"), toolbox->curve[snapshot], "show_curve", TRUE), FALSE, FALSE, 0);
 
 	return vbox;
+}
+
+/* ------------------------------------------------------------------ */
+/* Onglet Effets artistiques : un sous-onglet A/B/C par snapshot       */
+/* ------------------------------------------------------------------ */
+
+static GtkWidget *
+new_effects_page(RSToolbox *toolbox, const gint snapshot)
+{
+	GtkWidget *vbox = gtk_vbox_new(FALSE, 1);
+	GtkTable *softlighttable = GTK_TABLE(gtk_table_new(NSOFTLIGHT, 5, FALSE));
+	GtkTable *artvignettetable = GTK_TABLE(gtk_table_new(NARTVIGNETTE, 5, FALSE));
+	gint row;
+
+	for (row = 0; row < NSOFTLIGHT; row++)
+		toolbox->softlight[snapshot][row] = basic_slider(toolbox, snapshot, softlighttable, row, &softlight[row]);
+	for (row = 0; row < NARTVIGNETTE; row++)
+		toolbox->artvignette[snapshot][row] = basic_slider(toolbox, snapshot, artvignettetable, row, &artvignette[row]);
+
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Soft Light"), GTK_WIDGET(softlighttable), "show_softlight", TRUE), FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Vignette"), GTK_WIDGET(artvignettetable), "show_artvignette", TRUE), FALSE, FALSE, 0);
+
+	return vbox;
+}
+
+GtkWidget *
+rs_toolbox_get_effects_widget(RSToolbox *toolbox)
+{
+	GtkWidget *notebook = gtk_notebook_new();
+	const gchar *labels[] = {"A", "B", "C"};
+	gint i;
+	for (i = 0; i < 3; i++)
+		gtk_notebook_append_page(GTK_NOTEBOOK(notebook),
+			new_effects_page(toolbox, i),
+			gtk_label_new(labels[i]));
+	return notebook;
 }
 
 static void
@@ -922,6 +979,14 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 		{
 			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->lens[snapshot][i]), FALSE);
 		}
+		for(i=0;i<NSOFTLIGHT;i++)
+		{
+			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->softlight[snapshot][i]), FALSE);
+		}
+		for(i=0;i<NARTVIGNETTE;i++)
+		{
+			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->artvignette[snapshot][i]), FALSE);
+		}
 		rs_curve_widget_reset(RS_CURVE_WIDGET(toolbox->curve[snapshot]));
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 0.0,0.0);
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 1.0,1.0);
@@ -1062,6 +1127,10 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 
 			for(i=0;i<NLENS;i++)
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->lens[snapshot][i]), TRUE);
+			for(i=0;i<NSOFTLIGHT;i++)
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->softlight[snapshot][i]), TRUE);
+			for(i=0;i<NARTVIGNETTE;i++)
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->artvignette[snapshot][i]), TRUE);
 		}
 	}
 	else
