@@ -74,8 +74,23 @@ typedef enum {
 	MASK_BW_VIOLET             = (1<<28),
 	MASK_BW_FILTER             = (1<<29),
 	MASK_TRANSFORM     = (1<<30),
-	MASK_ALL            = 0x00ffffff,
+	/* Couvre tous les VRAIS réglages, bits 0-29 (N&B inclus : 21-29).
+	 * NB : les bits 30-31 sont réservés à l'encodage du snapshot (A/B/C) dans
+	 * le signal "settings-changed" — voir RS_PACK/UNPACK_SNAPSHOT ci-dessous.
+	 * MASK_TRANSFORM (bit 30) ne transite jamais par ce signal (il n'est pas
+	 * copié par rs_settings_copy ; il sert au copier/coller dans rs-actions). */
+	MASK_ALL            = 0x3fffffff,
 } RSSettingsMask;
+
+/* Le signal "settings-changed" transporte, dans un seul gint, le masque des
+ * réglages modifiés (bits 0-29) ET le numéro de snapshot A/B/C (bits 30-31).
+ * Auparavant le snapshot était encodé en <<24, ce qui écrasait les masques
+ * N&B (bits 24-29) → curseurs bleu/etc. non rafraîchis. */
+#define RS_SNAPSHOT_SHIFT 30
+#define RS_PACK_SNAPSHOT(mask, snap) \
+	(((mask) & MASK_ALL) | ((guint)(snap) << RS_SNAPSHOT_SHIFT))
+#define RS_UNPACK_SNAPSHOT(packed)   (((guint)(packed)) >> RS_SNAPSHOT_SHIFT)
+#define RS_UNPACK_MASK(packed)       ((packed) & MASK_ALL)
 
 typedef struct _RSsettings {
 	GObject parent;

@@ -272,7 +272,7 @@ notebook_switch_page(GtkNotebook *notebook, gpointer page, guint page_num, RSToo
 	g_signal_emit(toolbox, signals[SNAPSHOT_CHANGED], 0, toolbox->selected_snapshot);
 
 	if (toolbox->photo)
-		photo_settings_changed(toolbox->photo, page_num<<24|MASK_ALL, toolbox);
+		photo_settings_changed(toolbox->photo, RS_PACK_SNAPSHOT(MASK_ALL, page_num), toolbox);
 }
 
 static void
@@ -1021,8 +1021,8 @@ static void photo_profile_changed(RS_PHOTO *photo, gpointer profile, gpointer us
 static void
 photo_settings_changed(RS_PHOTO *photo, RSSettingsMask mask, gpointer user_data)
 {
-	const gint snapshot = mask>>24;
-	mask &= 0x00ffffff;
+	const gint snapshot = RS_UNPACK_SNAPSHOT(mask);
+	mask = RS_UNPACK_MASK(mask);
 	RSToolbox *toolbox = RS_TOOLBOX(user_data);
 
 	if (!toolbox->mute_from_photo)
@@ -1058,7 +1058,7 @@ photo_wb_changed(RSSettings *settings, gpointer user_data)
 	{
 		if (settings == toolbox->photo->settings[snapshot])
 		{
-			photo_settings_changed(toolbox->photo, MASK_WB|(snapshot<<24), toolbox);
+			photo_settings_changed(toolbox->photo, RS_PACK_SNAPSHOT(MASK_WB, snapshot), toolbox);
 		}
 	}
 }

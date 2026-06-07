@@ -763,11 +763,7 @@ make_iconview(GtkWidget *iconview, RSStore *store, gint prio)
 
 	scroller = gtk_scrolled_window_new (NULL, NULL);
 	gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroller),
-		GTK_POLICY_ALWAYS, GTK_POLICY_NEVER);
-	/* Scrollbar permanente (non-overlay) : contenu 116 px + scrollbar ~14 px */
-	gtk_scrolled_window_set_overlay_scrolling(GTK_SCROLLED_WINDOW(scroller), FALSE);
-	gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scroller), 116);
-	gtk_scrolled_window_set_max_content_height(GTK_SCROLLED_WINDOW(scroller), 116);
+		GTK_POLICY_AUTOMATIC, GTK_POLICY_NEVER);
 
 	/* La molette sur l'iconview doit défiler horizontalement.
 	   On connecte sur l'iconview (pas le scroller) car GtkIconView

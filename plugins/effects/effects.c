@@ -25,6 +25,7 @@
 typedef struct {
 	RSFilter parent;
 	RSSettings *settings;
+	gulong settings_signal_id;
 	gfloat softlight_strength;
 	gfloat art_vignette_strength;
 	gfloat art_vignette_feather;
@@ -52,6 +53,25 @@ static void get_property(GObject *obj, guint id, GValue *val, GParamSpec *pspec)
 static void set_property(GObject *obj, guint id, const GValue *val, GParamSpec *pspec);
 static RSFilterResponse *get_image(RSFilter *filter, const RSFilterRequest *request);
 static void settings_changed(RSSettings *settings, RSSettingsMask mask, RSEffects *effects);
+static void settings_weak_notify(gpointer data, GObject *where_the_object_was);
+
+/* L'objet RSSettings n'est PAS détenu par le filtre (référence empruntée,
+ * propriété de la photo). On suit donc sa destruction par une weak-ref pour
+ * remettre e->settings à NULL et éviter de déréférencer un objet libéré au
+ * changement de photo (cf. crash effects.c:99). Même schéma que le plugin DCP. */
+static void
+finalize(GObject *object)
+{
+	RSEffects *e = RS_EFFECTS(object);
+
+	if (e->settings && e->settings_signal_id)
+	{
+		g_signal_handler_disconnect(e->settings, e->settings_signal_id);
+		g_object_weak_unref(G_OBJECT(e->settings), settings_weak_notify, e);
+	}
+	e->settings_signal_id = 0;
+	e->settings = NULL;
+}
 
 static void
 rs_effects_class_init(RSEffectsClass *klass)
@@ -61,6 +81,7 @@ rs_effects_class_init(RSEffectsClass *klass)
 
 	obj_class->get_property = get_property;
 	obj_class->set_property = set_property;
+	obj_class->finalize = finalize;
 	filter_class->name = "CaraStudio Effects";
 	filter_class->get_image = get_image;
 
@@ -73,6 +94,7 @@ static void
 rs_effects_init(RSEffects *effects)
 {
 	effects->settings = NULL;
+	effects->settings_signal_id = 0;
 	effects->softlight_strength = 0.0f;
 	effects->art_vignette_strength = 0.0f;
 	effects->art_vignette_feather = 50.0f;
@@ -95,31 +117,38 @@ set_property(GObject *obj, guint id, const GValue *val, GParamSpec *pspec)
 	RSEffects *e = RS_EFFECTS(obj);
 	switch (id) {
 	case PROP_SETTINGS:
-		if (e->settings)
-			g_signal_handlers_disconnect_by_func(e->settings, settings_changed, e);
+		/* Si on réapplique le MÊME objet settings, on se contente de
+		 * recharger les valeurs (ne pas déconnecter/reconnecter). */
+		if (e->settings && e->settings_signal_id)
+		{
+			if (e->settings == g_value_get_object(val))
+			{
+				settings_changed(e->settings, MASK_ALL, e);
+				break;
+			}
+			g_signal_handler_disconnect(e->settings, e->settings_signal_id);
+			g_object_weak_unref(G_OBJECT(e->settings), settings_weak_notify, e);
+			e->settings_signal_id = 0;
+		}
 		e->settings = g_value_get_object(val);
 		if (e->settings) {
-			g_object_get(e->settings,
-				"softlight-strength",    &e->softlight_strength,
-				"art-vignette-strength", &e->art_vignette_strength,
-				"art-vignette-feather",  &e->art_vignette_feather,
-				"art-vignette-roundness",&e->art_vignette_roundness,
-				"bw-enabled",            &e->bw_enabled,
-				"bw-filter",             &e->bw_filter,
-				"bw-red",                &e->bw_red,
-				"bw-orange",             &e->bw_orange,
-				"bw-yellow",             &e->bw_yellow,
-				"bw-green",              &e->bw_green,
-				"bw-cyan",               &e->bw_cyan,
-				"bw-blue",               &e->bw_blue,
-				"bw-violet",             &e->bw_violet,
-				NULL);
-			g_signal_connect(e->settings, "settings-changed",
-				G_CALLBACK(settings_changed), e);
+			e->settings_signal_id = g_signal_connect(e->settings,
+				"settings-changed", G_CALLBACK(settings_changed), e);
+			g_object_weak_ref(G_OBJECT(e->settings), settings_weak_notify, e);
+			/* Charge l'état initial depuis les nouveaux réglages. */
+			settings_changed(e->settings, MASK_ALL, e);
 		}
 		break;
 	default: G_OBJECT_WARN_INVALID_PROPERTY_ID(obj, id, pspec);
 	}
+}
+
+static void
+settings_weak_notify(gpointer data, GObject *where_the_object_was)
+{
+	RSEffects *e = RS_EFFECTS(data);
+	e->settings = NULL;
+	e->settings_signal_id = 0;
 }
 
 static void
@@ -242,11 +271,60 @@ apply_vignette(RS_IMAGE16 *img, gfloat strength, gfloat feather, gfloat roundnes
 }
 
 /* ------------------------------------------------------------------ */
+/* Noir & Blanc — mélangeur de canaux DIRECT (façon ART / channel mixer) */
 /* ------------------------------------------------------------------ */
-/* Noir & Blanc — mélangeur 7 canaux hue-weighted (style ART)         */
-/* Algorithme d'après RawTherapee/ART Color::computeBWMixerConstants  */
-/* Valeur neutre = 33, plage 0-200                                     */
-/* ------------------------------------------------------------------ */
+/*
+ * Deux étages indépendants, comme en photo argentique :
+ *
+ *  1. FILTRE coloré (global) : calcule la luminance de BASE du gris en
+ *     pondérant R/G/B. C'est le « filtre devant l'objectif » : un filtre
+ *     rouge éclaircit globalement les rouges et assombrit les bleus. Filtre 0
+ *     = luminance Rec.709 neutre. Les poids somment ~1 → pas de dérive.
+ *
+ *  2. CURSEURS par teinte (ciblés) : chaque curseur ajuste UNIQUEMENT les
+ *     pixels de sa couleur, proportionnellement à leur SATURATION. Un pixel
+ *     gris (saturation nulle) n'est PAS touché — c'est ce qui distingue ce
+ *     comportement du simple mélangeur de canaux qui agissait sur toute
+ *     l'image. Ancres de teinte : Rouge 0°, Orange 30°, Jaune 60°, Vert 120°,
+ *     Cyan 180°, Bleu 240°, Violet 300° ; interpolation circulaire.
+ *
+ *     gris = base · (1 + ajust(teinte) · saturation)
+ *
+ *     Curseur 0–200, neutre 33 :
+ *        33  → ajust 0    (aucun effet)
+ *        0   → ajust −1.5 (assombrit les pixels de cette teinte jusqu'au noir)
+ *        200 → ajust +2.5 (les éclaircit fortement, jusqu'au blanc)
+ */
+
+/* Teinte [0;360[ + saturation HSL [0;1] ; entrées r,g,b en [0;1]. */
+static inline void
+bw_rgb_to_hue_sat(gfloat r, gfloat g, gfloat b, gfloat *hue, gfloat *sat)
+{
+	gfloat mx = fmaxf(r, fmaxf(g, b));
+	gfloat mn = fminf(r, fminf(g, b));
+	gfloat d  = mx - mn;
+
+	if (d < 1e-6f) { *hue = 0.0f; *sat = 0.0f; return; }
+
+	gfloat l = 0.5f * (mx + mn);
+	*sat = (l > 0.5f) ? d / (2.0f - mx - mn) : d / (mx + mn);
+
+	gfloat h;
+	if (mx == r)      h = (g - b) / d + (g < b ? 6.0f : 0.0f);
+	else if (mx == g) h = (b - r) / d + 2.0f;
+	else              h = (r - g) / d + 4.0f;
+	*hue = h * 60.0f;
+}
+
+/* Curseur 0–200 (neutre 33) → ajustement, 0 au neutre, fort aux extrêmes. */
+static inline gfloat
+bw_slider_to_adjust(gfloat s)
+{
+	if (s >= 33.0f)
+		return (s - 33.0f) / (200.0f - 33.0f) * 2.5f;  /* 33→0 ; 200→+2.5 */
+	else
+		return (s - 33.0f) / 33.0f * 1.5f;             /* 33→0 ; 0→−1.5   */
+}
 
 static void
 apply_bw(RS_IMAGE16 *img,
@@ -254,74 +332,66 @@ apply_bw(RS_IMAGE16 *img,
          gfloat bw_r, gfloat bw_o, gfloat bw_y,
          gfloat bw_g, gfloat bw_c, gfloat bw_b, gfloat bw_v)
 {
-	/* Filtre coloré : multiplicateurs R/G/B + correction d'exposition (ART) */
-	/* Ordre : { fR, fG, fB, corr } — 0=Aucun 1=Rouge 2=Rouge-Jaune 3=Jaune
-	            4=Vert-Jaune 5=Vert 6=Bleu-Vert 7=Bleu 8=Violet             */
-	static const gfloat filters[9][4] = {
-		{ 1.00f, 1.00f, 1.00f, 1.00f }, /* 0 Aucun       */
-		{ 1.00f, 0.05f, 0.00f, 1.08f }, /* 1 Rouge        */
-		{ 1.00f, 0.60f, 0.00f, 1.35f }, /* 2 Rouge-Jaune  */
-		{ 1.00f, 1.00f, 0.05f, 1.23f }, /* 3 Jaune        */
-		{ 0.60f, 1.00f, 0.30f, 1.32f }, /* 4 Vert-Jaune   */
-		{ 0.20f, 1.00f, 0.30f, 1.41f }, /* 5 Vert         */
-		{ 0.05f, 1.00f, 1.00f, 1.23f }, /* 6 Bleu-Vert    */
-		{ 0.00f, 0.05f, 1.00f, 1.20f }, /* 7 Bleu         */
-		{ 1.00f, 0.05f, 1.00f, 1.23f }, /* 8 Violet       */
+	/* Étage 1 — filtre coloré : poids R/G/B de la luminance de base (somme ~1). */
+	static const gfloat filters[9][3] = {
+		{ 0.2126f, 0.7152f, 0.0722f }, /* 0 Aucun (Rec.709) */
+		{ 0.55f,   0.38f,   0.07f   }, /* 1 Rouge        */
+		{ 0.45f,   0.48f,   0.07f   }, /* 2 Rouge-Jaune  */
+		{ 0.38f,   0.55f,   0.07f   }, /* 3 Jaune        */
+		{ 0.28f,   0.60f,   0.12f   }, /* 4 Vert-Jaune   */
+		{ 0.20f,   0.65f,   0.15f   }, /* 5 Vert         */
+		{ 0.13f,   0.52f,   0.35f   }, /* 6 Bleu-Vert    */
+		{ 0.10f,   0.35f,   0.55f   }, /* 7 Bleu         */
+		{ 0.35f,   0.18f,   0.47f   }, /* 8 Violet       */
 	};
-	gint fi = CLAMP(filter, 0, 8);
-	const gfloat fR = filters[fi][0];
-	const gfloat fG = filters[fi][1];
-	const gfloat fB = filters[fi][2];
-	const gfloat fC = filters[fi][3];
+	const gint fi = CLAMP(filter, 0, 8);
+	const gfloat fR = filters[fi][0], fG = filters[fi][1], fB = filters[fi][2];
 
-	/* Canaux de base (Rouge, Vert, Bleu) modulés par le filtre */
-	gfloat rM = bw_r / 100.0f * fR;
-	gfloat gM = bw_g / 100.0f * fG;
-	gfloat bM = bw_b / 100.0f * fB;
+	/* Étage 2 — ajustements par teinte sur 3 ancres PRIMAIRES (Rouge 0°,
+	 * Vert 120°, Bleu 240°). Chaque pixel est influencé par ses 2 primaires
+	 * les plus proches → un curseur a une large portée (le rouge atteint les
+	 * oranges/tons chauds, comme ART), sans zone morte entre ancres.
+	 * (orange/jaune/cyan/violet ne sont pas des curseurs exposés.) */
+	(void) bw_o; (void) bw_y; (void) bw_c; (void) bw_v;
+	const gfloat adjR = bw_slider_to_adjust(bw_r);
+	const gfloat adjG = bw_slider_to_adjust(bw_g);
+	const gfloat adjB = bw_slider_to_adjust(bw_b);
 
-	/* Orange → modifie R et G (formules ART) */
-	gfloat orM = (bw_o > 33.0f)
-		? (bw_o * 0.67f - 22.11f) / 100.0f
-		: (-0.3f * bw_o + 9.9f) / 100.0f;
-	gfloat ogM = (bw_o > 33.0f)
-		? (-0.164f * bw_o + 5.412f) / 100.0f
-		: (0.4f * bw_o - 13.2f) / 100.0f;
+	const gint W = img->w, H = img->h, ps = img->pixelsize;
 
-	/* Jaune → modifie R et G */
-	gfloat yrM = (-0.134f * bw_y + 4.422f) / 100.0f;
-	gfloat ygM = (0.5f * bw_y - 16.5f) / 100.0f;
-
-	/* Cyan → modifie G et B */
-	gfloat cgM = (-0.134f * bw_c + 4.422f) / 100.0f;
-	gfloat cbM = (0.5f * bw_c - 16.5f) / 100.0f;
-
-	/* Violet → modifie R et B (comme Magenta dans ART) */
-	gfloat vrM = (bw_v > 33.0f)
-		? (0.67f * bw_v - 22.11f) / 100.0f
-		: (-0.3f * bw_v + 9.9f) / 100.0f;
-	gfloat vbM = (bw_v > 33.0f)
-		? (-0.164f * bw_v + 5.412f) / 100.0f
-		: (0.4f * bw_v - 13.2f) / 100.0f;
-
-	/* Accumulation */
-	rM += orM + yrM + vrM;
-	gM += ogM + ygM + cgM;
-	bM += cbM + vbM;
-
-	/* Normalisation + correction d'exposition du filtre */
-	gfloat total = rM + gM + bM;
-	if (total > 0.001f) { rM /= total; gM /= total; bM /= total; }
-	rM *= fC; gM *= fC; bM *= fC;
-
-	const gint pixels = img->w * img->h;
-	gushort *p = GET_PIXEL(img, 0, 0);
-	const gint step = img->pixelsize;
-
-	for (gint i = 0; i < pixels; i++, p += step)
+	for (gint y = 0; y < H; y++)
 	{
-		gfloat gray = rM * p[R] + gM * p[G] + bM * p[B];
-		gushort v = (gushort) CLAMP(gray, 0.0f, 65535.0f);
-		p[R] = p[G] = p[B] = v;
+		gushort *p = GET_PIXEL(img, 0, y);
+		for (gint x = 0; x < W; x++, p += ps)
+		{
+			const gfloat r = p[R] / 65535.0f;
+			const gfloat g = p[G] / 65535.0f;
+			const gfloat b = p[B] / 65535.0f;
+
+			/* Luminance de base teintée par le filtre. */
+			gfloat base = fR * r + fG * g + fB * b;
+
+			/* Ajustement ciblé par teinte, pondéré par la saturation. */
+			gfloat hue, sat;
+			bw_rgb_to_hue_sat(r, g, b, &hue, &sat);
+
+			gfloat a = 0.0f;
+			if (sat > 1e-4f)
+			{
+				gfloat lo, hi, t;
+				if (hue < 120.0f)       { lo = adjR; hi = adjG; t = hue / 120.0f; }
+				else if (hue < 240.0f)  { lo = adjG; hi = adjB; t = (hue - 120.0f) / 120.0f; }
+				else                    { lo = adjB; hi = adjR; t = (hue - 240.0f) / 120.0f; }
+				a = (lo * (1.0f - t) + hi * t) * sat;
+			}
+
+			gfloat factor = 1.0f + a;
+			if (factor < 0.0f) factor = 0.0f;
+
+			gfloat gray = base * factor * 65535.0f;
+			gushort gv = (gushort) CLAMP(gray, 0.0f, 65535.0f);
+			p[R] = p[G] = p[B] = gv;
+		}
 	}
 }
 
@@ -350,6 +420,9 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	RSFilterResponse *response = rs_filter_response_clone(previous);
 	RS_IMAGE16 *out = rs_image16_copy(img, TRUE);
 	rs_filter_response_set_image(response, out);
+	/* rs_filter_response_get_image() renvoie une référence : on la relâche
+	 * dès que la copie est faite (sinon fuite d'un RS_IMAGE16 par rendu). */
+	g_object_unref(img);
 	g_object_unref(previous);
 
 	if (need_bw)

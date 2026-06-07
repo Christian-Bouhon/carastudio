@@ -165,7 +165,7 @@ photo_settings_changed_cb(RSSettings *settings, RSSettingsMask mask, gpointer us
 		for(i=0;i<3;i++)
 			if (settings == photo->settings[i])
 			{
-				g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, mask|(i<<24));
+				g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, RS_PACK_SNAPSHOT(mask, i));
 				break;
 			}
 }
@@ -338,7 +338,7 @@ rs_photo_set_##setting(RS_PHOTO *photo, const gint snapshot, const gdouble value
 	/*if (!photo) return;*/ \
 	/*g_return_if_fail ((snapshot>=0) && (snapshot<=2));*/ \
 	photo->settings[snapshot]->setting = value; \
-	g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, MASK_##uppersetting|(snapshot<<24)); \
+	g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, RS_PACK_SNAPSHOT(MASK_##uppersetting, snapshot)); \
 }
 
 RS_PHOTO_SET_GDOUBLE_VALUE(exposure, EXPOSURE)
@@ -564,7 +564,7 @@ rs_photo_set_wb_from_wt(RS_PHOTO *photo, const gint snapshot, const gdouble warm
 
 	rs_settings_set_wb(photo->settings[snapshot], warmth, tint, NULL);
 
-	g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, MASK_WB|(snapshot<<24));
+	g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, RS_PACK_SNAPSHOT(MASK_WB, snapshot));
 }
 
 /**
