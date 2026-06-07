@@ -1777,6 +1777,10 @@
 	</camera>
 	<camera unique_id="Panasonic DMC-GX7">
 		<exif make="Panasonic" model="DMC-GX7"/>
+		<!-- GX8/GX80/GX85 : pas de profil DCP dédié, même capteur MFT que GX7 -->
+		<exif make="Panasonic" model="DMC-GX8"/>
+		<exif make="Panasonic" model="DMC-GX80"/>
+		<exif make="Panasonic" model="DMC-GX85"/>
 	</camera>
 	<camera unique_id="Panasonic DMC-LF1">
 		<exif make="Panasonic" model="DMC-LF1"/>
