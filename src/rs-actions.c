@@ -121,7 +121,7 @@ rs_core_actions_update_menu_items(RS_BLOB *rs)
 #endif
 
 	/* View Menu */
-	rs_core_action_group_set_sensivity("Lightsout", !rs->window_fullscreen);
+	rs_core_action_group_set_sensivity("Lightsout", TRUE);
 
 	/* Batch Menu */
 	rs_core_action_group_set_sensivity("AddToBatch", (num_selected >= 1) || (rs->photo && !rs_batch_exists_in_queue(rs->queue, rs->photo->filename, rs->current_setting)));
@@ -1172,7 +1172,7 @@ TOGGLEACTION(fullscreen)
 	gui_fullscreen_changed(rs->toolbox, rs->window_fullscreen, "Toolbox",
 												 DEFAULT_CONF_SHOW_TOOLBOX_FULLSCREEN, DEFAULT_CONF_SHOW_TOOLBOX,
 												 CONF_SHOW_TOOLBOX_FULLSCREEN, CONF_SHOW_TOOLBOX);
-	rs_core_action_group_set_sensivity("Lightsout", !rs->window_fullscreen);
+	rs_core_action_group_set_sensivity("Lightsout", TRUE);
 }
 
 TOGGLEACTION(fullscreen_preview)
@@ -1185,7 +1185,7 @@ TOGGLEACTION(fullscreen_preview)
 	else
 	{
 		gui_disable_preview_screen(rs);
-		rs_core_action_group_set_sensivity("Lightsout", !rs->window_fullscreen);
+		rs_core_action_group_set_sensivity("Lightsout", TRUE);
 	}
 }
 
@@ -1209,7 +1209,30 @@ TOGGLEACTION(split)
 
 TOGGLEACTION(lightsout)
 {
-	rs_preview_widget_set_lightsout(RS_PREVIEW_WIDGET(rs->preview), gtk_toggle_action_get_active(toggleaction));
+	static gboolean saved_iconbox = TRUE;
+	static gboolean saved_toolbox = TRUE;
+	gboolean active = gtk_toggle_action_get_active(toggleaction);
+
+	rs_preview_widget_set_lightsout(RS_PREVIEW_WIDGET(rs->preview), active);
+
+	if (active)
+	{
+		GtkToggleAction *ia = GTK_TOGGLE_ACTION(rs_core_action_group_get_action("Iconbox"));
+		GtkToggleAction *ta = GTK_TOGGLE_ACTION(rs_core_action_group_get_action("Toolbox"));
+		saved_iconbox = gtk_toggle_action_get_active(ia);
+		saved_toolbox = gtk_toggle_action_get_active(ta);
+		if (saved_iconbox)
+			gtk_toggle_action_set_active(ia, FALSE);
+		if (saved_toolbox)
+			gtk_toggle_action_set_active(ta, FALSE);
+	}
+	else
+	{
+		if (saved_iconbox)
+			gtk_toggle_action_set_active(GTK_TOGGLE_ACTION(rs_core_action_group_get_action("Iconbox")), TRUE);
+		if (saved_toolbox)
+			gtk_toggle_action_set_active(GTK_TOGGLE_ACTION(rs_core_action_group_get_action("Toolbox")), TRUE);
+	}
 }
 
 ACTION(add_to_batch)

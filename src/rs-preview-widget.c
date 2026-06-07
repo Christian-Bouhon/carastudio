@@ -179,7 +179,7 @@ struct _RSPreviewWidget
 	void *transform;
 	gint snapshot[MAX_VIEWS];
 
-	GtkWidget *lightsout_window;
+	gboolean lightsout;	/* Voile noir in-canvas (compatible Wayland) */
 
 	gint last_x;
 	gint last_y;
@@ -457,7 +457,7 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 	g_signal_connect(G_OBJECT(preview->canvas), "scroll_event", G_CALLBACK (scroll), preview);
 	g_signal_connect(preview->canvas, "draw", G_CALLBACK(canvas_draw_handler), preview);
 
-	preview->lightsout_window = NULL;
+	preview->lightsout = FALSE;
 	preview->prev_inside_image = FALSE;
 
 	g_object_ref(preview->display_color_space);
@@ -1005,57 +1005,6 @@ rs_preview_widget_set_split(RSPreviewWidget *preview, gboolean split_screen)
 	canvas_draw(preview, NULL, FALSE);
 }
 
-static gboolean
-lightsout_window_on_draw(GtkWidget *widget, cairo_t *cairo_context, RSPreviewWidget *preview)
-{
-	gint view;
-	gint x, y;
-	gint origin_x, origin_y;
-	gint root_origin_x, root_origin_y;
-	gint width, height;
-	GdkWindow *window = gtk_widget_get_window(widget);
-
-	gtk_window_get_size(GTK_WINDOW(widget), &width, &height);
-
-	cairo_set_source_rgba (cairo_context, 0.0f, 0.0f, 0.0f, 0.8f);
-	cairo_set_operator (cairo_context, CAIRO_OPERATOR_SOURCE);
-	cairo_paint (cairo_context);
-
-	/* Make sure the window is fullscreen and above everything */
-	gdk_window_raise(window);
-	gdk_window_set_keep_above(window, TRUE);
-	gdk_window_fullscreen(window);
-
-	/* Get position of canvas widget */
-	gdk_window_get_origin(gtk_widget_get_window(GTK_WIDGET(preview->canvas)), &origin_x, &origin_y);
-
-	/* This is nothing but a hack. Since the "lightsout" window is maximized,
-	   we can use the position of this to measure the size of Gnome3 left and
-	   top panels */
-	gdk_window_get_origin(window, &root_origin_x, &root_origin_y);
-
-	/* Paint the images with alpha=0 */
-	for(view=0;view<preview->views;view++)
-	{
-		GdkRectangle rect;
-		if (get_placement(preview, view, &rect))
-		{
-			/* Calculate the position as canvas position - PANEL sizes + canvas
-			   placement of preview */
-			x = origin_x - root_origin_x + rect.x;
-			y = origin_y - root_origin_y + rect.y;
-
-			cairo_set_source_rgba(cairo_context, 0.0, 0.0, 0.0, 0.0);
-			cairo_rectangle (cairo_context, x, y, rect.width, rect.height);
-			cairo_fill (cairo_context);
-		}
-	}
-
-	/* Set opacity to 100% when we're done drawing */
-	gtk_window_set_opacity(GTK_WINDOW(widget), 1.0);
-
-	return FALSE;
-}
 
 /**
  * Enables or disables lights out mode
@@ -1065,68 +1014,16 @@ lightsout_window_on_draw(GtkWidget *widget, cairo_t *cairo_context, RSPreviewWid
 void
 rs_preview_widget_set_lightsout(RSPreviewWidget *preview, gboolean lightsout)
 {
-	/* FIXME: Make this follow the loaded image(s) somehow */
-	if (lightsout && !preview->lightsout_window)
-	{
-		GdkScreen *screen = gtk_widget_get_screen(GTK_WIDGET(preview->canvas));
-		gint width = gdk_screen_get_width(screen);
-		gint height = gdk_screen_get_height(screen);
-		GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-		GdkVisual *visual = gdk_screen_get_rgba_visual(screen);
+	/* Voile noir « in-canvas » : on mémorise simplement l'état et on
+	 * redessine. canvas_draw_handler() peint le canvas en noir (l'image
+	 * reste affichée par-dessus). Contrairement à l'ancienne implémentation
+	 * (fenêtre overlay RGBA + gdk_window_raise/keep_above/fullscreen), cette
+	 * approche est 100% compatible Wayland — aucun compositing externe requis. */
+	if (preview->lightsout == lightsout)
+		return;
 
-		/* Check if the system even supports composite - and bail out if needed */
-		if (!visual || !gdk_display_supports_composite(gdk_display_get_default()))
-		{
-			GtkWidget *dialog = gui_dialog_make_from_text(
-				GTK_STOCK_DIALOG_ERROR,
-				_("Light out mode not available"),
-				_("Your setup doesn't seem to support RGBA visuals and/or compositing. Consult your operating system manual for enabling RGBA visuals and compositing.")
-			);
-			
-			GtkWidget *button = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
-			gtk_dialog_add_action_widget(GTK_DIALOG(dialog), button, GTK_RESPONSE_ACCEPT);
-
-            gtk_widget_show_all(dialog);
-            gtk_dialog_run(GTK_DIALOG(dialog));
-            gtk_widget_destroy(dialog);
-			return;
-		}
-
-		/* Set the visual to RGBA */
-		gtk_widget_set_visual(window, visual);
-
-		/* Cover whole screen */
-		gtk_window_resize(GTK_WINDOW(window), width, height);
-		gtk_window_move(GTK_WINDOW(window), 0, 0);
-
-		/* Set the input shape to an empty cairo region,
-		 * to let everything pass through */
-		cairo_region_t *region = cairo_region_create();
-		gtk_widget_input_shape_combine_region(window, region);
-		cairo_region_destroy(region);
-
-		g_signal_connect(window, "draw", G_CALLBACK(lightsout_window_on_draw), preview);
-
-		gtk_widget_set_app_paintable (window, TRUE);
-		gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_UTILITY);
-		gtk_window_set_decorated (GTK_WINDOW (window), FALSE);
-		gtk_window_set_keep_above(GTK_WINDOW(window), TRUE);
-		gtk_window_set_accept_focus(GTK_WINDOW(window), FALSE);
-		gtk_window_set_deletable(GTK_WINDOW(window), FALSE);
-		gtk_window_set_skip_pager_hint(GTK_WINDOW(window), TRUE);
-		gtk_window_set_skip_taskbar_hint(GTK_WINDOW(window), TRUE);
-		gtk_window_set_title(GTK_WINDOW(window), "Rawstudio lights out helper");
-
-		/* Let the window be completely transparent for now to avoid initial flicker */
-		gtk_window_set_opacity(GTK_WINDOW(window), 0.0);
-		gtk_widget_show_all(window);
-		preview->lightsout_window = window;
-	}
-	else if (!lightsout && preview->lightsout_window)
-	{
-		gtk_widget_destroy(preview->lightsout_window);
-		preview->lightsout_window = NULL;
-	}
+	preview->lightsout = lightsout;
+	gtk_widget_queue_draw(GTK_WIDGET(preview->canvas));
 }
 
 /**
@@ -2609,6 +2506,18 @@ canvas_draw_handler(GtkWidget *widget, cairo_t *cr, RSPreviewWidget *preview)
 		dirty_area.y = 0;
 		dirty_area.width = rect.width;
 		dirty_area.height = rect.height;
+	}
+
+	/* Lights Out : voile noir sur tout le canvas ; l'image (et le reste) est
+	 * dessinée par-dessus. En plein écran le canvas occupe l'écran → effet
+	 * « voile noir ». Compatible Wayland (aucune fenêtre overlay). */
+	if (preview->lightsout)
+	{
+		cairo_save(cr);
+		cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+		cairo_rectangle(cr, dirty_area.x, dirty_area.y, dirty_area.width, dirty_area.height);
+		cairo_fill(cr);
+		cairo_restore(cr);
 	}
 
 #define CAIRO_LINE(cr, x1, y1, x2, y2) do { \
