@@ -817,11 +817,11 @@ bw_preset_changed(GtkComboBox *combo, gpointer user_data)
 
 	/* R, Orange, Jaune, G, Cyan, B, Violet — valeur neutre = 33 */
 	static const gfloat presets[][7] = {
-		/*  R      O      Y      G      C      B      V   */
-		{ 33.0f, 33.0f, 33.0f, 33.0f, 33.0f, 33.0f, 33.0f }, /* 0 Naturel             */
-		{ 43.0f, 38.0f, 35.0f, 30.0f, 28.0f, 28.0f, 40.0f }, /* 1 Panchromatique      */
-		{ 55.0f, 48.0f, 40.0f, 22.0f, 18.0f, 20.0f, 50.0f }, /* 2 Hyperpanchromatique */
-		{  0.0f,  8.0f, 30.0f, 55.0f, 48.0f, 38.0f,  5.0f }, /* 3 Orthochromatique    */
+		/*   R       O       Y       G       C       B       V    */
+		{ 100.0f, 100.0f, 100.0f, 100.0f, 100.0f, 100.0f, 100.0f }, /* 0 Naturel             */
+		{ 130.0f, 115.0f, 110.0f,  88.0f,  85.0f,  85.0f, 120.0f }, /* 1 Panchromatique      */
+		{ 170.0f, 145.0f, 120.0f,  65.0f,  55.0f,  60.0f, 150.0f }, /* 2 Hyperpanchromatique */
+		{   0.0f,  24.0f,  91.0f, 166.0f, 145.0f, 115.0f,  15.0f }, /* 3 Orthochromatique    */
 	};
 	if (idx < 0 || idx >= (gint)G_N_ELEMENTS(presets)) return;
 

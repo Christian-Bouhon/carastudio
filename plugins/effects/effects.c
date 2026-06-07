@@ -316,23 +316,13 @@ bw_rgb_to_hue_sat(gfloat r, gfloat g, gfloat b, gfloat *hue, gfloat *sat)
 	*hue = h * 60.0f;
 }
 
-/* Curseur 0–200 (neutre 33) → ajustement, 0 au neutre, fort aux extrêmes. */
-static inline gfloat
-bw_slider_to_adjust(gfloat s)
-{
-	if (s >= 33.0f)
-		return (s - 33.0f) / (200.0f - 33.0f) * 2.5f;  /* 33→0 ; 200→+2.5 */
-	else
-		return (s - 33.0f) / 33.0f * 1.5f;             /* 33→0 ; 0→−1.5   */
-}
-
 static void
 apply_bw(RS_IMAGE16 *img,
          gint filter,
          gfloat bw_r, gfloat bw_o, gfloat bw_y,
          gfloat bw_g, gfloat bw_c, gfloat bw_b, gfloat bw_v)
 {
-	/* Étage 1 — filtre coloré : poids R/G/B de la luminance de base (somme ~1). */
+	/* Filtre coloré : poids R/G/B de base (somme = 1). */
 	static const gfloat filters[9][3] = {
 		{ 0.2126f, 0.7152f, 0.0722f }, /* 0 Aucun (Rec.709) */
 		{ 0.55f,   0.38f,   0.07f   }, /* 1 Rouge        */
@@ -344,18 +334,25 @@ apply_bw(RS_IMAGE16 *img,
 		{ 0.10f,   0.35f,   0.55f   }, /* 7 Bleu         */
 		{ 0.35f,   0.18f,   0.47f   }, /* 8 Violet       */
 	};
-	const gint fi = CLAMP(filter, 0, 8);
-	const gfloat fR = filters[fi][0], fG = filters[fi][1], fB = filters[fi][2];
 
-	/* Étage 2 — ajustements par teinte sur 3 ancres PRIMAIRES (Rouge 0°,
-	 * Vert 120°, Bleu 240°). Chaque pixel est influencé par ses 2 primaires
-	 * les plus proches → un curseur a une large portée (le rouge atteint les
-	 * oranges/tons chauds, comme ART), sans zone morte entre ancres.
-	 * (orange/jaune/cyan/violet ne sont pas des curseurs exposés.) */
+	/* Mélangeur de canaux N&B style Lightroom/ART, SÉLECTIF par couleur.
+	 * Curseurs 0–200, neutre 100. Poids d'un canal au neutre = coeff de
+	 * luminance du filtre coloré (aspect naturel). Chaque curseur ajoute un
+	 * débattement UNIFORME ±SWING à son canal — identique pour R, V et B —
+	 * pour que les trois aient la même autorité (sinon le bleu, coeff ~0.07,
+	 * paraît inerte). La normalisation par la somme des poids est essentielle :
+	 *   - un pixel GRIS NEUTRE (r≈g≈b) reste inchangé → pas de variation
+	 *     globale de luminosité (sinon le curseur agit comme une expo) ;
+	 *   - seuls les pixels où une couleur domine se décalent → effet CIBLÉ. */
+	#define BW_SWING 0.5f
 	(void) bw_o; (void) bw_y; (void) bw_c; (void) bw_v;
-	const gfloat adjR = bw_slider_to_adjust(bw_r);
-	const gfloat adjG = bw_slider_to_adjust(bw_g);
-	const gfloat adjB = bw_slider_to_adjust(bw_b);
+	const gint fi = CLAMP(filter, 0, 8);
+	const gfloat wR = filters[fi][0] + (bw_r - 100.0f) / 100.0f * BW_SWING;
+	const gfloat wG = filters[fi][1] + (bw_g - 100.0f) / 100.0f * BW_SWING;
+	const gfloat wB = filters[fi][2] + (bw_b - 100.0f) / 100.0f * BW_SWING;
+	gfloat sum = wR + wG + wB;
+	if (sum < 0.1f) sum = 0.1f;          /* garde-fou : pas d'inversion de signe */
+	const gfloat inv_sum = 1.0f / sum;
 
 	const gint W = img->w, H = img->h, ps = img->pixelsize;
 
@@ -367,32 +364,12 @@ apply_bw(RS_IMAGE16 *img,
 			const gfloat r = p[R] / 65535.0f;
 			const gfloat g = p[G] / 65535.0f;
 			const gfloat b = p[B] / 65535.0f;
-
-			/* Luminance de base teintée par le filtre. */
-			gfloat base = fR * r + fG * g + fB * b;
-
-			/* Ajustement ciblé par teinte, pondéré par la saturation. */
-			gfloat hue, sat;
-			bw_rgb_to_hue_sat(r, g, b, &hue, &sat);
-
-			gfloat a = 0.0f;
-			if (sat > 1e-4f)
-			{
-				gfloat lo, hi, t;
-				if (hue < 120.0f)       { lo = adjR; hi = adjG; t = hue / 120.0f; }
-				else if (hue < 240.0f)  { lo = adjG; hi = adjB; t = (hue - 120.0f) / 120.0f; }
-				else                    { lo = adjB; hi = adjR; t = (hue - 240.0f) / 120.0f; }
-				a = (lo * (1.0f - t) + hi * t) * sat;
-			}
-
-			gfloat factor = 1.0f + a;
-			if (factor < 0.0f) factor = 0.0f;
-
-			gfloat gray = base * factor * 65535.0f;
+			gfloat gray = (r * wR + g * wG + b * wB) * inv_sum * 65535.0f;
 			gushort gv = (gushort) CLAMP(gray, 0.0f, 65535.0f);
 			p[R] = p[G] = p[B] = gv;
 		}
 	}
+	#undef BW_SWING
 }
 
 /* ------------------------------------------------------------------ */

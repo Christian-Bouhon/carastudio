@@ -1856,7 +1856,7 @@ rs_get_core_action_group(RS_BLOB *rs)
 	gboolean load_8bit = FALSE;
 
 	rs_conf_get_boolean_with_default(CONF_SHOW_FILENAMES, &show_filenames, DEFAULT_CONF_SHOW_FILENAMES);
-	rs_conf_get_boolean_with_default(CONF_LOAD_GDK, &load_8bit, FALSE);
+	rs_conf_get_boolean_with_default(CONF_LOAD_GDK, &load_8bit, TRUE);
 
 	/* FIXME: This should be static */
 	GtkActionEntry actionentries[] = {

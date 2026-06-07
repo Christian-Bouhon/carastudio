@@ -1447,7 +1447,7 @@ rs_store_load_directory(RSStore *store, const gchar *path)
 	running = TRUE;
 	g_mutex_unlock(&lock);
 
-	rs_conf_get_boolean(CONF_LOAD_GDK, &load_8bit);
+	rs_conf_get_boolean_with_default(CONF_LOAD_GDK, &load_8bit, TRUE);
 	rs_conf_get_boolean(CONF_LOAD_RECURSIVE, &load_recursive);
 	if (!rs_conf_get_string(CONF_LWD))
 		load_recursive = FALSE;

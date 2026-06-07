@@ -237,37 +237,37 @@ rs_settings_class_init (RSSettingsClass *klass)
 	g_object_class_install_property(object_class,
 		PROP_BW_RED, g_param_spec_float(
 			"bw-red", _("Rouge"), _("N&B canal Rouge"),
-			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
 		PROP_BW_ORANGE, g_param_spec_float(
 			"bw-orange", _("Orange"), _("N&B canal Orange"),
-			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
 		PROP_BW_YELLOW, g_param_spec_float(
 			"bw-yellow", _("Jaune"), _("N&B canal Jaune"),
-			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
 		PROP_BW_GREEN, g_param_spec_float(
 			"bw-green", _("Vert"), _("N&B canal Vert"),
-			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
 		PROP_BW_CYAN, g_param_spec_float(
 			"bw-cyan", _("Cyan"), _("N&B canal Cyan"),
-			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
 		PROP_BW_BLUE, g_param_spec_float(
 			"bw-blue", _("Bleu"), _("N&B canal Bleu"),
-			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
 		PROP_BW_VIOLET, g_param_spec_float(
 			"bw-violet", _("Violet"), _("N&B canal Violet"),
-			0.0, 200.0, 33.0, G_PARAM_READWRITE)
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
 	);
 
 	signals[SETTINGS_CHANGED] = g_signal_new ("settings-changed",
