@@ -74,6 +74,9 @@ typedef enum {
 	MASK_BW_VIOLET             = (1<<28),
 	MASK_BW_FILTER             = (1<<29),
 	MASK_TRANSFORM     = (1<<30),
+	/* Partage le bit softlight — tous les masques bits sont épuisés (0-29) */
+	MASK_DEHAZE_STRENGTH    = MASK_SOFTLIGHT_STRENGTH,
+	MASK_DEHAZE_SATURATION  = MASK_SOFTLIGHT_STRENGTH,
 	/* Couvre tous les VRAIS réglages, bits 0-29 (N&B inclus : 21-29).
 	 * NB : les bits 30-31 sont réservés à l'encodage du snapshot (A/B/C) dans
 	 * le signal "settings-changed" — voir RS_PACK/UNPACK_SNAPSHOT ci-dessous.
@@ -132,6 +135,9 @@ typedef struct _RSsettings {
 	gfloat bw_cyan;
 	gfloat bw_blue;
 	gfloat bw_violet;
+	/* Voile */
+	gfloat dehaze_strength;
+	gfloat dehaze_saturation;
 } RSSettings;
 
 typedef struct {

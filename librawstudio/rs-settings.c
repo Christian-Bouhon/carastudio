@@ -79,7 +79,9 @@ enum {
 	PROP_BW_GREEN,
 	PROP_BW_CYAN,
 	PROP_BW_BLUE,
-	PROP_BW_VIOLET
+	PROP_BW_VIOLET,
+	PROP_DEHAZE_STRENGTH,
+	PROP_DEHAZE_SATURATION
 };
 
 static void
@@ -269,6 +271,16 @@ rs_settings_class_init (RSSettingsClass *klass)
 			"bw-violet", _("Violet"), _("N&B canal Violet"),
 			0.0, 200.0, 100.0, G_PARAM_READWRITE)
 	);
+	g_object_class_install_property(object_class,
+		PROP_DEHAZE_STRENGTH, g_param_spec_float(
+			"dehaze-strength", _("Brume"), _("Dehaze Strength"),
+			0.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_DEHAZE_SATURATION, g_param_spec_float(
+			"dehaze-saturation", _("Saturation"), _("Dehaze Saturation"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
 
 	signals[SETTINGS_CHANGED] = g_signal_new ("settings-changed",
 		G_TYPE_FROM_CLASS (klass),
@@ -339,6 +351,8 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		CASE(ART_VIGNETTE_STRENGTH, art_vignette_strength);
 		CASE(ART_VIGNETTE_FEATHER, art_vignette_feather);
 		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
+		CASE(DEHAZE_STRENGTH, dehaze_strength);
+		CASE(DEHAZE_SATURATION, dehaze_saturation);
 	case PROP_BW_ENABLED:
 		g_value_set_boolean(value, settings->bw_enabled);
 		break;
@@ -432,6 +446,8 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		CASE(ART_VIGNETTE_STRENGTH, art_vignette_strength);
 		CASE(ART_VIGNETTE_FEATHER, art_vignette_feather);
 		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
+		CASE(DEHAZE_STRENGTH, dehaze_strength);
+		CASE(DEHAZE_SATURATION, dehaze_saturation);
 	case PROP_BW_ENABLED:
 		if (settings->bw_enabled != g_value_get_boolean(value))
 		{
@@ -607,6 +623,8 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	rs_object_class_property_reset(object, "bw-cyan");
 	rs_object_class_property_reset(object, "bw-blue");
 	rs_object_class_property_reset(object, "bw-violet");
+	rs_object_class_property_reset(object, "dehaze-strength");
+	rs_object_class_property_reset(object, "dehaze-saturation");
 
 	if (mask & MASK_CURVE)
 	{
@@ -728,6 +746,8 @@ do { \
 	SETTINGS_COPY(BW_CYAN, bw_cyan);
 	SETTINGS_COPY(BW_BLUE, bw_blue);
 	SETTINGS_COPY(BW_VIOLET, bw_violet);
+	SETTINGS_COPY(DEHAZE_STRENGTH, dehaze_strength);
+	SETTINGS_COPY(DEHAZE_SATURATION, dehaze_saturation);
 #undef SETTINGS_COPY
 
 	if (mask & MASK_WB)

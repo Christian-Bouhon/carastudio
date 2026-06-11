@@ -77,6 +77,12 @@ const static BasicSettings softlight[] = {
 };
 #define NSOFTLIGHT (1)
 
+const static BasicSettings dehaze[] = {
+	{ "dehaze-strength",   1.0, MASK_SOFTLIGHT_STRENGTH },
+	{ "dehaze-saturation", 1.0, MASK_SOFTLIGHT_STRENGTH },
+};
+#define NDEHAZE (2)
+
 const static BasicSettings artvignette[] = {
 	{ "art-vignette-strength", 0.1, MASK_ART_VIGNETTE_STRENGTH },
 	{ "art-vignette-feather",  1.0, MASK_ART_VIGNETTE_FEATHER  },
@@ -103,6 +109,7 @@ struct _RSToolbox {
 	GtkRange *lens[3][NLENS];
 	GtkRange *softlight[3][NSOFTLIGHT];
 	GtkRange *artvignette[3][NARTVIGNETTE];
+	GtkRange *dehaze_slider[3][NDEHAZE];
 	GtkRange *bw[3][NBW];
 	GtkWidget *bw_enable[3];
 	GtkWidget *lenslabel[3];
@@ -866,6 +873,11 @@ new_effects_page(RSToolbox *toolbox, const gint snapshot)
 	for (row = 0; row < NARTVIGNETTE; row++)
 		toolbox->artvignette[snapshot][row] = basic_slider(toolbox, snapshot, artvignettetable, row, &artvignette[row]);
 
+	GtkTable *dehazetable = GTK_TABLE(gtk_table_new(NDEHAZE, 5, FALSE));
+	for (row = 0; row < NDEHAZE; row++)
+		toolbox->dehaze_slider[snapshot][row] = basic_slider(toolbox, snapshot, dehazetable, row, &dehaze[row]);
+
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Voile"), GTK_WIDGET(dehazetable), "show_dehaze", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Soft Light"), GTK_WIDGET(softlighttable), "show_softlight", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Vignette"), GTK_WIDGET(artvignettetable), "show_artvignette", TRUE), FALSE, FALSE, 0);
 
@@ -1097,6 +1109,8 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 		{
 			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->lens[snapshot][i]), FALSE);
 		}
+		for(i=0;i<NDEHAZE;i++)
+			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->dehaze_slider[snapshot][i]), FALSE);
 		for(i=0;i<NSOFTLIGHT;i++)
 		{
 			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->softlight[snapshot][i]), FALSE);
@@ -1150,6 +1164,15 @@ toolbox_copy_from_photo(RSToolbox *toolbox, const gint snapshot, const RSSetting
 				gfloat value;
 				g_object_get(toolbox->photo->settings[snapshot], lens[i].property_name, &value, NULL);
 				gtk_range_set_value(toolbox->lens[snapshot][i], value);
+			}
+
+		/* Update dehaze */
+		for(i=0;i<NDEHAZE;i++)
+			if (mask)
+			{
+				gfloat value;
+				g_object_get(toolbox->photo->settings[snapshot], dehaze[i].property_name, &value, NULL);
+				gtk_range_set_value(toolbox->dehaze_slider[snapshot][i], value);
 			}
 
 		/* Update softlight */
@@ -1283,6 +1306,8 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 
 			for(i=0;i<NLENS;i++)
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->lens[snapshot][i]), TRUE);
+			for(i=0;i<NDEHAZE;i++)
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->dehaze_slider[snapshot][i]), TRUE);
 			for(i=0;i<NSOFTLIGHT;i++)
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->softlight[snapshot][i]), TRUE);
 			for(i=0;i<NARTVIGNETTE;i++)

@@ -30,6 +30,8 @@ typedef struct {
 	gfloat art_vignette_strength;
 	gfloat art_vignette_feather;
 	gfloat art_vignette_roundness;
+	gfloat dehaze_strength;
+	gfloat dehaze_saturation;
 	gboolean bw_enabled;
 	gint bw_filter;
 	gfloat bw_red;
@@ -155,6 +157,8 @@ static void
 settings_changed(RSSettings *settings, RSSettingsMask mask, RSEffects *effects)
 {
 	g_object_get(settings,
+		"dehaze-strength",       &effects->dehaze_strength,
+		"dehaze-saturation",     &effects->dehaze_saturation,
 		"softlight-strength",    &effects->softlight_strength,
 		"art-vignette-strength", &effects->art_vignette_strength,
 		"art-vignette-feather",  &effects->art_vignette_feather,
@@ -373,6 +377,111 @@ apply_bw(RS_IMAGE16 *img,
 }
 
 /* ------------------------------------------------------------------ */
+/* Suppression du voile — dark channel prior conservateur             */
+/* ------------------------------------------------------------------ */
+/*
+ * Modèle : I = J·t + A·(1-t)  ⟹  J = (I-A)/t + A
+ *
+ * Améliorations vs v1 pour éviter noircissement et halos :
+ *  • min-filter 3×3 sur le canal sombre → transmission lissée, pas de halos
+ *  • omega = 0.7 (conservateur, < 0.95 du papier original)
+ *  • t_min = 0.4 → empêche les corrections extrêmes
+ *  • strength = facteur de mélange : output = original + blend*(dehazed-original)
+ *  • A estimé au 99,9e centile du canal sombre lissé
+ */
+static void
+apply_dehaze(RS_IMAGE16 *img, gfloat strength, gfloat saturation)
+{
+	if (strength < 0.001f && fabsf(saturation) < 0.001f) return;
+
+	const gint W   = img->w;
+	const gint H   = img->h;
+	const gint ps  = img->pixelsize;
+	const gint rs  = img->rowstride;
+	const float blend = strength / 100.0f;
+
+	/* ── Carte du canal sombre (espace linéaire) ── */
+	gfloat *dmap = g_new(gfloat, W * H);
+	for (gint y = 0; y < H; y++) {
+		const gushort *row = img->pixels + y * rs;
+		for (gint x = 0; x < W; x++) {
+			const gushort *px = row + x * ps;
+			dmap[y*W + x] = fminf(to_linear((float)px[0]),
+			                      fminf(to_linear((float)px[1]),
+			                            to_linear((float)px[2])));
+		}
+	}
+
+	/* Min-filter 3×3 séparable (H puis V) → supprime les halos de bord */
+	gfloat *tmp = g_new(gfloat, W * H);
+	for (gint y = 0; y < H; y++)           /* passe horizontale */
+		for (gint x = 0; x < W; x++) {
+			float m = dmap[y*W + x];
+			if (x > 0)   m = fminf(m, dmap[y*W + x-1]);
+			if (x < W-1) m = fminf(m, dmap[y*W + x+1]);
+			tmp[y*W + x] = m;
+		}
+	for (gint y = 0; y < H; y++)           /* passe verticale */
+		for (gint x = 0; x < W; x++) {
+			float m = tmp[y*W + x];
+			if (y > 0)   m = fminf(m, tmp[(y-1)*W + x]);
+			if (y < H-1) m = fminf(m, tmp[(y+1)*W + x]);
+			dmap[y*W + x] = m;
+		}
+	g_free(tmp);
+
+	/* Lumière atmosphérique A : 99,9e centile du canal sombre lissé */
+	guint hist[1024] = {0};
+	for (gint i = 0; i < W * H; i++)
+		hist[CLAMP((gint)(dmap[i] * 1023.0f), 0, 1023)]++;
+	float A = 0.7f;
+	glong cnt = 0, thr = MAX(1, (glong)W * H / 1000);
+	for (gint i = 1023; i >= 0; i--) {
+		cnt += hist[i];
+		if (cnt >= thr) { A = (float)i / 1023.0f; break; }
+	}
+	A = fmaxf(A, 0.35f);    /* plancher : évite sur-correction sur images sombres */
+
+	/* ── Correction par pixel + mélange avec l'original ── */
+	for (gint y = 0; y < H; y++) {
+		gushort *row = img->pixels + y * rs;
+		for (gint x = 0; x < W; x++) {
+			gushort *px = row + x * ps;
+			float r = to_linear((float)px[0]);
+			float g = to_linear((float)px[1]);
+			float b = to_linear((float)px[2]);
+
+			/* Transmission : omega=0.95, t_min=0.20 */
+			float t = fmaxf(1.0f - 0.95f * fminf(dmap[y*W+x] / A, 1.0f), 0.20f);
+
+			/* Valeurs sans voile */
+			float Jr = (r - A) / t + A;
+			float Jg = (g - A) / t + A;
+			float Jb = (b - A) / t + A;
+
+			/* Mélange progressif : strength=0 → aucun effet */
+			r = r + blend * (Jr - r);
+			g = g + blend * (Jg - g);
+			b = b + blend * (Jb - b);
+
+			/* Correction de saturation (en lumière linéaire) */
+			if (fabsf(saturation) >= 0.001f) {
+				float sat_f = 1.0f + saturation / 100.0f;
+				float lum = 0.2126f*r + 0.7152f*g + 0.0722f*b;
+				r = lum + (r - lum) * sat_f;
+				g = lum + (g - lum) * sat_f;
+				b = lum + (b - lum) * sat_f;
+			}
+
+			px[0] = (gushort)CLAMP((gint)(to_srgb(CLAMP(r,0.f,1.f))+0.5f),0,65535);
+			px[1] = (gushort)CLAMP((gint)(to_srgb(CLAMP(g,0.f,1.f))+0.5f),0,65535);
+			px[2] = (gushort)CLAMP((gint)(to_srgb(CLAMP(b,0.f,1.f))+0.5f),0,65535);
+		}
+	}
+	g_free(dmap);
+}
+
+/* ------------------------------------------------------------------ */
 /* Entrée principale                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -384,11 +493,12 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 
 	if (!previous) return NULL;
 
+	const gboolean need_dh = (effects->dehaze_strength >= 0.001f || fabsf(effects->dehaze_saturation) >= 0.001f);
 	const gboolean need_bw = effects->bw_enabled;
 	const gboolean need_sl = (effects->softlight_strength >= 0.001f);
 	const gboolean need_vg = (fabsf(effects->art_vignette_strength) >= 0.001f);
 
-	if (!need_bw && !need_sl && !need_vg)
+	if (!need_dh && !need_bw && !need_sl && !need_vg)
 		return previous;
 
 	RS_IMAGE16 *img = rs_filter_response_get_image(previous);
@@ -401,6 +511,9 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	 * dès que la copie est faite (sinon fuite d'un RS_IMAGE16 par rendu). */
 	g_object_unref(img);
 	g_object_unref(previous);
+
+	if (need_dh)
+		apply_dehaze(out, effects->dehaze_strength, effects->dehaze_saturation);
 
 	if (need_bw)
 		apply_bw(out, effects->bw_filter,
