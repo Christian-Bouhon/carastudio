@@ -57,6 +57,7 @@
 #include "lensfun.h"
 #include "rs-profile-factory-model.h"
 #include "rs-profile-camera.h"
+#include "rs-splash.h"
 
 static void photo_profile_changed(RS_PHOTO *photo, gpointer profile, RS_BLOB *rs);
 
@@ -638,6 +639,8 @@ main(int argc, char **argv)
 #endif
 
 	gtk_init(&argc, &argv);
+
+	rs_splash_show();
 
 	/* Demande la variante sombre du thème GTK (Adwaita-dark sur GNOME).
 	   Cela couvre les widgets internes (GtkFileChooserButton, popups…)
