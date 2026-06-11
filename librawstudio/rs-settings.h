@@ -77,6 +77,11 @@ typedef enum {
 	/* Partage le bit softlight — tous les masques bits sont épuisés (0-29) */
 	MASK_DEHAZE_STRENGTH    = MASK_SOFTLIGHT_STRENGTH,
 	MASK_DEHAZE_SATURATION  = MASK_SOFTLIGHT_STRENGTH,
+	/* Argentico (négatif argentique) — partage aussi le bit softlight */
+	MASK_ARGENTICO_ENABLED    = MASK_SOFTLIGHT_STRENGTH,
+	MASK_ARGENTICO_GREEN_EXP  = MASK_SOFTLIGHT_STRENGTH,
+	MASK_ARGENTICO_RED_RATIO  = MASK_SOFTLIGHT_STRENGTH,
+	MASK_ARGENTICO_BLUE_RATIO = MASK_SOFTLIGHT_STRENGTH,
 	/* Couvre tous les VRAIS réglages, bits 0-29 (N&B inclus : 21-29).
 	 * NB : les bits 30-31 sont réservés à l'encodage du snapshot (A/B/C) dans
 	 * le signal "settings-changed" — voir RS_PACK/UNPACK_SNAPSHOT ci-dessous.
@@ -138,6 +143,11 @@ typedef struct _RSsettings {
 	/* Voile */
 	gfloat dehaze_strength;
 	gfloat dehaze_saturation;
+	/* Argentico (négatif argentique) */
+	gboolean argentico_enabled;
+	gfloat argentico_green_exp;
+	gfloat argentico_red_ratio;
+	gfloat argentico_blue_ratio;
 } RSSettings;
 
 typedef struct {

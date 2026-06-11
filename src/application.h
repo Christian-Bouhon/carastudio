@@ -96,6 +96,7 @@ typedef struct {
 	RSFilter *filter_input;
 	RSFilter *filter_demosaic;
 	RSFilter *filter_fuji_rotate;
+	RSFilter *filter_argentico;
 	RSFilter *filter_demosaic_cache;
 	RSFilter *filter_end;
 } RS_BLOB;

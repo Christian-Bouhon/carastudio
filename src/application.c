@@ -224,7 +224,10 @@ rs_new(void)
 	rs->filter_input = rs_filter_new("RSInputImage16", NULL);
 	rs->filter_demosaic = rs_filter_new("RSDemosaic", rs->filter_input);
 	rs->filter_fuji_rotate = rs_filter_new("RSFujiRotate", rs->filter_demosaic);
-	rs->filter_demosaic_cache = rs_filter_new("RSCache", rs->filter_fuji_rotate);
+	/* Argentico (négatif argentique) : tôt dans la chaîne, sur données capteur
+	 * linéaires, AVANT la balance des blancs / DCP. Transparent tant qu'inactif. */
+	rs->filter_argentico = rs_filter_new("RSArgentico", rs->filter_fuji_rotate);
+	rs->filter_demosaic_cache = rs_filter_new("RSCache", rs->filter_argentico);
 
 	/* We need this for 100% zoom */
 	g_object_set(rs->filter_demosaic_cache, "ignore-roi", TRUE, NULL);

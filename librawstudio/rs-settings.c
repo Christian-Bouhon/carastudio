@@ -81,7 +81,12 @@ enum {
 	PROP_BW_BLUE,
 	PROP_BW_VIOLET,
 	PROP_DEHAZE_STRENGTH,
-	PROP_DEHAZE_SATURATION
+	PROP_DEHAZE_SATURATION,
+	/* Argentico (négatif argentique) */
+	PROP_ARGENTICO_ENABLED,
+	PROP_ARGENTICO_GREEN_EXP,
+	PROP_ARGENTICO_RED_RATIO,
+	PROP_ARGENTICO_BLUE_RATIO
 };
 
 static void
@@ -281,6 +286,26 @@ rs_settings_class_init (RSSettingsClass *klass)
 			"dehaze-saturation", _("Saturation"), _("Dehaze Saturation"),
 			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
 	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_ENABLED, g_param_spec_boolean(
+			"argentico-enabled", _("Argentico"), _("Activer le négatif argentique"),
+			FALSE, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_GREEN_EXP, g_param_spec_float(
+			"argentico-green-exp", _("Pente verte"), _("Film Negative Green Exponent"),
+			0.3, 4.0, 1.5, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_RED_RATIO, g_param_spec_float(
+			"argentico-red-ratio", _("Ratio rouge"), _("Film Negative Red Ratio"),
+			0.3, 5.0, 1.36, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_BLUE_RATIO, g_param_spec_float(
+			"argentico-blue-ratio", _("Ratio bleu"), _("Film Negative Blue Ratio"),
+			0.3, 5.0, 0.86, G_PARAM_READWRITE)
+	);
 
 	signals[SETTINGS_CHANGED] = g_signal_new ("settings-changed",
 		G_TYPE_FROM_CLASS (klass),
@@ -353,6 +378,12 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
 		CASE(DEHAZE_STRENGTH, dehaze_strength);
 		CASE(DEHAZE_SATURATION, dehaze_saturation);
+		CASE(ARGENTICO_GREEN_EXP, argentico_green_exp);
+		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
+		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
+	case PROP_ARGENTICO_ENABLED:
+		g_value_set_boolean(value, settings->argentico_enabled);
+		break;
 	case PROP_BW_ENABLED:
 		g_value_set_boolean(value, settings->bw_enabled);
 		break;
@@ -448,6 +479,16 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
 		CASE(DEHAZE_STRENGTH, dehaze_strength);
 		CASE(DEHAZE_SATURATION, dehaze_saturation);
+		CASE(ARGENTICO_GREEN_EXP, argentico_green_exp);
+		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
+		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
+	case PROP_ARGENTICO_ENABLED:
+		if (settings->argentico_enabled != g_value_get_boolean(value))
+		{
+			settings->argentico_enabled = g_value_get_boolean(value);
+			changed_mask |= MASK_ARGENTICO_ENABLED;
+		}
+		break;
 	case PROP_BW_ENABLED:
 		if (settings->bw_enabled != g_value_get_boolean(value))
 		{
@@ -625,6 +666,10 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	rs_object_class_property_reset(object, "bw-violet");
 	rs_object_class_property_reset(object, "dehaze-strength");
 	rs_object_class_property_reset(object, "dehaze-saturation");
+	rs_object_class_property_reset(object, "argentico-enabled");
+	rs_object_class_property_reset(object, "argentico-green-exp");
+	rs_object_class_property_reset(object, "argentico-red-ratio");
+	rs_object_class_property_reset(object, "argentico-blue-ratio");
 
 	if (mask & MASK_CURVE)
 	{
@@ -748,6 +793,11 @@ do { \
 	SETTINGS_COPY(BW_VIOLET, bw_violet);
 	SETTINGS_COPY(DEHAZE_STRENGTH, dehaze_strength);
 	SETTINGS_COPY(DEHAZE_SATURATION, dehaze_saturation);
+	if (mask & MASK_ARGENTICO_ENABLED)
+		target->argentico_enabled = source->argentico_enabled;
+	SETTINGS_COPY(ARGENTICO_GREEN_EXP, argentico_green_exp);
+	SETTINGS_COPY(ARGENTICO_RED_RATIO, argentico_red_ratio);
+	SETTINGS_COPY(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
 #undef SETTINGS_COPY
 
 	if (mask & MASK_WB)
