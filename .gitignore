@@ -1,6 +1,7 @@
 **/*.o
 **/*.la
 **/*.lo
+**/*.Po
 **/Makefile*.in
 **/Makefile
 **/.deps
@@ -9,6 +10,7 @@
 /po/POTFILES
 /po/*.gmo
 /po/rawstudio.pot
+/po/carastudio.pot
 /po/Makefile.in.in~
 /po/Makevars.template
 /po/Rules-quot
