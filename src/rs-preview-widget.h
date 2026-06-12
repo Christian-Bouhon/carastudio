@@ -39,6 +39,13 @@ typedef struct _rs_preview_callback_data {
 	gint y;
 } RS_PREVIEW_CALLBACK_DATA;
 
+/* Données émises par le signal "argentico-picked" : valeurs RGB du NÉGATIF
+ * (avant inversion) des deux taches neutres échantillonnées. */
+typedef struct _rs_argentico_pick_data {
+	gfloat ref1[3];
+	gfloat ref2[3];
+} RS_ARGENTICO_PICK_DATA;
+
 extern GType rs_preview_widget_get_type (void);
 
 /**
@@ -172,6 +179,13 @@ rs_preview_widget_quick_end(RSPreviewWidget *preview);
 
 extern void 
 rs_preview_widget_update_display_colorspace(RSPreviewWidget *preview);
+
+/**
+ * Active/désactive le mode pioche Argentico (échantillonnage de 2 taches
+ * neutres). Après 2 clics, émet "argentico-picked" et sort du mode.
+ */
+extern void
+rs_preview_widget_set_argentico_pick(RSPreviewWidget *preview, gboolean active);
 
 extern void
 rs_preview_widget_blank(RSPreviewWidget *preview);

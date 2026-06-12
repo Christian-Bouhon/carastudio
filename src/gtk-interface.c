@@ -1570,6 +1570,9 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	rs_conf_set_boolean("fullscreen-preview", FALSE);
 	rs->preview = rs_preview_widget_new(tools);
 	rs_preview_widget_set_filter(RS_PREVIEW_WIDGET(rs->preview), rs->filter_end, rs->filter_demosaic_cache);
+	/* Relie le toolbox à l'aperçu (pour piloter la pioche Argentico, qui
+	 * échantillonne le négatif post-DCP directement dans l'aperçu). */
+	rs_toolbox_set_preview(RS_TOOLBOX(tools), rs->preview);
 
 	rs_conf_get_color(CONF_PREBGCOLOR, &bgcolor);
 	rs_preview_widget_set_bgcolor(RS_PREVIEW_WIDGET(rs->preview), &bgcolor);

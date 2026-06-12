@@ -156,6 +156,11 @@ struct _RSPreviewWidget
 	gfloat straighten_angle;
 	RSFilter *filter_input;
 
+	/* Pioche Argentico : échantillonnage du négatif (= filter_cache2, post-DCP) */
+	gboolean argentico_picking;
+	gint argentico_spot_count;
+	gfloat argentico_spots[2][3];
+
 	RSFilter *filter_lensfun[MAX_VIEWS];
 	RSFilter *filter_rotate[MAX_VIEWS];
 	RSFilter *filter_crop[MAX_VIEWS];
@@ -227,6 +232,7 @@ G_DEFINE_TYPE (RSPreviewWidget, rs_preview_widget, GTK_TYPE_TABLE);
 
 enum {
 	WB_PICKED,
+	ARGENTICO_PICKED,
 	MOTION_SIGNAL,
 	LEAVE_SIGNAL,
 	LAST_SIGNAL
@@ -257,6 +263,7 @@ static void crop_end(RSPreviewWidget *preview, gboolean accept);
 static void crop_find_size_from_aspect(RS_RECT *roi, gdouble aspect, CROP_NEAR state);
 static CROP_NEAR crop_near(RS_RECT *roi, gint x, gint y);
 static gboolean make_cbdata(RSPreviewWidget *preview, const gint view, RS_PREVIEW_CALLBACK_DATA *cbdata, gint screen_x, gint screen_y, gint real_x, gint real_y);
+static gboolean sample_argentico_negative(RSPreviewWidget *preview, const gint view, gint sx, gint sy, gfloat out[3]);
 static void canvas_draw(RSPreviewWidget *preview, GdkRectangle *rect, gboolean now);
 static void canvas_draw_handler(GtkWidget *widget, cairo_t *cr, RSPreviewWidget *preview);
 static void photo_spatial_changed(RS_PHOTO *photo, RSPreviewWidget *preview);
@@ -272,6 +279,14 @@ rs_preview_widget_class_init(RSPreviewWidgetClass *klass)
 		0, /* Is this right? */
 		NULL, 
 		NULL,                
+		g_cclosure_marshal_VOID__POINTER,
+		G_TYPE_NONE, 1, G_TYPE_POINTER);
+	signals[ARGENTICO_PICKED] = g_signal_new ("argentico-picked",
+		G_TYPE_FROM_CLASS (klass),
+		G_SIGNAL_RUN_FIRST | G_SIGNAL_ACTION,
+		0,
+		NULL,
+		NULL,
 		g_cclosure_marshal_VOID__POINTER,
 		G_TYPE_NONE, 1, G_TYPE_POINTER);
 	signals[MOTION_SIGNAL] = g_signal_new ("motion",
@@ -387,6 +402,8 @@ rs_preview_widget_init(RSPreviewWidget *preview)
     gtk_table_attach(table, preview->hscrollbar, 0, 1, 1, 2, GTK_EXPAND|GTK_FILL, GTK_SHRINK, 0, 0);
 
 	preview->filter_input = NULL;
+	preview->argentico_picking = FALSE;
+	preview->argentico_spot_count = 0;
 	for(i=0;i<MAX_VIEWS;i++)
 	{
 		preview->filter_lensfun[i] = rs_filter_new("RSLensfun", NULL);
@@ -1659,6 +1676,42 @@ button(GtkWidget *widget, GdkEventButton *event, RSPreviewWidget *preview)
 
 	g_return_val_if_fail(VIEW_IS_VALID(view), FALSE);
 
+	/* Pioche Argentico : clic gauche simple échantillonne le négatif
+	 * (post-DCP). Deux taches neutres (claire + dense) → "argentico-picked". */
+	if (preview->argentico_picking
+		&& inside_image
+		&& (event->type == GDK_BUTTON_PRESS)
+		&& (event->button == 1))
+	{
+		gfloat spot[3];
+		gboolean ok = sample_argentico_negative(preview, view, scaled_x, scaled_y, spot);
+		{
+			if (ok)
+			{
+				gint n = preview->argentico_spot_count;
+				preview->argentico_spots[n][0] = spot[0];
+				preview->argentico_spots[n][1] = spot[1];
+				preview->argentico_spots[n][2] = spot[2];
+				preview->argentico_spot_count = n + 1;
+
+				if (preview->argentico_spot_count >= 2)
+				{
+					RS_ARGENTICO_PICK_DATA pd;
+					pd.ref1[0] = preview->argentico_spots[0][0];
+					pd.ref1[1] = preview->argentico_spots[0][1];
+					pd.ref1[2] = preview->argentico_spots[0][2];
+					pd.ref2[0] = preview->argentico_spots[1][0];
+					pd.ref2[1] = preview->argentico_spots[1][1];
+					pd.ref2[2] = preview->argentico_spots[1][2];
+					preview->argentico_picking = FALSE;
+					preview->argentico_spot_count = 0;
+					g_signal_emit(G_OBJECT(preview), signals[ARGENTICO_PICKED], 0, &pd);
+				}
+			}
+		}
+		return TRUE;
+	}
+
 	/* White balance picker — Ctrl+clic uniquement */
 	if (inside_image
 		&& (event->type == GDK_BUTTON_PRESS)
@@ -2043,6 +2096,15 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 	{
 		/* Pipette visible uniquement quand Ctrl est enfoncé */
 		if (inside_image && (mask & GDK_CONTROL_MASK))
+			gdk_window_set_cursor(window, cur_color_picker);
+		else
+			gdk_window_set_cursor(window, cur_normal);
+	}
+
+	/* Pioche Argentico : pipette permanente tant que le mode est actif */
+	if (preview->argentico_picking)
+	{
+		if (inside_image)
 			gdk_window_set_cursor(window, cur_color_picker);
 		else
 			gdk_window_set_cursor(window, cur_normal);
@@ -2470,6 +2532,66 @@ make_cbdata(RSPreviewWidget *preview, const gint view, RS_PREVIEW_CALLBACK_DATA 
 	g_object_unref(buffer);
 	g_object_unref(image);
 	return TRUE;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pioche Argentico : échantillonne le NÉGATIF (avant inversion)       */
+/* ------------------------------------------------------------------ */
+/*
+ * Argentico inverse désormais dans le plugin « effects » (espace de travail,
+ * post-DCP). Le négatif à échantillonner = l'image qui ENTRE dans effects,
+ * c.-à-d. le cache APRÈS le DCP (filter_cache2). On lit aux coordonnées
+ * resamplées (mêmes que le picker WB) → mapping correct y compris avec
+ * recadrage/rotation. Moyenne 3×3, échelle brute 0..65535 (seuls les ratios
+ * comptent ensuite). */
+static gboolean
+sample_argentico_negative(RSPreviewWidget *preview, const gint view, gint sx, gint sy, gfloat out[3])
+{
+	if ((view < 0) || (view > (preview->views - 1)))
+		return FALSE;
+	if (!preview->request[view] || !preview->filter_cache2[view])
+		return FALSE;
+
+	RSFilterRequest *request = rs_filter_request_clone(preview->request[view]);
+	rs_filter_request_set_quick(request, TRUE);
+	if (preview->zoom_to_fit)
+		rs_filter_request_set_roi(request, NULL);
+	rs_filter_set_recursive(RS_FILTER(preview->filter_input), "demosaic-allow-downscale", preview->zoom_to_fit, NULL);
+
+	RSFilterResponse *response = rs_filter_get_image(preview->filter_cache2[view], request);
+	g_object_unref(request);
+	if (!response)
+		return FALSE;
+	RS_IMAGE16 *image = rs_filter_response_get_image(response);
+	g_object_unref(response);
+	if (!image)
+		return FALSE;
+
+	gdouble r = 0.0, g = 0.0, b = 0.0;
+	gint row, col, n = 0;
+	for (row = -1; row <= 1; row++)
+		for (col = -1; col <= 1; col++)
+		{
+			gushort *pixel = rs_image16_get_pixel(image, sx + col, sy + row, TRUE);
+			r += pixel[R];
+			g += pixel[G];
+			b += pixel[B];
+			n++;
+		}
+	out[0] = (gfloat)(r / n);
+	out[1] = (gfloat)(g / n);
+	out[2] = (gfloat)(b / n);
+
+	g_object_unref(image);
+	return TRUE;
+}
+
+void
+rs_preview_widget_set_argentico_pick(RSPreviewWidget *preview, gboolean active)
+{
+	g_return_if_fail(RS_IS_PREVIEW_WIDGET(preview));
+	preview->argentico_picking = active;
+	preview->argentico_spot_count = 0;
 }
 
 static void

@@ -80,6 +80,13 @@ rs_toolbox_get_effects_widget(RSToolbox *toolbox);
 extern GtkWidget *
 rs_toolbox_get_tones_widget(RSToolbox *toolbox);
 
+/**
+ * Donne au toolbox un pointeur vers l'aperçu (pour piloter la pioche Argentico)
+ * et connecte le signal "argentico-picked".
+ */
+extern void
+rs_toolbox_set_preview(RSToolbox *toolbox, GtkWidget *preview);
+
 G_END_DECLS
 
 #endif /* RS_TOOLBOX_H */

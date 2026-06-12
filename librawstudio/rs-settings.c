@@ -88,6 +88,9 @@ enum {
 	PROP_ARGENTICO_RED_RATIO,
 	PROP_ARGENTICO_BLUE_RATIO,
 	PROP_ARGENTICO_EXPOSURE,
+	PROP_ARGENTICO_REF_R,
+	PROP_ARGENTICO_REF_G,
+	PROP_ARGENTICO_REF_B,
 	/* Égaliseur de tons par bandes */
 	PROP_TONEEQ_ENABLED,
 	PROP_TONEEQ_BAND0,
@@ -321,6 +324,21 @@ rs_settings_class_init (RSSettingsClass *klass)
 			-5.0, 5.0, 0.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_REF_R, g_param_spec_float(
+			"argentico-ref-r", _("Réf R"), _("Film Negative Reference Red (0=auto)"),
+			0.0, 65535.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_REF_G, g_param_spec_float(
+			"argentico-ref-g", _("Réf G"), _("Film Negative Reference Green (0=auto)"),
+			0.0, 65535.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_REF_B, g_param_spec_float(
+			"argentico-ref-b", _("Réf B"), _("Film Negative Reference Blue (0=auto)"),
+			0.0, 65535.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
 		PROP_TONEEQ_ENABLED, g_param_spec_boolean(
 			"toneeq-enabled", _("Égaliseur de tons"), _("Activer l'égaliseur de tons par bandes"),
 			FALSE, G_PARAM_READWRITE)
@@ -431,6 +449,9 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
 		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
 		CASE(ARGENTICO_EXPOSURE, argentico_exposure);
+		CASE(ARGENTICO_REF_R, argentico_ref_r);
+		CASE(ARGENTICO_REF_G, argentico_ref_g);
+		CASE(ARGENTICO_REF_B, argentico_ref_b);
 		CASE(TONEEQ_BAND0, toneeq_band0);
 		CASE(TONEEQ_BAND1, toneeq_band1);
 		CASE(TONEEQ_BAND2, toneeq_band2);
@@ -542,6 +563,9 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
 		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
 		CASE(ARGENTICO_EXPOSURE, argentico_exposure);
+		CASE(ARGENTICO_REF_R, argentico_ref_r);
+		CASE(ARGENTICO_REF_G, argentico_ref_g);
+		CASE(ARGENTICO_REF_B, argentico_ref_b);
 		CASE(TONEEQ_BAND0, toneeq_band0);
 		CASE(TONEEQ_BAND1, toneeq_band1);
 		CASE(TONEEQ_BAND2, toneeq_band2);
@@ -744,6 +768,9 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	rs_object_class_property_reset(object, "argentico-red-ratio");
 	rs_object_class_property_reset(object, "argentico-blue-ratio");
 	rs_object_class_property_reset(object, "argentico-exposure");
+	rs_object_class_property_reset(object, "argentico-ref-r");
+	rs_object_class_property_reset(object, "argentico-ref-g");
+	rs_object_class_property_reset(object, "argentico-ref-b");
 	rs_object_class_property_reset(object, "toneeq-enabled");
 	rs_object_class_property_reset(object, "toneeq-band0");
 	rs_object_class_property_reset(object, "toneeq-band1");
@@ -880,6 +907,9 @@ do { \
 	SETTINGS_COPY(ARGENTICO_RED_RATIO, argentico_red_ratio);
 	SETTINGS_COPY(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
 	SETTINGS_COPY(ARGENTICO_EXPOSURE, argentico_exposure);
+	SETTINGS_COPY(ARGENTICO_REF_R, argentico_ref_r);
+	SETTINGS_COPY(ARGENTICO_REF_G, argentico_ref_g);
+	SETTINGS_COPY(ARGENTICO_REF_B, argentico_ref_b);
 	if (mask & MASK_TONEEQ_ENABLED)
 		target->toneeq_enabled = source->toneeq_enabled;
 	SETTINGS_COPY(TONEEQ_BAND0, toneeq_band0);

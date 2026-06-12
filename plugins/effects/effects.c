@@ -49,6 +49,15 @@ typedef struct {
 	gfloat toneeq_band3;
 	gfloat toneeq_band4;
 	gfloat toneeq_pivot;
+	/* Argentico (négatif argentique) — inversion en espace de travail */
+	gboolean argentico_enabled;
+	gfloat argentico_green_exp;
+	gfloat argentico_red_ratio;
+	gfloat argentico_blue_ratio;
+	gfloat argentico_exposure;
+	gfloat argentico_ref_r;
+	gfloat argentico_ref_g;
+	gfloat argentico_ref_b;
 } RSEffects;
 
 typedef struct {
@@ -187,6 +196,14 @@ settings_changed(RSSettings *settings, RSSettingsMask mask, RSEffects *effects)
 		"toneeq-band3",          &effects->toneeq_band3,
 		"toneeq-band4",          &effects->toneeq_band4,
 		"toneeq-pivot",          &effects->toneeq_pivot,
+		"argentico-enabled",     &effects->argentico_enabled,
+		"argentico-green-exp",   &effects->argentico_green_exp,
+		"argentico-red-ratio",   &effects->argentico_red_ratio,
+		"argentico-blue-ratio",  &effects->argentico_blue_ratio,
+		"argentico-exposure",    &effects->argentico_exposure,
+		"argentico-ref-r",       &effects->argentico_ref_r,
+		"argentico-ref-g",       &effects->argentico_ref_g,
+		"argentico-ref-b",       &effects->argentico_ref_b,
 		NULL);
 	rs_filter_changed(RS_FILTER(effects), RS_FILTER_CHANGED_PIXELDATA);
 }
@@ -497,6 +514,126 @@ apply_dehaze(RS_IMAGE16 *img, gfloat strength, gfloat saturation)
 }
 
 /* ------------------------------------------------------------------ */
+/* Argentico — inversion négatif → positif (d'après ART/filmnegative)  */
+/* ------------------------------------------------------------------ */
+/*
+ * Opère en ESPACE DE TRAVAIL (post-DCP, ProPhoto), comme le film negative
+ * d'ART en mode WORKING : là, « canaux égaux = neutre », donc un négatif N&B
+ * redevient gris pur et la pioche neutralise réellement le voile d'un négatif
+ * couleur. (Avant, en espace capteur brut, la matrice DCP en aval recolorait
+ * le gris.) Loi de puissance par canal : sortie = mult · entrée^exp.
+ */
+
+static inline gushort
+argentico_clip_f(float f)
+{
+	if (f <= 0.0f) return 0;
+	if (f >= 65535.0f) return 65535;
+	return (gushort)(f + 0.5f);
+}
+
+static guint
+argentico_hist_median(const guint *h, guint64 total)
+{
+	guint64 half = total / 2, acc = 0;
+	gint v;
+	for (v = 0; v < 65536; v++) {
+		acc += h[v];
+		if (acc >= half) return (guint)v;
+	}
+	return 0;
+}
+
+/* Niveau moyen cible (médiane → ce gris à exposure=0). L'Exposition le décale ;
+ * la pente des verts (greenExp) fait alors du CONTRASTE pur autour de lui. */
+#define ARGENTICO_MID 11800.0f   /* ≈ 0.18 × 65535 */
+
+static void
+apply_argentico(RS_IMAGE16 *img, gfloat green_exp, gfloat red_ratio, gfloat blue_ratio,
+                gfloat exposure, gfloat ref_r, gfloat ref_g, gfloat ref_b)
+{
+	const gint W = img->w, H = img->h, ps = img->pixelsize, rs = img->rowstride;
+
+	const float rexp = -(green_exp * red_ratio);
+	const float gexp = -green_exp;
+	const float bexp = -(green_exp * blue_ratio);
+
+	/* Médianes par canal (zone centrale, bordure 20% coupée) : servent toujours
+	 * d'ancre de LUMINOSITÉ (niveau moyen). */
+	guint *hist = g_new0(guint, 3 * 65536);
+	guint *hr = hist, *hg = hist + 65536, *hb = hist + 2 * 65536;
+	gint bx = W / 5, by = H / 5;
+	gint x0 = bx, x1 = W - bx, y0 = by, y1 = H - by;
+	if (x1 <= x0) { x0 = 0; x1 = W; }
+	if (y1 <= y0) { y0 = 0; y1 = H; }
+	for (gint y = y0; y < y1; y++) {
+		gushort *row = img->pixels + y * rs;
+		for (gint x = x0; x < x1; x++) {
+			gushort *px = row + x * ps;
+			hr[px[0]]++; hg[px[1]]++; hb[px[2]]++;
+		}
+	}
+	guint64 total = (guint64)(x1 - x0) * (guint64)(y1 - y0);
+	const float med_r = (float)MAX(argentico_hist_median(hr, total), 1u);
+	const float med_g = (float)MAX(argentico_hist_median(hg, total), 1u);
+	const float med_b = (float)MAX(argentico_hist_median(hb, total), 1u);
+	g_free(hist);
+
+	/* Référence de COULEUR : tache piquée si dispo (→ gris exact, neutralise le
+	 * voile), sinon médianes. */
+	float refin_r, refin_g, refin_b;
+	if (ref_g > 0.0f && ref_r > 0.0f && ref_b > 0.0f)
+	{
+		refin_r = ref_r; refin_g = ref_g; refin_b = ref_b;
+	}
+	else
+	{
+		refin_r = med_r; refin_g = med_g; refin_b = med_b;
+	}
+
+	/* refout de base arbitraire (s'annule dans le rescale ci-dessous) ; on garde
+	 * une valeur saine pour les calculs. */
+	const float refout = 65535.0f / 24.0f;
+	float rmult = refout / powf(refin_r, rexp);
+	float gmult = refout / powf(refin_g, gexp);
+	float bmult = refout / powf(refin_b, bexp);
+
+	/* Ancre de luminosité : on rescale (facteur ACHROMATIQUE, donc sans toucher
+	 * la couleur) pour que la luminance de la médiane tombe sur ARGENTICO_MID,
+	 * décalée par l'Exposition. Résultat : greenExp = contraste pur (la médiane
+	 * ne bouge plus), Exposition = luminosité globale. */
+	const float Mr = rmult * powf(med_r, rexp);
+	const float Mg = gmult * powf(med_g, gexp);
+	const float Mb = bmult * powf(med_b, bexp);
+	float M = 0.2126f * Mr + 0.7152f * Mg + 0.0722f * Mb;
+	if (M < 1e-6f) M = 1e-6f;
+	const float target = ARGENTICO_MID * exp2f(exposure);
+	float s = target / M;
+	s = CLAMP(s, 1e-4f, 1e4f);
+	rmult *= s; gmult *= s; bmult *= s;
+
+	gushort *lutr = g_new(gushort, 65536);
+	gushort *lutg = g_new(gushort, 65536);
+	gushort *lutb = g_new(gushort, 65536);
+	for (gint v = 0; v < 65536; v++) {
+		lutr[v] = argentico_clip_f(rmult * powf((float)v, rexp));
+		lutg[v] = argentico_clip_f(gmult * powf((float)v, gexp));
+		lutb[v] = argentico_clip_f(bmult * powf((float)v, bexp));
+	}
+
+	for (gint y = 0; y < H; y++) {
+		gushort *row = img->pixels + y * rs;
+		for (gint x = 0; x < W; x++) {
+			gushort *px = row + x * ps;
+			px[0] = lutr[px[0]];
+			px[1] = lutg[px[1]];
+			px[2] = lutb[px[2]];
+		}
+	}
+	g_free(lutr); g_free(lutg); g_free(lutb);
+}
+
+/* ------------------------------------------------------------------ */
 /* Égaliseur de tons par bandes (d'après ART/iptoneequalizer.cc,      */
 /* lui-même adapté du tone equalizer de darktable, A. Pierre 2018)    */
 /* ------------------------------------------------------------------ */
@@ -593,6 +730,7 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 
 	if (!previous) return NULL;
 
+	const gboolean need_ar = effects->argentico_enabled;
 	const gboolean need_dh = (effects->dehaze_strength >= 0.001f || fabsf(effects->dehaze_saturation) >= 0.001f);
 	const gboolean need_te = effects->toneeq_enabled &&
 		(fabsf(effects->toneeq_band0) >= 0.5f || fabsf(effects->toneeq_band1) >= 0.5f ||
@@ -602,7 +740,7 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	const gboolean need_sl = (effects->softlight_strength >= 0.001f);
 	const gboolean need_vg = (fabsf(effects->art_vignette_strength) >= 0.001f);
 
-	if (!need_dh && !need_te && !need_bw && !need_sl && !need_vg)
+	if (!need_ar && !need_dh && !need_te && !need_bw && !need_sl && !need_vg)
 		return previous;
 
 	RS_IMAGE16 *img = rs_filter_response_get_image(previous);
@@ -615,6 +753,11 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	 * dès que la copie est faite (sinon fuite d'un RS_IMAGE16 par rendu). */
 	g_object_unref(img);
 	g_object_unref(previous);
+
+	if (need_ar)
+		apply_argentico(out, effects->argentico_green_exp, effects->argentico_red_ratio,
+		                effects->argentico_blue_ratio, effects->argentico_exposure,
+		                effects->argentico_ref_r, effects->argentico_ref_g, effects->argentico_ref_b);
 
 	if (need_dh)
 		apply_dehaze(out, effects->dehaze_strength, effects->dehaze_saturation);

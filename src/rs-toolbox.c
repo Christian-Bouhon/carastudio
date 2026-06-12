@@ -36,6 +36,8 @@
 #include "rs-profile-camera.h"
 #include "rs-actions.h"
 #include "rs-camera-db.h"
+#include "rs-preview-widget.h"
+#include <math.h>
 
 /* Some helpers for creating the basic sliders */
 typedef struct {
@@ -136,6 +138,8 @@ struct _RSToolbox {
 	GtkWidget *toneeq_enable[3];
 	GtkRange *argentico[3][NARGENTICO];
 	GtkWidget *argentico_enable[3];
+	GtkWidget *argentico_pick[3];   /* bouton bascule « Échantillonner » */
+	GtkWidget *preview;             /* pour piloter la pioche (non détenu) */
 	GtkWidget *lenslabel[3];
 	GtkWidget *lensbutton[3];
 	RSLens *rs_lens;
@@ -231,6 +235,8 @@ rs_toolbox_init (RSToolbox *self)
 
 	for(page=0;page<3;page++)
 		self->settings[page] = NULL;
+
+	self->preview = NULL;
 
 	/* Set up our scrolled window */
 	gtk_scrolled_window_set_policy(scrolled_window, GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
@@ -771,6 +777,78 @@ toolbox_edit_lens_clicked(GtkButton *button, gpointer user_data)
 	}
 }
 
+/* Reçoit les valeurs RGB du négatif de 2 taches neutres (claire + dense) et en
+ * déduit red/blue ratios, d'après ART/filmnegative getFilmNegativeExponents :
+ * on cherche les exposants par canal rendant les deux taches identiquement
+ * neutres. greenExp (= contraste) reste piloté par l'utilisateur. */
+static void
+argentico_picked_cb(GtkWidget *preview, RS_ARGENTICO_PICK_DATA *pd, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	const gint snapshot = toolbox->selected_snapshot;
+
+	/* Sort visuellement du mode pioche */
+	if (toolbox->argentico_pick[snapshot])
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(toolbox->argentico_pick[snapshot]), FALSE);
+
+	if (!toolbox->photo || !toolbox->photo->settings[snapshot])
+		return;
+
+	/* Tache claire = vert le plus élevé (densité film la plus faible) */
+	const gboolean ref1_clear = (pd->ref1[1] >= pd->ref2[1]);
+	const gfloat *clear = ref1_clear ? pd->ref1 : pd->ref2;
+	const gfloat *dense = ref1_clear ? pd->ref2 : pd->ref1;
+
+	const gfloat denseGreenRatio = (dense[1] > 0.0f) ? clear[1] / dense[1] : 1.0f;
+	const gfloat ratioR = (dense[0] > 0.0f) ? clear[0] / dense[0] : 1.0f;
+	const gfloat ratioB = (dense[2] > 0.0f) ? clear[2] / dense[2] : 1.0f;
+
+	gfloat rr, br;
+	g_object_get(toolbox->photo->settings[snapshot],
+		"argentico-red-ratio",  &rr,
+		"argentico-blue-ratio", &br, NULL);
+
+	/* Garde-fous : ratios > 1 et logs finis (sinon on garde l'existant) */
+	if (denseGreenRatio > 1.0001f && ratioR > 1.0001f)
+		rr = logf(denseGreenRatio) / logf(ratioR);
+	if (denseGreenRatio > 1.0001f && ratioB > 1.0001f)
+		br = logf(denseGreenRatio) / logf(ratioB);
+	rr = CLAMP(rr, 0.3f, 5.0f);
+	br = CLAMP(br, 0.3f, 5.0f);
+
+	/* Référence neutre = tache claire : elle deviendra gris exact, et comme
+	 * les exposants alignent les ratios des 2 taches, l'autre devient grise
+	 * aussi → voile neutralisé. Batch = un seul recalcul du pipeline. */
+	rs_settings_commit_start(toolbox->photo->settings[snapshot]);
+	g_object_set(toolbox->photo->settings[snapshot],
+		"argentico-red-ratio",  rr,
+		"argentico-blue-ratio", br,
+		"argentico-ref-r", clear[0],
+		"argentico-ref-g", clear[1],
+		"argentico-ref-b", clear[2], NULL);
+	rs_settings_commit_stop(toolbox->photo->settings[snapshot]);
+}
+
+/* Callback : (dé)activation du mode pioche → pilote l'aperçu */
+static void
+argentico_pick_toggled(GtkToggleButton *btn, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (!toolbox->preview)
+		return;
+	rs_preview_widget_set_argentico_pick(RS_PREVIEW_WIDGET(toolbox->preview),
+		gtk_toggle_button_get_active(btn));
+}
+
+void
+rs_toolbox_set_preview(RSToolbox *toolbox, GtkWidget *preview)
+{
+	g_return_if_fail(RS_IS_TOOLBOX(toolbox));
+	toolbox->preview = preview;
+	if (preview)
+		g_signal_connect(preview, "argentico-picked", G_CALLBACK(argentico_picked_cb), toolbox);
+}
+
 /* Callback : activation/désactivation du négatif Argentico */
 static void
 argentico_enable_toggled(GtkToggleButton *btn, gpointer user_data)
@@ -836,6 +914,14 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	for(row=0;row<NARGENTICO;row++)
 		toolbox->argentico[snapshot][row] = basic_slider(toolbox, snapshot, argenticotable, row, &argentico[row]);
 	gtk_box_pack_start(GTK_BOX(argentico_vbox), GTK_WIDGET(argenticotable), FALSE, FALSE, 0);
+
+	/* Pioche : échantillonne 2 taches neutres → calcule les ratios R/B */
+	toolbox->argentico_pick[snapshot] = gtk_toggle_button_new_with_label(_("Échantillonner (point clair + point sombre)"));
+	gtk_widget_set_sensitive(toolbox->argentico_pick[snapshot], FALSE);
+	gtk_widget_set_tooltip_text(toolbox->argentico_pick[snapshot],
+		_("Cliquez ce bouton, puis dans l'aperçu cliquez une zone neutre CLAIRE puis une zone neutre SOMBRE. Les ratios rouge et bleu sont calculés pour neutraliser le voile."));
+	g_signal_connect(toolbox->argentico_pick[snapshot], "toggled", G_CALLBACK(argentico_pick_toggled), toolbox);
+	gtk_box_pack_start(GTK_BOX(argentico_vbox), toolbox->argentico_pick[snapshot], FALSE, FALSE, 0);
 
 	/* Pack everything nice */
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Argentico"), argentico_vbox, "show_argentico", TRUE), FALSE, FALSE, 0);
@@ -1239,6 +1325,8 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->argentico[snapshot][i]), FALSE);
 		if (toolbox->argentico_enable[snapshot])
 			gtk_widget_set_sensitive(toolbox->argentico_enable[snapshot], FALSE);
+		if (toolbox->argentico_pick[snapshot])
+			gtk_widget_set_sensitive(toolbox->argentico_pick[snapshot], FALSE);
 		rs_curve_widget_reset(RS_CURVE_WIDGET(toolbox->curve[snapshot]));
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 0.0,0.0);
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 1.0,1.0);
@@ -1470,6 +1558,8 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->argentico[snapshot][i]), TRUE);
 			if (toolbox->argentico_enable[snapshot])
 				gtk_widget_set_sensitive(toolbox->argentico_enable[snapshot], TRUE);
+			if (toolbox->argentico_pick[snapshot])
+				gtk_widget_set_sensitive(toolbox->argentico_pick[snapshot], TRUE);
 		}
 	}
 	else

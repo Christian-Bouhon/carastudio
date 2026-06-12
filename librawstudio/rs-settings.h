@@ -83,6 +83,9 @@ typedef enum {
 	MASK_ARGENTICO_RED_RATIO  = MASK_SOFTLIGHT_STRENGTH,
 	MASK_ARGENTICO_BLUE_RATIO = MASK_SOFTLIGHT_STRENGTH,
 	MASK_ARGENTICO_EXPOSURE   = MASK_SOFTLIGHT_STRENGTH,
+	MASK_ARGENTICO_REF_R      = MASK_SOFTLIGHT_STRENGTH,
+	MASK_ARGENTICO_REF_G      = MASK_SOFTLIGHT_STRENGTH,
+	MASK_ARGENTICO_REF_B      = MASK_SOFTLIGHT_STRENGTH,
 	/* Égaliseur de tons par bandes — partage aussi le bit softlight */
 	MASK_TONEEQ_ENABLED = MASK_SOFTLIGHT_STRENGTH,
 	MASK_TONEEQ_BAND0   = MASK_SOFTLIGHT_STRENGTH,
@@ -158,6 +161,10 @@ typedef struct _RSsettings {
 	gfloat argentico_red_ratio;
 	gfloat argentico_blue_ratio;
 	gfloat argentico_exposure;
+	/* Point de référence neutre piqué (RGB du négatif) ; 0 = médianes auto */
+	gfloat argentico_ref_r;
+	gfloat argentico_ref_g;
+	gfloat argentico_ref_b;
 	/* Égaliseur de tons par bandes (5 bandes : noirs/ombres/moyens/clairs/blancs) */
 	gboolean toneeq_enabled;
 	gfloat toneeq_band0;
