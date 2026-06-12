@@ -86,7 +86,16 @@ enum {
 	PROP_ARGENTICO_ENABLED,
 	PROP_ARGENTICO_GREEN_EXP,
 	PROP_ARGENTICO_RED_RATIO,
-	PROP_ARGENTICO_BLUE_RATIO
+	PROP_ARGENTICO_BLUE_RATIO,
+	PROP_ARGENTICO_EXPOSURE,
+	/* Égaliseur de tons par bandes */
+	PROP_TONEEQ_ENABLED,
+	PROP_TONEEQ_BAND0,
+	PROP_TONEEQ_BAND1,
+	PROP_TONEEQ_BAND2,
+	PROP_TONEEQ_BAND3,
+	PROP_TONEEQ_BAND4,
+	PROP_TONEEQ_PIVOT
 };
 
 static void
@@ -306,6 +315,46 @@ rs_settings_class_init (RSSettingsClass *klass)
 			"argentico-blue-ratio", _("Ratio bleu"), _("Film Negative Blue Ratio"),
 			0.3, 5.0, 0.86, G_PARAM_READWRITE)
 	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_EXPOSURE, g_param_spec_float(
+			"argentico-exposure", _("Exposition"), _("Film Negative Output Exposure (stops)"),
+			-5.0, 5.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_ENABLED, g_param_spec_boolean(
+			"toneeq-enabled", _("Égaliseur de tons"), _("Activer l'égaliseur de tons par bandes"),
+			FALSE, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_BAND0, g_param_spec_float(
+			"toneeq-band0", _("Noirs"), _("Tone Equalizer Blacks"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_BAND1, g_param_spec_float(
+			"toneeq-band1", _("Ombres"), _("Tone Equalizer Shadows"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_BAND2, g_param_spec_float(
+			"toneeq-band2", _("Tons moyens"), _("Tone Equalizer Midtones"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_BAND3, g_param_spec_float(
+			"toneeq-band3", _("Tons clairs"), _("Tone Equalizer Highlights"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_BAND4, g_param_spec_float(
+			"toneeq-band4", _("Blancs"), _("Tone Equalizer Whites"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_PIVOT, g_param_spec_float(
+			"toneeq-pivot", _("Pivot"), _("Tone Equalizer Pivot"),
+			-12.0, 12.0, 0.0, G_PARAM_READWRITE)
+	);
 
 	signals[SETTINGS_CHANGED] = g_signal_new ("settings-changed",
 		G_TYPE_FROM_CLASS (klass),
@@ -381,8 +430,18 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		CASE(ARGENTICO_GREEN_EXP, argentico_green_exp);
 		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
 		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
+		CASE(ARGENTICO_EXPOSURE, argentico_exposure);
+		CASE(TONEEQ_BAND0, toneeq_band0);
+		CASE(TONEEQ_BAND1, toneeq_band1);
+		CASE(TONEEQ_BAND2, toneeq_band2);
+		CASE(TONEEQ_BAND3, toneeq_band3);
+		CASE(TONEEQ_BAND4, toneeq_band4);
+		CASE(TONEEQ_PIVOT, toneeq_pivot);
 	case PROP_ARGENTICO_ENABLED:
 		g_value_set_boolean(value, settings->argentico_enabled);
+		break;
+	case PROP_TONEEQ_ENABLED:
+		g_value_set_boolean(value, settings->toneeq_enabled);
 		break;
 	case PROP_BW_ENABLED:
 		g_value_set_boolean(value, settings->bw_enabled);
@@ -482,11 +541,25 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		CASE(ARGENTICO_GREEN_EXP, argentico_green_exp);
 		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
 		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
+		CASE(ARGENTICO_EXPOSURE, argentico_exposure);
+		CASE(TONEEQ_BAND0, toneeq_band0);
+		CASE(TONEEQ_BAND1, toneeq_band1);
+		CASE(TONEEQ_BAND2, toneeq_band2);
+		CASE(TONEEQ_BAND3, toneeq_band3);
+		CASE(TONEEQ_BAND4, toneeq_band4);
+		CASE(TONEEQ_PIVOT, toneeq_pivot);
 	case PROP_ARGENTICO_ENABLED:
 		if (settings->argentico_enabled != g_value_get_boolean(value))
 		{
 			settings->argentico_enabled = g_value_get_boolean(value);
 			changed_mask |= MASK_ARGENTICO_ENABLED;
+		}
+		break;
+	case PROP_TONEEQ_ENABLED:
+		if (settings->toneeq_enabled != g_value_get_boolean(value))
+		{
+			settings->toneeq_enabled = g_value_get_boolean(value);
+			changed_mask |= MASK_TONEEQ_ENABLED;
 		}
 		break;
 	case PROP_BW_ENABLED:
@@ -670,6 +743,14 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	rs_object_class_property_reset(object, "argentico-green-exp");
 	rs_object_class_property_reset(object, "argentico-red-ratio");
 	rs_object_class_property_reset(object, "argentico-blue-ratio");
+	rs_object_class_property_reset(object, "argentico-exposure");
+	rs_object_class_property_reset(object, "toneeq-enabled");
+	rs_object_class_property_reset(object, "toneeq-band0");
+	rs_object_class_property_reset(object, "toneeq-band1");
+	rs_object_class_property_reset(object, "toneeq-band2");
+	rs_object_class_property_reset(object, "toneeq-band3");
+	rs_object_class_property_reset(object, "toneeq-band4");
+	rs_object_class_property_reset(object, "toneeq-pivot");
 
 	if (mask & MASK_CURVE)
 	{
@@ -798,6 +879,15 @@ do { \
 	SETTINGS_COPY(ARGENTICO_GREEN_EXP, argentico_green_exp);
 	SETTINGS_COPY(ARGENTICO_RED_RATIO, argentico_red_ratio);
 	SETTINGS_COPY(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
+	SETTINGS_COPY(ARGENTICO_EXPOSURE, argentico_exposure);
+	if (mask & MASK_TONEEQ_ENABLED)
+		target->toneeq_enabled = source->toneeq_enabled;
+	SETTINGS_COPY(TONEEQ_BAND0, toneeq_band0);
+	SETTINGS_COPY(TONEEQ_BAND1, toneeq_band1);
+	SETTINGS_COPY(TONEEQ_BAND2, toneeq_band2);
+	SETTINGS_COPY(TONEEQ_BAND3, toneeq_band3);
+	SETTINGS_COPY(TONEEQ_BAND4, toneeq_band4);
+	SETTINGS_COPY(TONEEQ_PIVOT, toneeq_pivot);
 #undef SETTINGS_COPY
 
 	if (mask & MASK_WB)

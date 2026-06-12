@@ -82,6 +82,15 @@ typedef enum {
 	MASK_ARGENTICO_GREEN_EXP  = MASK_SOFTLIGHT_STRENGTH,
 	MASK_ARGENTICO_RED_RATIO  = MASK_SOFTLIGHT_STRENGTH,
 	MASK_ARGENTICO_BLUE_RATIO = MASK_SOFTLIGHT_STRENGTH,
+	MASK_ARGENTICO_EXPOSURE   = MASK_SOFTLIGHT_STRENGTH,
+	/* Égaliseur de tons par bandes — partage aussi le bit softlight */
+	MASK_TONEEQ_ENABLED = MASK_SOFTLIGHT_STRENGTH,
+	MASK_TONEEQ_BAND0   = MASK_SOFTLIGHT_STRENGTH,
+	MASK_TONEEQ_BAND1   = MASK_SOFTLIGHT_STRENGTH,
+	MASK_TONEEQ_BAND2   = MASK_SOFTLIGHT_STRENGTH,
+	MASK_TONEEQ_BAND3   = MASK_SOFTLIGHT_STRENGTH,
+	MASK_TONEEQ_BAND4   = MASK_SOFTLIGHT_STRENGTH,
+	MASK_TONEEQ_PIVOT   = MASK_SOFTLIGHT_STRENGTH,
 	/* Couvre tous les VRAIS réglages, bits 0-29 (N&B inclus : 21-29).
 	 * NB : les bits 30-31 sont réservés à l'encodage du snapshot (A/B/C) dans
 	 * le signal "settings-changed" — voir RS_PACK/UNPACK_SNAPSHOT ci-dessous.
@@ -148,6 +157,15 @@ typedef struct _RSsettings {
 	gfloat argentico_green_exp;
 	gfloat argentico_red_ratio;
 	gfloat argentico_blue_ratio;
+	gfloat argentico_exposure;
+	/* Égaliseur de tons par bandes (5 bandes : noirs/ombres/moyens/clairs/blancs) */
+	gboolean toneeq_enabled;
+	gfloat toneeq_band0;
+	gfloat toneeq_band1;
+	gfloat toneeq_band2;
+	gfloat toneeq_band3;
+	gfloat toneeq_band4;
+	gfloat toneeq_pivot;
 } RSSettings;
 
 typedef struct {

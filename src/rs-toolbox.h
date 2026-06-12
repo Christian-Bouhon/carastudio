@@ -77,6 +77,9 @@ rs_toolbox_get_histogram_widget(RSToolbox *toolbox);
 extern GtkWidget *
 rs_toolbox_get_effects_widget(RSToolbox *toolbox);
 
+extern GtkWidget *
+rs_toolbox_get_tones_widget(RSToolbox *toolbox);
+
 G_END_DECLS
 
 #endif /* RS_TOOLBOX_H */

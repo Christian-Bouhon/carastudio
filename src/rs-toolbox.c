@@ -97,6 +97,26 @@ const static BasicSettings bw_channels[] = {
 };
 #define NBW (3)
 
+/* Égaliseur de tons par bandes */
+const static BasicSettings toneeq[] = {
+	{ "toneeq-band0", 1.0,  MASK_TONEEQ_BAND0 },
+	{ "toneeq-band1", 1.0,  MASK_TONEEQ_BAND1 },
+	{ "toneeq-band2", 1.0,  MASK_TONEEQ_BAND2 },
+	{ "toneeq-band3", 1.0,  MASK_TONEEQ_BAND3 },
+	{ "toneeq-band4", 1.0,  MASK_TONEEQ_BAND4 },
+	{ "toneeq-pivot", 0.05, MASK_TONEEQ_PIVOT },
+};
+#define NTONEEQ (6)
+
+/* Argentico (négatif argentique) */
+const static BasicSettings argentico[] = {
+	{ "argentico-green-exp", 0.05, MASK_ARGENTICO_GREEN_EXP },
+	{ "argentico-red-ratio", 0.01, MASK_ARGENTICO_RED_RATIO },
+	{ "argentico-blue-ratio",0.01, MASK_ARGENTICO_BLUE_RATIO },
+	{ "argentico-exposure",  0.05, MASK_ARGENTICO_EXPOSURE },
+};
+#define NARGENTICO (4)
+
 struct _RSToolbox {
 	GtkScrolledWindow parent;
 
@@ -112,6 +132,10 @@ struct _RSToolbox {
 	GtkRange *dehaze_slider[3][NDEHAZE];
 	GtkRange *bw[3][NBW];
 	GtkWidget *bw_enable[3];
+	GtkRange *toneeq[3][NTONEEQ];
+	GtkWidget *toneeq_enable[3];
+	GtkRange *argentico[3][NARGENTICO];
+	GtkWidget *argentico_enable[3];
 	GtkWidget *lenslabel[3];
 	GtkWidget *lensbutton[3];
 	RSLens *rs_lens;
@@ -747,6 +771,19 @@ toolbox_edit_lens_clicked(GtkButton *button, gpointer user_data)
 	}
 }
 
+/* Callback : activation/désactivation du négatif Argentico */
+static void
+argentico_enable_toggled(GtkToggleButton *btn, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (!toolbox->photo || toolbox->mute_from_sliders) return;
+	gint snapshot = toolbox->selected_snapshot;
+	toolbox->mute_from_photo = TRUE;
+	g_object_set(toolbox->photo->settings[snapshot],
+		"argentico-enabled", gtk_toggle_button_get_active(btn), NULL);
+	toolbox->mute_from_photo = FALSE;
+}
+
 static GtkWidget *
 new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 {
@@ -787,7 +824,21 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	g_signal_connect(toolbox->curve[snapshot], "changed", G_CALLBACK(curve_changed), toolbox);
 	g_signal_connect(toolbox->curve[snapshot], "right-click", G_CALLBACK(curve_context_callback), NULL);
 
+	/* Section Argentico (négatif argentique) — en tête : c'est une étape de
+	 * développement amont (avant WB/expo, qui suivent dans cet onglet). */
+	GtkWidget *argentico_vbox = gtk_vbox_new(FALSE, 2);
+	toolbox->argentico_enable[snapshot] = gtk_check_button_new_with_label(_("Développer le négatif"));
+	gtk_widget_set_sensitive(toolbox->argentico_enable[snapshot], FALSE);
+	g_signal_connect(toolbox->argentico_enable[snapshot], "toggled", G_CALLBACK(argentico_enable_toggled), toolbox);
+	gtk_box_pack_start(GTK_BOX(argentico_vbox), toolbox->argentico_enable[snapshot], FALSE, FALSE, 0);
+
+	GtkTable *argenticotable = GTK_TABLE(gtk_table_new(NARGENTICO, 5, FALSE));
+	for(row=0;row<NARGENTICO;row++)
+		toolbox->argentico[snapshot][row] = basic_slider(toolbox, snapshot, argenticotable, row, &argentico[row]);
+	gtk_box_pack_start(GTK_BOX(argentico_vbox), GTK_WIDGET(argenticotable), FALSE, FALSE, 0);
+
 	/* Pack everything nice */
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Argentico"), argentico_vbox, "show_argentico", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Basic"), GTK_WIDGET(table), "show_basic", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Channel Mixer"), GTK_WIDGET(channelmixertable), "show_channelmixer", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Lens Correction"), GTK_WIDGET(lenstable), "show_lens", TRUE), FALSE, FALSE, 0);
@@ -932,6 +983,60 @@ new_effects_page(RSToolbox *toolbox, const gint snapshot)
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Noir &amp; Blanc"), bw_vbox, "show_bw", TRUE), FALSE, FALSE, 0);
 
 	return vbox;
+}
+
+/* ------------------------------------------------------------------ */
+/* Onglet Tonalité : égaliseur de tons par bandes                      */
+/* ------------------------------------------------------------------ */
+
+/* Callback : activation/désactivation de l'égaliseur de tons */
+static void
+toneeq_enable_toggled(GtkToggleButton *btn, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (!toolbox->photo || toolbox->mute_from_sliders) return;
+	gint snapshot = toolbox->selected_snapshot;
+	toolbox->mute_from_photo = TRUE;
+	g_object_set(toolbox->photo->settings[snapshot],
+		"toneeq-enabled", gtk_toggle_button_get_active(btn), NULL);
+	toolbox->mute_from_photo = FALSE;
+}
+
+static GtkWidget *
+new_tones_page(RSToolbox *toolbox, const gint snapshot)
+{
+	GtkWidget *vbox = gtk_vbox_new(FALSE, 1);
+	GtkWidget *te_vbox = gtk_vbox_new(FALSE, 2);
+	gint row;
+
+	/* Case d'activation */
+	toolbox->toneeq_enable[snapshot] = gtk_check_button_new_with_label(_("Activer l'égaliseur de tons"));
+	gtk_widget_set_sensitive(toolbox->toneeq_enable[snapshot], FALSE);
+	g_signal_connect(toolbox->toneeq_enable[snapshot], "toggled", G_CALLBACK(toneeq_enable_toggled), toolbox);
+	gtk_box_pack_start(GTK_BOX(te_vbox), toolbox->toneeq_enable[snapshot], FALSE, FALSE, 0);
+
+	/* 5 bandes + pivot */
+	GtkTable *table = GTK_TABLE(gtk_table_new(NTONEEQ, 5, FALSE));
+	for (row = 0; row < NTONEEQ; row++)
+		toolbox->toneeq[snapshot][row] = basic_slider(toolbox, snapshot, table, row, &toneeq[row]);
+	gtk_box_pack_start(GTK_BOX(te_vbox), GTK_WIDGET(table), FALSE, FALSE, 0);
+
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Égaliseur de tons"), te_vbox, "show_toneeq", TRUE), FALSE, FALSE, 0);
+
+	return vbox;
+}
+
+GtkWidget *
+rs_toolbox_get_tones_widget(RSToolbox *toolbox)
+{
+	GtkWidget *notebook = gtk_notebook_new();
+	const gchar *labels[] = {"A", "B", "C"};
+	gint i;
+	for (i = 0; i < 3; i++)
+		gtk_notebook_append_page(GTK_NOTEBOOK(notebook),
+			new_tones_page(toolbox, i),
+			gtk_label_new(labels[i]));
+	return notebook;
 }
 
 GtkWidget *
@@ -1124,6 +1229,16 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->bw[snapshot][i]), FALSE);
 		if (toolbox->bw_enable[snapshot])
 			gtk_widget_set_sensitive(toolbox->bw_enable[snapshot], FALSE);
+		for(i=0;i<NTONEEQ;i++)
+			if (toolbox->toneeq[snapshot][i])
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->toneeq[snapshot][i]), FALSE);
+		if (toolbox->toneeq_enable[snapshot])
+			gtk_widget_set_sensitive(toolbox->toneeq_enable[snapshot], FALSE);
+		for(i=0;i<NARGENTICO;i++)
+			if (toolbox->argentico[snapshot][i])
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->argentico[snapshot][i]), FALSE);
+		if (toolbox->argentico_enable[snapshot])
+			gtk_widget_set_sensitive(toolbox->argentico_enable[snapshot], FALSE);
 		rs_curve_widget_reset(RS_CURVE_WIDGET(toolbox->curve[snapshot]));
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 0.0,0.0);
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 1.0,1.0);
@@ -1206,6 +1321,36 @@ toolbox_copy_from_photo(RSToolbox *toolbox, const gint snapshot, const RSSetting
 				gfloat value;
 				g_object_get(toolbox->photo->settings[snapshot], bw_channels[i].property_name, &value, NULL);
 				gtk_range_set_value(toolbox->bw[snapshot][i], value);
+			}
+
+		/* Update tone equalizer */
+		if ((mask & MASK_TONEEQ_ENABLED) && toolbox->toneeq_enable[snapshot])
+		{
+			gboolean enabled;
+			g_object_get(toolbox->photo->settings[snapshot], "toneeq-enabled", &enabled, NULL);
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(toolbox->toneeq_enable[snapshot]), enabled);
+		}
+		for(i=0;i<NTONEEQ;i++)
+			if (mask && toolbox->toneeq[snapshot][i])
+			{
+				gfloat value;
+				g_object_get(toolbox->photo->settings[snapshot], toneeq[i].property_name, &value, NULL);
+				gtk_range_set_value(toolbox->toneeq[snapshot][i], value);
+			}
+
+		/* Update Argentico */
+		if ((mask & MASK_ARGENTICO_ENABLED) && toolbox->argentico_enable[snapshot])
+		{
+			gboolean enabled;
+			g_object_get(toolbox->photo->settings[snapshot], "argentico-enabled", &enabled, NULL);
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(toolbox->argentico_enable[snapshot]), enabled);
+		}
+		for(i=0;i<NARGENTICO;i++)
+			if (mask && toolbox->argentico[snapshot][i])
+			{
+				gfloat value;
+				g_object_get(toolbox->photo->settings[snapshot], argentico[i].property_name, &value, NULL);
+				gtk_range_set_value(toolbox->argentico[snapshot][i], value);
 			}
 
 		/* Update curve */
@@ -1317,6 +1462,14 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->bw[snapshot][i]), TRUE);
 			if (toolbox->bw_enable[snapshot])
 				gtk_widget_set_sensitive(toolbox->bw_enable[snapshot], TRUE);
+			for(i=0;i<NTONEEQ;i++)
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->toneeq[snapshot][i]), TRUE);
+			if (toolbox->toneeq_enable[snapshot])
+				gtk_widget_set_sensitive(toolbox->toneeq_enable[snapshot], TRUE);
+			for(i=0;i<NARGENTICO;i++)
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->argentico[snapshot][i]), TRUE);
+			if (toolbox->argentico_enable[snapshot])
+				gtk_widget_set_sensitive(toolbox->argentico_enable[snapshot], TRUE);
 		}
 	}
 	else

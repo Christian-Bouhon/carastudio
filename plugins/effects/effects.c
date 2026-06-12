@@ -41,6 +41,14 @@ typedef struct {
 	gfloat bw_cyan;
 	gfloat bw_blue;
 	gfloat bw_violet;
+	/* Égaliseur de tons par bandes */
+	gboolean toneeq_enabled;
+	gfloat toneeq_band0;
+	gfloat toneeq_band1;
+	gfloat toneeq_band2;
+	gfloat toneeq_band3;
+	gfloat toneeq_band4;
+	gfloat toneeq_pivot;
 } RSEffects;
 
 typedef struct {
@@ -172,6 +180,13 @@ settings_changed(RSSettings *settings, RSSettingsMask mask, RSEffects *effects)
 		"bw-cyan",               &effects->bw_cyan,
 		"bw-blue",               &effects->bw_blue,
 		"bw-violet",             &effects->bw_violet,
+		"toneeq-enabled",        &effects->toneeq_enabled,
+		"toneeq-band0",          &effects->toneeq_band0,
+		"toneeq-band1",          &effects->toneeq_band1,
+		"toneeq-band2",          &effects->toneeq_band2,
+		"toneeq-band3",          &effects->toneeq_band3,
+		"toneeq-band4",          &effects->toneeq_band4,
+		"toneeq-pivot",          &effects->toneeq_pivot,
 		NULL);
 	rs_filter_changed(RS_FILTER(effects), RS_FILTER_CHANGED_PIXELDATA);
 }
@@ -482,6 +497,91 @@ apply_dehaze(RS_IMAGE16 *img, gfloat strength, gfloat saturation)
 }
 
 /* ------------------------------------------------------------------ */
+/* Égaliseur de tons par bandes (d'après ART/iptoneequalizer.cc,      */
+/* lui-même adapté du tone equalizer de darktable, A. Pierre 2018)    */
+/* ------------------------------------------------------------------ */
+/*
+ * 5 bandes utilisateur [-100;100] (noirs/ombres/moyens/clairs/blancs).
+ * Chaque bande pilote une plage d'exposition (EV) via 12 gaussiennes
+ * centrées de -16 à +6 EV, de σ≈2 EV (partition de l'unité sur [-14;4],
+ * d'où correction ≈ 1 quand toutes les bandes sont à zéro).
+ *
+ * Pour chaque luminance linéaire Y :
+ *   luma = log2(Y) - pivot,  borné à [-14;4]
+ *   correction = Σ gauss(centre_c, luma) · factor_c / w_sum
+ *   RGB_linéaire ×= correction
+ *
+ * factor_c = 2^(bande/100 · f) convertit la bande en gain (f dépend du
+ * signe, comme ART : asymétrie clairs/sombres par bande). La correction
+ * ne dépend que de Y → on la précalcule dans une LUT (pas de 12
+ * gaussiennes par pixel). Travail en lumière linéaire (to_linear/to_srgb).
+ */
+static void
+apply_toneeq(RS_IMAGE16 *img,
+             gfloat b0, gfloat b1, gfloat b2, gfloat b3, gfloat b4,
+             gfloat pivot)
+{
+	static const float centers[12] = {
+		-16.f,-14.f,-12.f,-10.f,-8.f,-6.f,-4.f,-2.f,0.f,2.f,4.f,6.f
+	};
+	#define TE_CONV(v, lo, hi) exp2f((v)/100.f * ((v) < 0.f ? (lo) : (hi)))
+	const float factors[12] = {
+		TE_CONV(b0, 2.f, 3.f),   /* -16 EV */
+		TE_CONV(b0, 2.f, 3.f),   /* -14 EV */
+		TE_CONV(b0, 2.f, 3.f),   /* -12 EV */
+		TE_CONV(b0, 2.f, 3.f),   /* -10 EV */
+		TE_CONV(b0, 2.f, 3.f),   /*  -8 EV */
+		TE_CONV(b1, 2.f, 3.f),   /*  -6 EV */
+		TE_CONV(b2, 2.5f, 2.5f), /*  -4 EV */
+		TE_CONV(b3, 3.f, 2.f),   /*  -2 EV */
+		TE_CONV(b4, 3.f, 2.f),   /*   0 EV */
+		TE_CONV(b4, 3.f, 2.f),   /*   2 EV */
+		TE_CONV(b4, 3.f, 2.f),   /*   4 EV */
+		TE_CONV(b4, 3.f, 2.f)    /*   6 EV */
+	};
+	#undef TE_CONV
+
+	/* Normalisation : somme des gaussiennes évaluée à luma=0 (comme ART) */
+	float w_sum = 0.f;
+	for (int i = 0; i < 12; i++)
+		w_sum += expf(-(centers[i]*centers[i]) / 4.0f);
+
+	/* LUT : correction = f(luminance linéaire ∈ [0;1]) */
+	#define TE_LUT 4096
+	float lut[TE_LUT];
+	const float luma_lo = -14.f, luma_hi = 4.f;
+	for (int i = 0; i < TE_LUT; i++) {
+		float Y = (float)i / (TE_LUT - 1);
+		float luma = log2f(fmaxf(Y, 1e-9f)) - pivot;
+		luma = CLAMP(luma, luma_lo, luma_hi);
+		float corr = 0.f;
+		for (int c = 0; c < 12; c++) {
+			float d = luma - centers[c];
+			corr += expf(-(d*d) / 4.0f) * factors[c];
+		}
+		lut[i] = corr / w_sum;
+	}
+
+	const gint W = img->w, H = img->h, ps = img->pixelsize, rs = img->rowstride;
+	for (gint y = 0; y < H; y++) {
+		gushort *row = img->pixels + y * rs;
+		for (gint x = 0; x < W; x++) {
+			gushort *px = row + x * ps;
+			float r = to_linear((float)px[0]);
+			float g = to_linear((float)px[1]);
+			float b = to_linear((float)px[2]);
+			float Y = 0.2126f*r + 0.7152f*g + 0.0722f*b;
+			int idx = (int)(CLAMP(Y, 0.f, 1.f) * (TE_LUT - 1) + 0.5f);
+			float corr = lut[idx];
+			px[0] = (gushort)CLAMP((gint)(to_srgb(CLAMP(r*corr,0.f,1.f))+0.5f),0,65535);
+			px[1] = (gushort)CLAMP((gint)(to_srgb(CLAMP(g*corr,0.f,1.f))+0.5f),0,65535);
+			px[2] = (gushort)CLAMP((gint)(to_srgb(CLAMP(b*corr,0.f,1.f))+0.5f),0,65535);
+		}
+	}
+	#undef TE_LUT
+}
+
+/* ------------------------------------------------------------------ */
 /* Entrée principale                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -494,11 +594,15 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	if (!previous) return NULL;
 
 	const gboolean need_dh = (effects->dehaze_strength >= 0.001f || fabsf(effects->dehaze_saturation) >= 0.001f);
+	const gboolean need_te = effects->toneeq_enabled &&
+		(fabsf(effects->toneeq_band0) >= 0.5f || fabsf(effects->toneeq_band1) >= 0.5f ||
+		 fabsf(effects->toneeq_band2) >= 0.5f || fabsf(effects->toneeq_band3) >= 0.5f ||
+		 fabsf(effects->toneeq_band4) >= 0.5f);
 	const gboolean need_bw = effects->bw_enabled;
 	const gboolean need_sl = (effects->softlight_strength >= 0.001f);
 	const gboolean need_vg = (fabsf(effects->art_vignette_strength) >= 0.001f);
 
-	if (!need_dh && !need_bw && !need_sl && !need_vg)
+	if (!need_dh && !need_te && !need_bw && !need_sl && !need_vg)
 		return previous;
 
 	RS_IMAGE16 *img = rs_filter_response_get_image(previous);
@@ -514,6 +618,11 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 
 	if (need_dh)
 		apply_dehaze(out, effects->dehaze_strength, effects->dehaze_saturation);
+
+	if (need_te)
+		apply_toneeq(out, effects->toneeq_band0, effects->toneeq_band1,
+		             effects->toneeq_band2, effects->toneeq_band3,
+		             effects->toneeq_band4, effects->toneeq_pivot);
 
 	if (need_bw)
 		apply_bw(out, effects->bw_filter,

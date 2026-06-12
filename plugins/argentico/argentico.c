@@ -32,6 +32,7 @@ typedef struct {
 	gfloat green_exp;
 	gfloat red_ratio;
 	gfloat blue_ratio;
+	gfloat exposure;
 } RSArgentico;
 
 typedef struct {
@@ -89,6 +90,7 @@ rs_argentico_init(RSArgentico *a)
 	a->green_exp = 1.5f;
 	a->red_ratio = 1.36f;
 	a->blue_ratio = 0.86f;
+	a->exposure = 0.0f;
 }
 
 static void
@@ -142,25 +144,27 @@ static void
 settings_changed(RSSettings *settings, RSSettingsMask mask, RSArgentico *a)
 {
 	gboolean en;
-	gfloat ge, rr, br;
+	gfloat ge, rr, br, ex;
 	g_object_get(settings,
 		"argentico-enabled",   &en,
 		"argentico-green-exp", &ge,
 		"argentico-red-ratio", &rr,
 		"argentico-blue-ratio",&br,
+		"argentico-exposure",  &ex,
 		NULL);
 
 	/* Argentico précède le cache de dématriçage : on n'invalide la chaîne que
 	 * si un de NOS réglages a réellement changé (sinon chaque curseur en aval
 	 * recalculerait tout le pipeline). */
 	if (en == a->enabled && ge == a->green_exp &&
-	    rr == a->red_ratio && br == a->blue_ratio)
+	    rr == a->red_ratio && br == a->blue_ratio && ex == a->exposure)
 		return;
 
 	a->enabled = en;
 	a->green_exp = ge;
 	a->red_ratio = rr;
 	a->blue_ratio = br;
+	a->exposure = ex;
 	rs_filter_changed(RS_FILTER(a), RS_FILTER_CHANGED_PIXELDATA);
 }
 
@@ -191,7 +195,7 @@ hist_median(const guint *h, guint64 total)
 }
 
 static void
-apply_argentico(RS_IMAGE16 *img, gfloat green_exp, gfloat red_ratio, gfloat blue_ratio)
+apply_argentico(RS_IMAGE16 *img, gfloat green_exp, gfloat red_ratio, gfloat blue_ratio, gfloat exposure)
 {
 	const gint W = img->w;
 	const gint H = img->h;
@@ -225,8 +229,10 @@ apply_argentico(RS_IMAGE16 *img, gfloat green_exp, gfloat red_ratio, gfloat blue
 	float refin_b = (float)MAX(hist_median(hb, total), 1u);
 	g_free(hist);
 
-	/* refOut = gris à 1/24 du max ; multiplicateurs pour amener refIn → refOut. */
-	const float refout = 65535.0f / 24.0f;
+	/* refOut = gris à 1/24 du max, décalé par l'exposition (en stops EV) ;
+	 * multiplicateurs pour amener refIn → refOut. exposure=0 → comportement
+	 * d'origine ; +1 stop = positif deux fois plus clair. */
+	const float refout = (65535.0f / 24.0f) * exp2f(exposure);
 	const float rmult = refout / powf(refin_r, rexp);
 	const float gmult = refout / powf(refin_g, gexp);
 	const float bmult = refout / powf(refin_b, bexp);
@@ -278,7 +284,7 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	g_object_unref(img);
 	g_object_unref(previous);
 
-	apply_argentico(out, a->green_exp, a->red_ratio, a->blue_ratio);
+	apply_argentico(out, a->green_exp, a->red_ratio, a->blue_ratio, a->exposure);
 
 	g_object_unref(out);
 	return response;
