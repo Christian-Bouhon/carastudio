@@ -1648,6 +1648,14 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_100, FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_in,  FALSE, FALSE, 0);
 
+		/* CaraStudio : séparateur + bouton Recadrer (remplace le raccourci Maj+C,
+		 * qui reste actif) */
+		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
+		GtkWidget *btn_crop = cs_icon_label_button("tool-crop", _("Recadrer"));
+		gtk_widget_set_tooltip_text(btn_crop, _("Recadrer l'image (Maj+C)"));
+		g_signal_connect_swapped(btn_crop, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Crop");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_crop, FALSE, FALSE, 0);
+
 		gtk_box_pack_start(GTK_BOX(vbox), view_toolbar, FALSE, TRUE, 0);
 	}
     

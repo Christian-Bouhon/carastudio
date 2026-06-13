@@ -864,43 +864,63 @@ extern RSMetadata *rs_photo_get_metadata(RS_PHOTO *photo)
  * Closes a RS_PHOTO - this basically means saving cache
  * @param photo A RS_PHOTO
  */
-void
-rs_photo_close(RS_PHOTO *photo)
+GdkPixbuf *
+rs_photo_update_thumbnail(RS_PHOTO *photo)
 {
 	GdkPixbuf *pixbuf=NULL;
 	GdkPixbuf *pixbuf2=NULL;
+
+	if (!photo || !photo->metadata || !photo->thumbnail_filter)
+		return NULL;
+
+	RSFilterRequest *request = rs_filter_request_new();
+	rs_filter_request_set_roi(request, FALSE);
+	rs_filter_request_set_quick(request, TRUE);
+	rs_filter_param_set_object(RS_FILTER_PARAM(request), "colorspace", rs_color_space_new_singleton("RSSrgb"));
+
+	RSFilterResponse *response = rs_filter_get_image8(photo->thumbnail_filter, request);
+	pixbuf = response ? rs_filter_response_get_image8(response) : NULL;
+	if (!pixbuf)
+	{
+		if (response) g_object_unref(response);
+		g_object_unref(request);
+		return NULL;
+	}
+
+	/* Scale to a bounding box of 128x128 pixels */
+	gdouble ratio = ((gdouble) gdk_pixbuf_get_width(pixbuf))/((gdouble) gdk_pixbuf_get_height(pixbuf));
+	if (ratio>1.0)
+		pixbuf2 = gdk_pixbuf_scale_simple(pixbuf, 128, (gint) (128.0/ratio), GDK_INTERP_BILINEAR);
+	else
+		pixbuf2 = gdk_pixbuf_scale_simple(pixbuf, (gint) (128.0*ratio), 128, GDK_INTERP_BILINEAR);
+	g_object_unref(pixbuf);
+	g_object_unref(request);
+	g_object_unref(response);
+
+	if (photo->metadata->thumbnail)
+		g_object_unref(photo->metadata->thumbnail);
+
+	photo->metadata->thumbnail = pixbuf2;
+	/* La vignette vient de thumbnail_filter (= chaîne navigateur, effets
+	   inclus) → marquer comme rendue, pour ne pas la régénérer en fond. */
+	photo->metadata->thumbnail_rendered = TRUE;
+	rs_metadata_cache_save(photo->metadata, photo->filename);
+
+	/* Le caller possède la ref retournée (metadata conserve la sienne). */
+	return g_object_ref(pixbuf2);
+}
+
+void
+rs_photo_close(RS_PHOTO *photo)
+{
 	if (!photo) return;
 
 	rs_cache_save(photo, MASK_ALL);
-	if (photo->metadata && photo->thumbnail_filter)
-	{
-		RSFilterRequest *request = rs_filter_request_new();
-		rs_filter_request_set_roi(request, FALSE);
-		rs_filter_request_set_quick(request, TRUE);
-		rs_filter_param_set_object(RS_FILTER_PARAM(request), "colorspace", rs_color_space_new_singleton("RSSrgb"));	
-
-		RSFilterResponse *response = rs_filter_get_image8(photo->thumbnail_filter, request);
-		pixbuf = rs_filter_response_get_image8(response);
-
-		/* Scale to a bounding box of 128x128 pixels */
-		gdouble ratio = ((gdouble) gdk_pixbuf_get_width(pixbuf))/((gdouble) gdk_pixbuf_get_height(pixbuf));
-		if (ratio>1.0)
-			pixbuf2 = gdk_pixbuf_scale_simple(pixbuf, 128, (gint) (128.0/ratio), GDK_INTERP_BILINEAR);
-		else
-			pixbuf2 = gdk_pixbuf_scale_simple(pixbuf, (gint) (128.0*ratio), 128, GDK_INTERP_BILINEAR);
-		g_object_unref(pixbuf);
-		g_object_unref(request);
-		g_object_unref(response);
-
-		if (photo->metadata->thumbnail)
-			g_object_unref(photo->metadata->thumbnail);
-
-		photo->metadata->thumbnail = pixbuf2;
-		/* La vignette vient de thumbnail_filter (= chaîne navigateur, effets
-		   inclus) → marquer comme rendue, pour ne pas la régénérer en fond. */
-		photo->metadata->thumbnail_rendered = TRUE;
-		rs_metadata_cache_save(photo->metadata, photo->filename);
-	}
+	/* CaraStudio : rendu de vignette factorisé dans rs_photo_update_thumbnail
+	 * (réutilisé pour le rafraîchissement live du navigateur). */
+	GdkPixbuf *thumb = rs_photo_update_thumbnail(photo);
+	if (thumb)
+		g_object_unref(thumb);
 }
 
 void 

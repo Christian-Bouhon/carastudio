@@ -143,6 +143,15 @@ extern void
 rs_preview_widget_crop_start(RSPreviewWidget *preview);
 
 /*
+ * CaraStudio : gère Entrée (valider) / Échap (annuler) en mode recadrage
+ * @param preview A RSPreviewWidget
+ * @param keyval La touche (GDK_KEY_*)
+ * @return TRUE si la touche a été consommée
+ */
+extern gboolean
+rs_preview_widget_crop_key(RSPreviewWidget *preview, guint keyval);
+
+/*
  * Removes crop from the loaded photo
  * @param preview A RSpreviewWidget
  */

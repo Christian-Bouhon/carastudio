@@ -19,6 +19,7 @@
 
 #include <rawstudio.h>
 #include <math.h>
+#include <gdk/gdkkeysyms.h>
 #include "rs-preview-widget.h"
 #include "application.h"
 #include "gtk-interface.h"
@@ -30,6 +31,7 @@
 #include "rs-toolbox.h"
 #include "rs-loupe.h"
 #include "rs-navigator.h"
+#include "rs-store.h"
 #include <gettext.h>
 
 enum {
@@ -126,6 +128,9 @@ struct _RSPreviewWidget
     GtkWidget *vscrollbar;
     GtkWidget *hscrollbar;
 	GtkDrawingArea *canvas;
+	GtkWidget *canvas_overlay;	/* CaraStudio: overlay au-dessus du canevas (palettes flottantes) */
+
+	guint thumbnail_refresh_timer;	/* CaraStudio: anti-rebond du rafraîchissement live de la vignette */
 
 	RSToolbox *toolbox;
 
@@ -258,8 +263,9 @@ static gboolean get_image_coord(RSPreviewWidget *preview, gint view, const gint 
 static gint get_view_from_coord(RSPreviewWidget *preview, const gint x, const gint y);
 static void crop_aspect_changed(gpointer active, gpointer user_data);
 static void crop_grid_changed(gpointer active, gpointer user_data);
-static void crop_apply_clicked(GtkButton *button, gpointer user_data);
+static void crop_settings_ok_clicked(GtkButton *button, gpointer user_data);
 static void crop_cancel_clicked(GtkButton *button, gpointer user_data);
+static void crop_ensure_css(void);
 static void crop_end(RSPreviewWidget *preview, gboolean accept);
 static void crop_find_size_from_aspect(RS_RECT *roi, gdouble aspect, CROP_NEAR state);
 static CROP_NEAR crop_near(RS_RECT *roi, gint x, gint y);
@@ -398,7 +404,12 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 	g_signal_connect(preview->vscrollbar, "button-release-event", G_CALLBACK(scrollbar_release), preview);
 	g_signal_connect(preview->hscrollbar, "button-release-event", G_CALLBACK(scrollbar_release), preview);
 
-	gtk_table_attach(table, GTK_WIDGET(preview->canvas), 0, 1, 0, 1, GTK_EXPAND|GTK_FILL, GTK_EXPAND|GTK_FILL, 0, 0);
+	/* CaraStudio : le canevas est enveloppe dans un GtkOverlay pour pouvoir
+	 * superposer des palettes flottantes (ex. l'outil de recadrage) sans
+	 * masquer durablement l'image. */
+	preview->canvas_overlay = gtk_overlay_new();
+	gtk_container_add(GTK_CONTAINER(preview->canvas_overlay), GTK_WIDGET(preview->canvas));
+	gtk_table_attach(table, preview->canvas_overlay, 0, 1, 0, 1, GTK_EXPAND|GTK_FILL, GTK_EXPAND|GTK_FILL, 0, 0);
 	gtk_table_attach(table, preview->vscrollbar, 1, 2, 0, 1, GTK_SHRINK, GTK_EXPAND|GTK_FILL, 0, 0);
     gtk_table_attach(table, preview->hscrollbar, 0, 1, 1, 2, GTK_EXPAND|GTK_FILL, GTK_SHRINK, 0, 0);
 
@@ -836,6 +847,48 @@ rs_preview_widget_set_loupe_enabled(RSPreviewWidget *preview, int view, gboolean
 	}
 }
 
+/* CaraStudio : rafraîchissement live de la vignette du navigateur.
+ * À chaque édition (settings/crop/rotate/profil/objectif), on (re)programme un
+ * timer ; à son échéance on recalcule la vignette de la photo courante depuis sa
+ * chaîne d'aperçu (effets inclus) et on la pousse dans le navigateur, sans avoir
+ * à recharger la photo depuis le disque. L'anti-rebond évite de régénérer à
+ * chaque cran de curseur. */
+#define CS_THUMB_REFRESH_DELAY_MS 600
+
+static gboolean
+thumbnail_refresh_timeout(gpointer data)
+{
+	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(data);
+	preview->thumbnail_refresh_timer = 0;
+
+	if (preview->photo && preview->photo->filename)
+	{
+		GdkPixbuf *thumb = rs_photo_update_thumbnail(preview->photo);
+		if (thumb)
+		{
+			RS_BLOB *rs = rs_get_blob();
+			if (rs && rs->store)
+				rs_store_update_thumbnail(rs->store, preview->photo->filename, thumb);
+			g_object_unref(thumb);
+		}
+	}
+
+	return G_SOURCE_REMOVE;
+}
+
+/* (Re)programme le rafraîchissement différé. Connecté en "swapped" aux signaux
+ * de la photo : le premier argument est donc le preview, les autres ignorés. */
+static void
+schedule_thumbnail_refresh(RSPreviewWidget *preview)
+{
+	if (!RS_IS_PREVIEW_WIDGET(preview))
+		return;
+	if (preview->thumbnail_refresh_timer)
+		g_source_remove(preview->thumbnail_refresh_timer);
+	preview->thumbnail_refresh_timer =
+		g_timeout_add(CS_THUMB_REFRESH_DELAY_MS, thumbnail_refresh_timeout, preview);
+}
+
 /**
  * Sets active photo of a RSPreviewWidget
  * @param preview A RSPreviewWidget
@@ -845,6 +898,14 @@ void
 rs_preview_widget_set_photo(RSPreviewWidget *preview, RS_PHOTO *photo)
 {
 	g_assert(RS_IS_PREVIEW_WIDGET(preview));
+
+	/* CaraStudio : on change de photo → annuler un rafraîchissement vignette en
+	 * attente, il viserait l'ancienne photo. */
+	if (preview->thumbnail_refresh_timer)
+	{
+		g_source_remove(preview->thumbnail_refresh_timer);
+		preview->thumbnail_refresh_timer = 0;
+	}
 
 	preview->photo = photo;
 	if (preview->state & CROP)
@@ -862,6 +923,12 @@ rs_preview_widget_set_photo(RSPreviewWidget *preview, RS_PHOTO *photo)
 		g_signal_connect(G_OBJECT(preview->photo), "lens-changed", G_CALLBACK(lens_changed), preview);
 		g_signal_connect(G_OBJECT(preview->photo), "profile-changed", G_CALLBACK(profile_changed), preview);
 		g_signal_connect(G_OBJECT(preview->photo), "spatial-changed", G_CALLBACK(photo_spatial_changed), preview);
+
+		/* CaraStudio : rafraîchir la vignette du navigateur à chaque édition. */
+		g_signal_connect_swapped(G_OBJECT(preview->photo), "settings-changed", G_CALLBACK(schedule_thumbnail_refresh), preview);
+		g_signal_connect_swapped(G_OBJECT(preview->photo), "spatial-changed", G_CALLBACK(schedule_thumbnail_refresh), preview);
+		g_signal_connect_swapped(G_OBJECT(preview->photo), "profile-changed", G_CALLBACK(schedule_thumbnail_refresh), preview);
+		g_signal_connect_swapped(G_OBJECT(preview->photo), "lens-changed", G_CALLBACK(schedule_thumbnail_refresh), preview);
 	}
 }
 
@@ -1120,6 +1187,8 @@ rs_preview_widget_get_show_exposure_mask(RSPreviewWidget *preview, gboolean show
 void
 rs_preview_widget_crop_start(RSPreviewWidget *preview)
 {
+	GtkWidget *frame;
+	GtkWidget *header;
 	GtkWidget *vbox;
 	GtkWidget *roi_size_hbox;
 	GtkWidget *label;
@@ -1129,14 +1198,20 @@ rs_preview_widget_crop_start(RSPreviewWidget *preview)
 	GtkWidget *aspect_hbox;
 	GtkWidget *aspect_label;
 	GtkWidget *button_box;
-	GtkWidget *apply_button;
-	GtkWidget *cancel_button;
+	GtkWidget *ok_button;
+	GtkWidget *uncrop_button;
 	RS_CONFBOX *grid_confbox;
 	RS_CONFBOX *aspect_confbox;
 
 	g_assert(RS_IS_PREVIEW_WIDGET(preview));
 
 	if (!(preview->state & NORMAL))
+		return;
+
+	/* CaraStudio : pas de photo chargée → ne rien faire (le bouton de la barre
+	 * d'outils est toujours cliquable, contrairement au menu/raccourci). Évite
+	 * un déréférencement NULL de preview->photo plus bas. */
+	if (!preview->photo || !preview->photo->input)
 		return;
 
 	/* predefined aspects */
@@ -1161,6 +1236,12 @@ rs_preview_widget_crop_start(RSPreviewWidget *preview)
 	aspect_golden = (1.0f+sqrt(5.0f))/2.0f;
 
 	vbox = gtk_vbox_new(FALSE, 4);
+	gtk_container_set_border_width(GTK_CONTAINER(vbox), 8);
+
+	header = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(header), _("<b>Recadrage</b>"));
+	gtk_misc_set_alignment(GTK_MISC(header), 0.0, 0.5);
+	gtk_box_pack_start (GTK_BOX (vbox), header, FALSE, TRUE, 0);
 
 	label = gtk_label_new(_("Size"));
 	gtk_misc_set_alignment(GTK_MISC(label), 0.0, 0.5);
@@ -1218,20 +1299,37 @@ rs_preview_widget_crop_start(RSPreviewWidget *preview)
 	gtk_box_pack_start (GTK_BOX (aspect_hbox),
 		gui_confbox_get_widget(aspect_confbox), FALSE, TRUE, 4);
 
+	/* CaraStudio : OK = je masque la palette pour dégager l'image, puis je trace
+	 * mon recadrage (validation finale : Entrée / Échap). « Annuler le
+	 * recadrage » retire le recadrage existant et quitte (ancien « Don't crop »). */
 	button_box = gtk_hbox_new(FALSE, 0);
-	apply_button = gtk_button_new_with_label(_("Crop"));
-	g_signal_connect (G_OBJECT(apply_button), "clicked", G_CALLBACK (crop_apply_clicked), preview);
-	cancel_button = gtk_button_new_with_label(_("Don't crop"));
-	g_signal_connect (G_OBJECT(cancel_button), "clicked", G_CALLBACK (crop_cancel_clicked), preview);
-	gtk_box_pack_start (GTK_BOX (button_box), apply_button, TRUE, TRUE, 4);
-	gtk_box_pack_start (GTK_BOX (button_box), cancel_button, TRUE, TRUE, 4);
+	ok_button = gtk_button_new_with_label(_("OK"));
+	g_signal_connect (G_OBJECT(ok_button), "clicked", G_CALLBACK (crop_settings_ok_clicked), preview);
+	uncrop_button = gtk_button_new_with_label(_("Annuler le recadrage"));
+	g_signal_connect (G_OBJECT(uncrop_button), "clicked", G_CALLBACK (crop_cancel_clicked), preview);
+	gtk_box_pack_start (GTK_BOX (button_box), ok_button, TRUE, TRUE, 4);
+	gtk_box_pack_start (GTK_BOX (button_box), uncrop_button, TRUE, TRUE, 4);
 
 	gtk_box_pack_start (GTK_BOX (vbox), roi_grid_hbox, FALSE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (vbox), aspect_hbox, FALSE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (vbox), button_box, FALSE, TRUE, 0);
 
-	preview->tool = rs_toolbox_add_widget(preview->toolbox, vbox, _("Crop"));
-	gtk_widget_show_all(preview->tool);
+	/* CaraStudio : palette flottante en haut à gauche, par-dessus l'aperçu,
+	 * au lieu d'un pavé enfoui en bas du panneau d'outils. */
+	crop_ensure_css();
+	frame = gtk_frame_new(NULL);
+	gtk_widget_set_name(frame, "cs-crop-float");
+	gtk_frame_set_shadow_type(GTK_FRAME(frame), GTK_SHADOW_NONE);
+	gtk_container_add(GTK_CONTAINER(frame), vbox);
+
+	gtk_widget_set_halign(frame, GTK_ALIGN_START);
+	gtk_widget_set_valign(frame, GTK_ALIGN_START);
+	gtk_widget_set_margin_start(frame, 12);
+	gtk_widget_set_margin_top(frame, 12);
+
+	preview->tool = frame;
+	gtk_overlay_add_overlay(GTK_OVERLAY(preview->canvas_overlay), frame);
+	gtk_widget_show_all(frame);
 
 	if (preview->photo->crop)
 	{
@@ -1242,11 +1340,41 @@ rs_preview_widget_crop_start(RSPreviewWidget *preview)
 	else
 		preview->state = CROP_START;
 
-	/* Help text for cropping */
-	preview->status_num = gui_status_push(_("Crop: Drag to select cropped area. Right Mouse Button inside cropped area: Apply Crop; Outside: Cancel crop"));
+	/* CaraStudio : rappel des raccourcis de validation (Entrée/Échap) */
+	preview->status_num = gui_status_push(_("Recadrage : tracez la zone à conserver · Entrée : valider · Échap : annuler · (clic droit : valider/annuler)"));
 
 	if (!preview->zoom_to_fit)
 		rs_preview_widget_set_zoom_to_fit(preview, TRUE);
+}
+
+/**
+ * CaraStudio : gère les touches de validation du recadrage.
+ * Entrée = appliquer, Échap = annuler. Ne fait rien (retourne FALSE) hors mode
+ * recadrage, pour laisser passer ces touches au reste de l'application.
+ * @param preview A RSPreviewWidget
+ * @param keyval La touche (GDK_KEY_*)
+ * @return TRUE si la touche a été consommée
+ */
+gboolean
+rs_preview_widget_crop_key(RSPreviewWidget *preview, guint keyval)
+{
+	g_return_val_if_fail(RS_IS_PREVIEW_WIDGET(preview), FALSE);
+
+	if (!(preview->state & CROP))
+		return FALSE;
+
+	switch (keyval)
+	{
+		case GDK_KEY_Return:
+		case GDK_KEY_KP_Enter:
+			crop_end(preview, TRUE);
+			return TRUE;
+		case GDK_KEY_Escape:
+			crop_end(preview, FALSE);
+			return TRUE;
+		default:
+			return FALSE;
+	}
 }
 
 /**
@@ -2307,14 +2435,47 @@ crop_grid_changed(gpointer active, gpointer user_data)
 	canvas_draw(preview, NULL, FALSE);
 }
 
+/* CaraStudio : installe une seule fois le style de la palette flottante de
+ * recadrage (fond sombre translucide, coins arrondis, texte clair) pour
+ * qu'elle reste lisible par-dessus n'importe quelle photo. */
 static void
-crop_apply_clicked(GtkButton *button, gpointer user_data)
+crop_ensure_css(void)
+{
+	static gboolean done = FALSE;
+	if (done)
+		return;
+	done = TRUE;
+
+	GtkCssProvider *provider = gtk_css_provider_new();
+	gtk_css_provider_load_from_data(provider,
+		"#cs-crop-float {"
+		"  background-color: rgba(30, 30, 30, 0.88);"
+		"  border-radius: 8px;"
+		"  border: 1px solid rgba(255, 255, 255, 0.15);"
+		"  color: #ffffff;"
+		"}"
+		"#cs-crop-float label { color: #ffffff; }",
+		-1, NULL);
+	gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
+		GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	g_object_unref(provider);
+}
+
+/* CaraStudio : « OK » dans la palette = réglages choisis, on masque la palette
+ * pour dégager l'image ; le mode recadrage reste actif (validation finale par
+ * Entrée/Échap ou clic droit). */
+static void
+crop_settings_ok_clicked(GtkButton *button, gpointer user_data)
 {
 	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
 
-	crop_end(preview, TRUE);
+	if (preview->tool)
+		gtk_widget_hide(preview->tool);
 }
 
+/* CaraStudio : « Annuler le recadrage » = retire le recadrage existant et quitte
+ * le mode (à l'entrée, un crop déjà appliqué a été mis à NULL ; ne pas le
+ * réappliquer revient à le supprimer). Reprend l'ancien bouton « Don't crop ». */
 static void
 crop_cancel_clicked(GtkButton *button, gpointer user_data)
 {

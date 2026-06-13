@@ -345,6 +345,18 @@ window_key_press_event (GtkWidget   *widget,
   GtkWidget *focus   = gtk_window_get_focus (window);
   gboolean   handled = FALSE;
 
+  /* CaraStudio : en mode recadrage, Entrée valide / Échap annule. On intercepte
+   * avant tout le reste, mais seulement si aucun champ texte n'a le focus (sinon
+   * Entrée/Échap dans un champ serait détourné). rs_preview_widget_crop_key
+   * retourne FALSE hors mode recadrage, donc aucun effet le reste du temps. */
+  if (!(GTK_IS_EDITABLE (focus) || GTK_IS_TEXT_VIEW (focus)))
+  {
+    RS_BLOB *rs = rs_get_blob();
+    if (rs && rs->preview &&
+        rs_preview_widget_crop_key(RS_PREVIEW_WIDGET(rs->preview), event->keyval))
+      return TRUE;
+  }
+
   /* we're overriding the GtkWindow implementation here to give
    * the focus widget precedence over unmodified accelerators
    * before the accelerator activation scheme.

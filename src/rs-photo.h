@@ -316,6 +316,16 @@ extern RSMetadata *rs_photo_get_metadata(RS_PHOTO *photo);
 extern void rs_photo_close(RS_PHOTO *photo);
 
 /**
+ * CaraStudio : recalcule la vignette (128 px, effets inclus) d'une photo
+ * chargée à partir de sa chaîne d'aperçu live (thumbnail_filter), la stocke
+ * dans metadata->thumbnail et la persiste en cache. Sert au rafraîchissement
+ * en direct de la vignette du navigateur pendant l'édition.
+ * @param photo A RS_PHOTO (doit avoir thumbnail_filter et metadata)
+ * @return La vignette brute 128 px (le caller doit g_object_unref), ou NULL
+ */
+extern GdkPixbuf *rs_photo_update_thumbnail(RS_PHOTO *photo);
+
+/**
  * Indicate that the lens has changed.
  * @param photo A RS_PHOTO
  */

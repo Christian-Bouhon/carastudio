@@ -26,6 +26,7 @@
 #include <libxml/xmlwriter.h>
 #include <libxml/parser.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <math.h>
 #include <memory.h>
 #include "application.h"
@@ -3068,14 +3069,31 @@ got_metadata(RSMetadata *metadata, gpointer user_data)
 		-1);
 	gdk_threads_leave();
 
-	/* Vignette périmée ? Si la photo a des réglages (.cache.xml) mais que sa
-	   vignette en cache n'a PAS été rendue avec les effets, on la régénère en
-	   fond pour qu'elle reflète le rendu réel dès le démarrage. */
-	if (!metadata->thumbnail_rendered)
+	/* Vignette périmée ? On régénère en fond (effets inclus) si la photo a des
+	   réglages (.cache.xml présent) ET que la vignette est dépassée, c.-à-d. :
+	     - jamais rendue avec les effets (thumbnail_rendered == FALSE), OU
+	     - les réglages sont plus récents que la vignette sur disque.
+	   Ce second test rattrape les photos ré-éditées après un premier rendu : le
+	   marqueur thumbnail_rendered, une fois TRUE, ne redevient jamais FALSE, donc
+	   la seule date fiable est mtime(.cache.xml) vs mtime(.thumb.jpg). */
 	{
 		gchar *cache_name = rs_cache_get_name(job->filename);
 		if (cache_name && g_file_test(cache_name, G_FILE_TEST_IS_REGULAR))
-			rs_thumb_regen_enqueue(job->store, job->filename);
+		{
+			gboolean stale = !metadata->thumbnail_rendered;
+			if (!stale)
+			{
+				gchar *thumb_name = rs_metadata_dotdir_helper(job->filename, DOTDIR_THUMB);
+				GStatBuf cs, ts;
+				if (thumb_name && g_stat(thumb_name, &ts) == 0 && g_stat(cache_name, &cs) == 0)
+					stale = (cs.st_mtime > ts.st_mtime);
+				else
+					stale = TRUE; /* pas de vignette sur disque → à régénérer */
+				g_free(thumb_name);
+			}
+			if (stale)
+				rs_thumb_regen_enqueue(job->store, job->filename);
+		}
 		g_free(cache_name);
 	}
 
