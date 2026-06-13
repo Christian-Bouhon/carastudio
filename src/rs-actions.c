@@ -1204,7 +1204,26 @@ TOGGLEACTION(load_selected)
 }
 TOGGLEACTION(split)
 {
-	rs_preview_widget_set_split(RS_PREVIEW_WIDGET(rs->preview), gtk_toggle_action_get_active(toggleaction));
+	gboolean active = gtk_toggle_action_get_active(toggleaction);
+	rs_preview_widget_set_split(RS_PREVIEW_WIDGET(rs->preview), active);
+
+	/* À l'activation du split, éviter que les deux panneaux montrent le même
+	   instantané (sinon « deux fois la même image »). Le panneau gauche suit
+	   l'onglet courant (rs->current_setting) ; si le sélecteur du panneau droit
+	   (RightA/B/C) pointe sur le même, on le décale vers un instantané différent
+	   pour offrir une comparaison utile d'emblée. Régler la radio-action met à
+	   jour à la fois la coche du menu et l'affichage (via right_popup). */
+	if (active)
+	{
+		GtkAction *ra = gtk_action_group_get_action(core_action_group, "RightA");
+		if (ra && GTK_IS_RADIO_ACTION(ra))
+		{
+			gint right = gtk_radio_action_get_current_value(GTK_RADIO_ACTION(ra));
+			if (right == rs->current_setting)
+				gtk_radio_action_set_current_value(GTK_RADIO_ACTION(ra),
+					(rs->current_setting + 1) % 3);
+		}
+	}
 }
 
 TOGGLEACTION(lightsout)
