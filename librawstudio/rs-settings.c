@@ -109,7 +109,12 @@ enum {
 	PROP_CW_MID_LUM,
 	PROP_CW_HIGH_X,
 	PROP_CW_HIGH_Y,
-	PROP_CW_HIGH_LUM
+	PROP_CW_HIGH_LUM,
+	/* Égaliseur de couleurs (color zones) */
+	PROP_HSL_ENABLED,
+	PROP_HSL_HUE_CURVE,
+	PROP_HSL_SAT_CURVE,
+	PROP_HSL_LUM_CURVE
 };
 
 static void
@@ -434,6 +439,26 @@ rs_settings_class_init (RSSettingsClass *klass)
 			"cw-high-lum", _("Hautes luminance"), _("Color Wheel Highlights Luminance (gain)"),
 			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
 	);
+	g_object_class_install_property(object_class,
+		PROP_HSL_ENABLED, g_param_spec_boolean(
+			"hsl-enabled", _("Égaliseur de couleurs"), _("Activer l'égaliseur de couleurs"),
+			FALSE, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_HSL_HUE_CURVE, g_param_spec_string(
+			"hsl-hue-curve", _("Teinte"), _("HSL Hue band values"),
+			NULL, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_HSL_SAT_CURVE, g_param_spec_string(
+			"hsl-sat-curve", _("Saturation"), _("HSL Saturation band values"),
+			NULL, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_HSL_LUM_CURVE, g_param_spec_string(
+			"hsl-lum-curve", _("Luminance"), _("HSL Lightness band values"),
+			NULL, G_PARAM_READWRITE)
+	);
 
 	signals[SETTINGS_CHANGED] = g_signal_new ("settings-changed",
 		G_TYPE_FROM_CLASS (klass),
@@ -460,6 +485,9 @@ rs_settings_init (RSSettings *self)
 	self->commit_todo = 0;
 	self->curve_knots = NULL;
 	self->wb_ascii = NULL;
+	self->hsl_hue_curve = NULL;
+	self->hsl_sat_curve = NULL;
+	self->hsl_lum_curve = NULL;
 	rs_settings_reset(self, MASK_ALL);
 }
 
@@ -536,6 +564,18 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		break;
 	case PROP_COLORWHEELS_ENABLED:
 		g_value_set_boolean(value, settings->colorwheels_enabled);
+		break;
+	case PROP_HSL_ENABLED:
+		g_value_set_boolean(value, settings->hsl_enabled);
+		break;
+	case PROP_HSL_HUE_CURVE:
+		g_value_set_string(value, settings->hsl_hue_curve);
+		break;
+	case PROP_HSL_SAT_CURVE:
+		g_value_set_string(value, settings->hsl_sat_curve);
+		break;
+	case PROP_HSL_LUM_CURVE:
+		g_value_set_string(value, settings->hsl_lum_curve);
 		break;
 	case PROP_BW_ENABLED:
 		g_value_set_boolean(value, settings->bw_enabled);
@@ -674,6 +714,28 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 			settings->colorwheels_enabled = g_value_get_boolean(value);
 			changed_mask |= MASK_COLORWHEELS_ENABLED;
 		}
+		break;
+	case PROP_HSL_ENABLED:
+		if (settings->hsl_enabled != g_value_get_boolean(value))
+		{
+			settings->hsl_enabled = g_value_get_boolean(value);
+			changed_mask |= MASK_HSL_ENABLED;
+		}
+		break;
+	case PROP_HSL_HUE_CURVE:
+		g_free(settings->hsl_hue_curve);
+		settings->hsl_hue_curve = g_strdup(g_value_get_string(value));
+		changed_mask |= MASK_HSL_HUE;
+		break;
+	case PROP_HSL_SAT_CURVE:
+		g_free(settings->hsl_sat_curve);
+		settings->hsl_sat_curve = g_strdup(g_value_get_string(value));
+		changed_mask |= MASK_HSL_SAT;
+		break;
+	case PROP_HSL_LUM_CURVE:
+		g_free(settings->hsl_lum_curve);
+		settings->hsl_lum_curve = g_strdup(g_value_get_string(value));
+		changed_mask |= MASK_HSL_LUM;
 		break;
 	case PROP_BW_ENABLED:
 		if (settings->bw_enabled != g_value_get_boolean(value))
@@ -877,6 +939,10 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	rs_object_class_property_reset(object, "cw-high-x");
 	rs_object_class_property_reset(object, "cw-high-y");
 	rs_object_class_property_reset(object, "cw-high-lum");
+	rs_object_class_property_reset(object, "hsl-enabled");
+	rs_object_class_property_reset(object, "hsl-hue-curve");
+	rs_object_class_property_reset(object, "hsl-sat-curve");
+	rs_object_class_property_reset(object, "hsl-lum-curve");
 
 	if (mask & MASK_CURVE)
 	{
@@ -1028,6 +1094,26 @@ do { \
 	SETTINGS_COPY(CW_HIGH_X, cw_high_x);
 	SETTINGS_COPY(CW_HIGH_Y, cw_high_y);
 	SETTINGS_COPY(CW_HIGH_LUM, cw_high_lum);
+	if (mask & MASK_HSL_ENABLED)
+		target->hsl_enabled = source->hsl_enabled;
+	if ((mask & MASK_HSL_HUE) && (g_strcmp0(target->hsl_hue_curve, source->hsl_hue_curve) != 0))
+	{
+		g_free(target->hsl_hue_curve);
+		changed_mask |= MASK_HSL_HUE;
+		target->hsl_hue_curve = g_strdup(source->hsl_hue_curve);
+	}
+	if ((mask & MASK_HSL_SAT) && (g_strcmp0(target->hsl_sat_curve, source->hsl_sat_curve) != 0))
+	{
+		g_free(target->hsl_sat_curve);
+		changed_mask |= MASK_HSL_SAT;
+		target->hsl_sat_curve = g_strdup(source->hsl_sat_curve);
+	}
+	if ((mask & MASK_HSL_LUM) && (g_strcmp0(target->hsl_lum_curve, source->hsl_lum_curve) != 0))
+	{
+		g_free(target->hsl_lum_curve);
+		changed_mask |= MASK_HSL_LUM;
+		target->hsl_lum_curve = g_strdup(source->hsl_lum_curve);
+	}
 #undef SETTINGS_COPY
 
 	if (mask & MASK_WB)

@@ -105,6 +105,11 @@ typedef enum {
 	MASK_CW_HIGH_X      = MASK_SOFTLIGHT_STRENGTH,
 	MASK_CW_HIGH_Y      = MASK_SOFTLIGHT_STRENGTH,
 	MASK_CW_HIGH_LUM    = MASK_SOFTLIGHT_STRENGTH,
+	/* Égaliseur de couleurs (color zones) — partage aussi le bit softlight */
+	MASK_HSL_ENABLED    = MASK_SOFTLIGHT_STRENGTH,
+	MASK_HSL_HUE        = MASK_SOFTLIGHT_STRENGTH,
+	MASK_HSL_SAT        = MASK_SOFTLIGHT_STRENGTH,
+	MASK_HSL_LUM        = MASK_SOFTLIGHT_STRENGTH,
 	/* Couvre tous les VRAIS réglages, bits 0-29 (N&B inclus : 21-29).
 	 * NB : les bits 30-31 sont réservés à l'encodage du snapshot (A/B/C) dans
 	 * le signal "settings-changed" — voir RS_PACK/UNPACK_SNAPSHOT ci-dessous.
@@ -198,6 +203,13 @@ typedef struct _RSsettings {
 	gfloat cw_high_x;
 	gfloat cw_high_y;
 	gfloat cw_high_lum;
+	/* Égaliseur de couleurs (color zones façon ART HSL equalizer) — 3 courbes
+	   plates indexées par la teinte du pixel (8 bandes, 0 = neutre), stockées en
+	   chaîne "v0 v1 … v7" (valeurs [-1,1]) façon wb_ascii. */
+	gboolean hsl_enabled;
+	gchar *hsl_hue_curve;
+	gchar *hsl_sat_curve;
+	gchar *hsl_lum_curve;
 } RSSettings;
 
 typedef struct {

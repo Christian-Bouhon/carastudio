@@ -63,6 +63,12 @@ typedef struct {
 	gfloat cw_shadows_x, cw_shadows_y, cw_shadows_lum;
 	gfloat cw_mid_x, cw_mid_y, cw_mid_lum;
 	gfloat cw_high_x, cw_high_y, cw_high_lum;
+	/* Égaliseur de couleurs (color zones) — nœuds (x=teinte, y=valeur) par canal,
+	   triés par x, courbe périodique. Max 32 nœuds/canal. */
+	gboolean hsl_enabled;
+	gfloat hsl_hx[32], hsl_hy[32]; gint hsl_hn;
+	gfloat hsl_sx[32], hsl_sy[32]; gint hsl_sn;
+	gfloat hsl_lx[32], hsl_ly[32]; gint hsl_ln;
 } RSEffects;
 
 typedef struct {
@@ -175,6 +181,25 @@ settings_weak_notify(gpointer data, GObject *where_the_object_was)
 	e->settings_signal_id = 0;
 }
 
+/* Parse "x0 y0 x1 y1 …" en nœuds (xs,ys), n = nombre de nœuds. */
+static void
+hsl_parse_nodes(const gchar *str, gfloat *xs, gfloat *ys, gint *n, gint maxn)
+{
+	*n = 0;
+	if (!str) return;
+	gchar **tok = g_strsplit_set(str, " ,", -1);
+	gint i, k = 0;
+	gfloat buf[2] = {0, 0};
+	for (i = 0; tok[i]; i++)
+	{
+		if (tok[i][0] == '\0') continue;
+		buf[k & 1] = (gfloat) g_ascii_strtod(tok[i], NULL);
+		k++;
+		if (!(k & 1) && *n < maxn) { xs[*n] = buf[0]; ys[*n] = buf[1]; (*n)++; }
+	}
+	g_strfreev(tok);
+}
+
 static void
 settings_changed(RSSettings *settings, RSSettingsMask mask, RSEffects *effects)
 {
@@ -219,7 +244,20 @@ settings_changed(RSSettings *settings, RSSettingsMask mask, RSEffects *effects)
 		"cw-high-x",             &effects->cw_high_x,
 		"cw-high-y",             &effects->cw_high_y,
 		"cw-high-lum",           &effects->cw_high_lum,
+		"hsl-enabled",           &effects->hsl_enabled,
 		NULL);
+
+	/* Égaliseur de couleurs : parse les 3 courbes (chaînes de 8 bandes). */
+	{
+		gchar *hs = NULL, *ss = NULL, *ls = NULL;
+		g_object_get(settings, "hsl-hue-curve", &hs, "hsl-sat-curve", &ss,
+		             "hsl-lum-curve", &ls, NULL);
+		hsl_parse_nodes(hs, effects->hsl_hx, effects->hsl_hy, &effects->hsl_hn, 32);
+		hsl_parse_nodes(ss, effects->hsl_sx, effects->hsl_sy, &effects->hsl_sn, 32);
+		hsl_parse_nodes(ls, effects->hsl_lx, effects->hsl_ly, &effects->hsl_ln, 32);
+		g_free(hs); g_free(ss); g_free(ls);
+	}
+
 	rs_filter_changed(RS_FILTER(effects), RS_FILTER_CHANGED_PIXELDATA);
 }
 
@@ -802,6 +840,101 @@ apply_colorcorrection(RS_IMAGE16 *img, RSEffects *e)
 }
 
 /* ------------------------------------------------------------------ */
+/* Égaliseur de couleurs (color zones) — 3 courbes f(teinte)          */
+/* ------------------------------------------------------------------ */
+/*
+ * D'après l'égaliseur de couleurs d'ART (rtengine/iphsl.cc) : 3 courbes
+ * indexées par la TEINTE du pixel, qui décalent la teinte, multiplient la
+ * saturation et la luminance. Ici 8 bandes par canal, interpolation périodique,
+ * en espace TSL (HSL). Permet de cibler une couleur (jaune→bleu en teinte,
+ * doper les verts en saturation, éclaircir les rouges en luminance). */
+
+static void
+cz_rgb2hsl(float r, float g, float b, float *h, float *s, float *l)
+{
+	float mx = MAX(MAX(r, g), b), mn = MIN(MIN(r, g), b), d = mx - mn;
+	*l = (mx + mn) * 0.5f;
+	if (d < 1e-6f) { *h = 0; *s = 0; return; }
+	*s = (*l > 0.5f) ? d/(2.0f - mx - mn) : d/(mx + mn);
+	float hh;
+	if (mx == r)      hh = (g - b)/d + (g < b ? 6.0f : 0.0f);
+	else if (mx == g) hh = (b - r)/d + 2.0f;
+	else              hh = (r - g)/d + 4.0f;
+	*h = hh / 6.0f;
+}
+
+static inline float
+cz_hue2rgb(float p, float q, float t)
+{
+	if (t < 0) t += 1; if (t > 1) t -= 1;
+	if (t < 1.0f/6) return p + (q - p)*6*t;
+	if (t < 1.0f/2) return q;
+	if (t < 2.0f/3) return p + (q - p)*(2.0f/3 - t)*6;
+	return p;
+}
+
+static void
+cz_hsl2rgb(float h, float s, float l, float *r, float *g, float *b)
+{
+	if (s < 1e-6f) { *r = *g = *b = l; return; }
+	float q = (l < 0.5f) ? l*(1 + s) : l + s - l*s;
+	float p = 2*l - q;
+	*r = cz_hue2rgb(p, q, h + 1.0f/3);
+	*g = cz_hue2rgb(p, q, h);
+	*b = cz_hue2rgb(p, q, h - 1.0f/3);
+}
+
+/* Interpolation périodique d'une courbe à nœuds (xs triés dans [0,1)) à la
+   teinte h∈[0,1). Le segment de bouclage relie le dernier nœud au premier. */
+static inline float
+cz_interp(const gfloat *xs, const gfloat *ys, gint n, float h)
+{
+	if (n <= 0) return 0.0f;
+	if (n == 1) return ys[0];
+	if (h >= xs[0] && h < xs[n-1])
+	{
+		gint i = 0;
+		while (i < n-1 && h >= xs[i+1]) i++;
+		float t = (h - xs[i]) / (xs[i+1] - xs[i]);
+		return ys[i]*(1.0f - t) + ys[i+1]*t;
+	}
+	float seg = xs[0] + 1.0f - xs[n-1];
+	float pos = (h >= xs[n-1]) ? (h - xs[n-1]) : (h + 1.0f - xs[n-1]);
+	float t = (seg > 1e-6f) ? pos / seg : 0.0f;
+	return ys[n-1]*(1.0f - t) + ys[0]*t;
+}
+
+static void
+apply_colorzones(RS_IMAGE16 *img, RSEffects *e)
+{
+	const float K_HUE = 0.5f; /* décalage teinte max = ±0,5 tour (±180°) */
+	const float K_SAT = 1.0f; /* sat *= 1 + val   (val=−1 → gris, +1 → ×2) */
+	const float K_LUM = 0.5f; /* lum *= 1 + val·0,5 */
+	const gint W = img->w, H = img->h, ps = img->pixelsize, rs = img->rowstride;
+	for (gint yy = 0; yy < H; yy++)
+	{
+		gushort *row = img->pixels + yy * rs;
+		for (gint xx = 0; xx < W; xx++)
+		{
+			gushort *px = row + xx * ps;
+			float r = px[0]/65535.0f, g = px[1]/65535.0f, b = px[2]/65535.0f;
+			float h, s, l;
+			cz_rgb2hsl(r, g, b, &h, &s, &l);
+			float dh = cz_interp(e->hsl_hx, e->hsl_hy, e->hsl_hn, h);
+			float ds = cz_interp(e->hsl_sx, e->hsl_sy, e->hsl_sn, h);
+			float dl = cz_interp(e->hsl_lx, e->hsl_ly, e->hsl_ln, h);
+			h += dh * K_HUE; h -= floorf(h);
+			s *= (1.0f + ds * K_SAT); s = CLAMP(s, 0.0f, 1.0f);
+			l *= (1.0f + dl * K_LUM); l = CLAMP(l, 0.0f, 1.0f);
+			cz_hsl2rgb(h, s, l, &r, &g, &b);
+			px[0] = (gushort) CLAMP((gint)(r*65535.0f + 0.5f), 0, 65535);
+			px[1] = (gushort) CLAMP((gint)(g*65535.0f + 0.5f), 0, 65535);
+			px[2] = (gushort) CLAMP((gint)(b*65535.0f + 0.5f), 0, 65535);
+		}
+	}
+}
+
+/* ------------------------------------------------------------------ */
 /* Entrée principale                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -829,8 +962,19 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 		 fabsf(effects->cw_mid_lum) >= 0.001f ||
 		 fabsf(effects->cw_high_x) >= 0.001f || fabsf(effects->cw_high_y) >= 0.001f ||
 		 fabsf(effects->cw_high_lum) >= 0.001f);
+	gboolean need_cz = FALSE;
+	if (effects->hsl_enabled)
+	{
+		gint k;
+		for (k = 0; k < effects->hsl_hn && !need_cz; k++)
+			if (fabsf(effects->hsl_hy[k]) >= 0.001f) need_cz = TRUE;
+		for (k = 0; k < effects->hsl_sn && !need_cz; k++)
+			if (fabsf(effects->hsl_sy[k]) >= 0.001f) need_cz = TRUE;
+		for (k = 0; k < effects->hsl_ln && !need_cz; k++)
+			if (fabsf(effects->hsl_ly[k]) >= 0.001f) need_cz = TRUE;
+	}
 
-	if (!need_ar && !need_dh && !need_te && !need_bw && !need_sl && !need_vg && !need_cc)
+	if (!need_ar && !need_dh && !need_te && !need_bw && !need_sl && !need_vg && !need_cc && !need_cz)
 		return previous;
 
 	RS_IMAGE16 *img = rs_filter_response_get_image(previous);
@@ -859,6 +1003,9 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 
 	if (need_cc)
 		apply_colorcorrection(out, effects);
+
+	if (need_cz)
+		apply_colorzones(out, effects);
 
 	if (need_bw)
 		apply_bw(out, effects->bw_filter,

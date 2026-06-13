@@ -241,6 +241,13 @@ rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriter
 	RS_XML_WRITE_FLOAT(writer, "cw_high_x",      rss->cw_high_x);
 	RS_XML_WRITE_FLOAT(writer, "cw_high_y",      rss->cw_high_y);
 	RS_XML_WRITE_FLOAT(writer, "cw_high_lum",    rss->cw_high_lum);
+	RS_XML_WRITE_INT  (writer, "hsl_enabled",    rss->hsl_enabled);
+	if (rss->hsl_hue_curve)
+		xmlTextWriterWriteFormatElement(writer, BAD_CAST "hsl_hue_curve", "%s", rss->hsl_hue_curve);
+	if (rss->hsl_sat_curve)
+		xmlTextWriterWriteFormatElement(writer, BAD_CAST "hsl_sat_curve", "%s", rss->hsl_sat_curve);
+	if (rss->hsl_lum_curve)
+		xmlTextWriterWriteFormatElement(writer, BAD_CAST "hsl_lum_curve", "%s", rss->hsl_lum_curve);
 }
 
 guint
@@ -476,6 +483,30 @@ rs_cache_load_setting(RSSettings *rss, xmlDocPtr doc, xmlNodePtr cur, gint versi
 			mask |= MASK_COLORWHEELS_ENABLED;
 			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
 			if (val) { rss->colorwheels_enabled = atoi((gchar *) val); xmlFree(val); }
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "hsl_enabled")))
+		{
+			mask |= MASK_HSL_ENABLED;
+			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+			if (val) { rss->hsl_enabled = atoi((gchar *) val); xmlFree(val); }
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "hsl_hue_curve")))
+		{
+			mask |= MASK_HSL_HUE;
+			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+			if (val) { g_free(rss->hsl_hue_curve); rss->hsl_hue_curve = g_strdup((gchar *) val); xmlFree(val); }
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "hsl_sat_curve")))
+		{
+			mask |= MASK_HSL_SAT;
+			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+			if (val) { g_free(rss->hsl_sat_curve); rss->hsl_sat_curve = g_strdup((gchar *) val); xmlFree(val); }
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "hsl_lum_curve")))
+		{
+			mask |= MASK_HSL_LUM;
+			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+			if (val) { g_free(rss->hsl_lum_curve); rss->hsl_lum_curve = g_strdup((gchar *) val); xmlFree(val); }
 		}
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "curve")))
 		{

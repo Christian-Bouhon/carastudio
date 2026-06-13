@@ -140,6 +140,9 @@ struct _RSToolbox {
 	GtkWidget *colorwheels_enable[3];
 	GtkWidget *colorwheel[3][3];
 	GtkRange  *cwlum[3][3];
+	/* Égaliseur de couleurs (color zones) [snapshot][canal 0=teinte 1=sat 2=lum] */
+	GtkWidget *hsl_enable[3];
+	GtkWidget *hslcurve[3][3];
 	GtkRange *argentico[3][NARGENTICO];
 	GtkWidget *argentico_enable[3];
 	GtkWidget *argentico_pick[3];   /* bouton bascule « Échantillonner » */
@@ -1258,6 +1261,284 @@ colorwheel_new(RSToolbox *toolbox, gint snapshot, const gchar *prop_x, const gch
 	return da;
 }
 
+/* --- Égaliseur de couleurs : widget courbe plate sur spectre de teintes --- */
+#define HSL_MAXNODES 32
+
+typedef struct {
+	RSToolbox *toolbox;
+	gint snapshot;
+	const gchar *prop;     /* "hsl-hue-curve" / "hsl-sat-curve" / "hsl-lum-curve" */
+	gfloat xs[HSL_MAXNODES];  /* teinte du nœud [0,1), triés croissant */
+	gfloat ys[HSL_MAXNODES];  /* valeur [-1,1] */
+	gint n;
+	gint dragging;            /* index du nœud tiré, -1 sinon */
+} HslCurve;
+
+static void
+hslcurve_default(HslCurve *hc)
+{
+	/* 8 nœuds neutres répartis sur le cercle des teintes */
+	gint i;
+	hc->n = 8;
+	for (i = 0; i < 8; i++) { hc->xs[i] = (gfloat) i / 8.0f; hc->ys[i] = 0.0f; }
+}
+
+static void
+hslcurve_load(HslCurve *hc)
+{
+	hc->n = 0;
+	if (!hc->toolbox->photo || !hc->toolbox->photo->settings[hc->snapshot])
+	{
+		hslcurve_default(hc);
+		return;
+	}
+	gchar *str = NULL;
+	g_object_get(hc->toolbox->photo->settings[hc->snapshot], hc->prop, &str, NULL);
+	if (str)
+	{
+		gchar **tok = g_strsplit_set(str, " ,", -1);
+		gint i, k = 0; gfloat buf[2] = {0, 0};
+		for (i = 0; tok[i]; i++)
+		{
+			if (tok[i][0] == '\0') continue;
+			buf[k & 1] = (gfloat) g_ascii_strtod(tok[i], NULL);
+			k++;
+			if (!(k & 1) && hc->n < HSL_MAXNODES)
+				{ hc->xs[hc->n] = buf[0]; hc->ys[hc->n] = buf[1]; hc->n++; }
+		}
+		g_strfreev(tok);
+		g_free(str);
+	}
+	if (hc->n == 0)
+		hslcurve_default(hc);
+}
+
+static void
+hslcurve_store(HslCurve *hc)
+{
+	if (!hc->toolbox->photo || hc->toolbox->mute_from_sliders) return;
+	GString *s = g_string_new(NULL);
+	gint i;
+	for (i = 0; i < hc->n; i++)
+	{
+		gchar bx[G_ASCII_DTOSTR_BUF_SIZE], by[G_ASCII_DTOSTR_BUF_SIZE];
+		g_ascii_dtostr(bx, sizeof(bx), hc->xs[i]);
+		g_ascii_dtostr(by, sizeof(by), hc->ys[i]);
+		if (i) g_string_append_c(s, ' ');
+		g_string_append_printf(s, "%s %s", bx, by);
+	}
+	hc->toolbox->mute_from_photo = TRUE;
+	g_object_set(hc->toolbox->photo->settings[hc->snapshot], hc->prop, s->str, NULL);
+	hc->toolbox->mute_from_photo = FALSE;
+	g_string_free(s, TRUE);
+}
+
+/* Interpolation périodique (nœuds triés par x dans [0,1)) — identique à effects.c */
+static inline float
+hslcurve_interp(const HslCurve *hc, float h)
+{
+	gint n = hc->n;
+	if (n <= 0) return 0.0f;
+	if (n == 1) return hc->ys[0];
+	if (h >= hc->xs[0] && h < hc->xs[n-1])
+	{
+		gint i = 0;
+		while (i < n-1 && h >= hc->xs[i+1]) i++;
+		float t = (h - hc->xs[i]) / (hc->xs[i+1] - hc->xs[i]);
+		return hc->ys[i]*(1.0f - t) + hc->ys[i+1]*t;
+	}
+	float seg = hc->xs[0] + 1.0f - hc->xs[n-1];
+	float pos = (h >= hc->xs[n-1]) ? (h - hc->xs[n-1]) : (h + 1.0f - hc->xs[n-1]);
+	float t = (seg > 1e-6f) ? pos / seg : 0.0f;
+	return hc->ys[n-1]*(1.0f - t) + hc->ys[0]*t;
+}
+
+/* Insère un nœud (x,y) à sa position triée ; renvoie son index (ou -1 si plein). */
+static gint
+hslcurve_add(HslCurve *hc, float x, float y)
+{
+	if (hc->n >= HSL_MAXNODES) return -1;
+	gint i = 0;
+	while (i < hc->n && hc->xs[i] < x) i++;
+	gint j;
+	for (j = hc->n; j > i; j--) { hc->xs[j] = hc->xs[j-1]; hc->ys[j] = hc->ys[j-1]; }
+	hc->xs[i] = x; hc->ys[i] = y; hc->n++;
+	return i;
+}
+
+static void
+hslcurve_remove(HslCurve *hc, gint idx)
+{
+	gint j;
+	if (idx < 0 || idx >= hc->n) return;
+	for (j = idx; j < hc->n-1; j++) { hc->xs[j] = hc->xs[j+1]; hc->ys[j] = hc->ys[j+1]; }
+	hc->n--;
+}
+
+static gboolean
+hslcurve_draw(GtkWidget *widget, cairo_t *cr, gpointer data)
+{
+	HslCurve *hc = data;
+	gint W = gtk_widget_get_allocated_width(widget);
+	gint H = gtk_widget_get_allocated_height(widget);
+	gint i;
+	hslcurve_load(hc);
+
+	/* Fond = dégradé du spectre de teintes (axe horizontal = teinte) */
+	cairo_pattern_t *grad = cairo_pattern_create_linear(0, 0, W, 0);
+	for (i = 0; i <= 24; i++)
+	{
+		double hue = i / 24.0, r, g, b;
+		cw_hsv2rgb(hue * 360.0, 0.85, 0.95, &r, &g, &b);
+		cairo_pattern_add_color_stop_rgb(grad, hue, r, g, b);
+	}
+	cairo_set_source(cr, grad);
+	cairo_rectangle(cr, 0, 0, W, H);
+	cairo_fill(cr);
+	cairo_pattern_destroy(grad);
+	cairo_set_source_rgba(cr, 0, 0, 0, 0.35);
+	cairo_rectangle(cr, 0, 0, W, H);
+	cairo_fill(cr);
+
+	/* Ligne neutre */
+	cairo_set_line_width(cr, 1.0);
+	cairo_set_source_rgba(cr, 1, 1, 1, 0.4);
+	cairo_move_to(cr, 0, H/2.0); cairo_line_to(cr, W, H/2.0);
+	cairo_stroke(cr);
+
+	/* Courbe (val [-1,1] → y) */
+	cairo_set_line_width(cr, 2.0);
+	cairo_set_source_rgb(cr, 1, 1, 1);
+	for (i = 0; i <= W; i++)
+	{
+		float val = hslcurve_interp(hc, (float) i / W);
+		double y = H/2.0 - val * (H/2.0);
+		if (i == 0) cairo_move_to(cr, i, y); else cairo_line_to(cr, i, y);
+	}
+	cairo_stroke(cr);
+
+	/* Nœuds */
+	for (i = 0; i < hc->n; i++)
+	{
+		double nx = hc->xs[i] * W;
+		double ny = H/2.0 - hc->ys[i] * (H/2.0);
+		cairo_set_source_rgb(cr, 1, 1, 1);
+		cairo_arc(cr, nx, ny, 4.0, 0, 2*M_PI); cairo_fill(cr);
+		cairo_set_source_rgb(cr, 0, 0, 0);
+		cairo_set_line_width(cr, 1.0);
+		cairo_arc(cr, nx, ny, 4.0, 0, 2*M_PI); cairo_stroke(cr);
+	}
+	return FALSE;
+}
+
+static gint
+hslcurve_nearest(HslCurve *hc, GtkWidget *widget, double ex)
+{
+	gint W = gtk_widget_get_allocated_width(widget);
+	int best = -1, i; double bd = 1e9;
+	for (i = 0; i < hc->n; i++)
+	{
+		double d = fabs(ex - (double) hc->xs[i] * W);
+		if (d < bd) { bd = d; best = i; }
+	}
+	return best;
+}
+
+static void
+hslcurve_set(HslCurve *hc, GtkWidget *widget, double ey)
+{
+	gint H = gtk_widget_get_allocated_height(widget);
+	if (hc->dragging < 0 || hc->dragging >= hc->n) return;
+	float val = (float)((H/2.0 - ey) / (H/2.0));
+	hc->ys[hc->dragging] = CLAMP(val, -1.0f, 1.0f);
+	hslcurve_store(hc);
+	gtk_widget_queue_draw(widget);
+}
+
+static gboolean
+hslcurve_button(GtkWidget *widget, GdkEventButton *e, gpointer data)
+{
+	HslCurve *hc = data;
+	gint W = gtk_widget_get_allocated_width(widget);
+	gint H = gtk_widget_get_allocated_height(widget);
+	if (!hc->toolbox->photo) return TRUE;
+	hslcurve_load(hc);
+
+	if (e->button == 1 && (e->state & GDK_CONTROL_MASK))
+	{
+		/* Ctrl + clic gauche = ajouter un nœud à la teinte cliquée */
+		float x = CLAMP((float)(e->x / W), 0.0f, 0.9999f);
+		float y = CLAMP((float)((H/2.0 - e->y) / (H/2.0)), -1.0f, 1.0f);
+		hc->dragging = hslcurve_add(hc, x, y);
+		hslcurve_store(hc);
+		gtk_widget_queue_draw(widget);
+	}
+	else if (e->button == 1)
+	{
+		hc->dragging = hslcurve_nearest(hc, widget, e->x);
+		hslcurve_set(hc, widget, e->y);
+	}
+	else if (e->button == 3)
+	{
+		/* Clic droit = supprimer le nœud le plus proche (en garder au moins 1) */
+		gint idx = hslcurve_nearest(hc, widget, e->x);
+		if (idx >= 0 && hc->n > 1)
+		{
+			hslcurve_remove(hc, idx);
+			hslcurve_store(hc);
+		}
+		hc->dragging = -1;
+		gtk_widget_queue_draw(widget);
+	}
+	return TRUE;
+}
+
+static gboolean
+hslcurve_motion(GtkWidget *widget, GdkEventMotion *e, gpointer data)
+{
+	HslCurve *hc = data;
+	if ((e->state & GDK_BUTTON1_MASK) && hc->dragging >= 0)
+		hslcurve_set(hc, widget, e->y);
+	return TRUE;
+}
+
+static gboolean
+hslcurve_release(GtkWidget *widget, GdkEventButton *e, gpointer data)
+{
+	(void) widget; (void) e;
+	((HslCurve*)data)->dragging = -1;
+	return TRUE;
+}
+
+static GtkWidget *
+hslcurve_new(RSToolbox *toolbox, gint snapshot, const gchar *prop)
+{
+	HslCurve *hc = g_new0(HslCurve, 1);
+	hc->toolbox = toolbox; hc->snapshot = snapshot; hc->prop = prop; hc->dragging = -1;
+	GtkWidget *da = gtk_drawing_area_new();
+	gtk_widget_set_size_request(da, 240, 90);
+	gtk_widget_set_sensitive(da, FALSE);
+	gtk_widget_add_events(da, GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_BUTTON1_MOTION_MASK);
+	g_signal_connect(da, "draw", G_CALLBACK(hslcurve_draw), hc);
+	g_signal_connect(da, "button-press-event", G_CALLBACK(hslcurve_button), hc);
+	g_signal_connect(da, "button-release-event", G_CALLBACK(hslcurve_release), hc);
+	g_signal_connect(da, "motion-notify-event", G_CALLBACK(hslcurve_motion), hc);
+	g_object_set_data_full(G_OBJECT(da), "rs-hslcurve", hc, g_free);
+	return da;
+}
+
+static void
+hsl_enable_toggled(GtkToggleButton *btn, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (!toolbox->photo || toolbox->mute_from_sliders) return;
+	gint snapshot = toolbox->selected_snapshot;
+	toolbox->mute_from_photo = TRUE;
+	g_object_set(toolbox->photo->settings[snapshot],
+		"hsl-enabled", gtk_toggle_button_get_active(btn), NULL);
+	toolbox->mute_from_photo = FALSE;
+}
+
 static GtkWidget *
 new_tones_page(RSToolbox *toolbox, const gint snapshot)
 {
@@ -1315,6 +1596,31 @@ new_tones_page(RSToolbox *toolbox, const gint snapshot)
 	}
 	gtk_box_pack_start(GTK_BOX(cc_vbox), wheels_vbox, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Color balance"), cc_vbox, "show_colorwheels", TRUE), FALSE, FALSE, 0);
+
+	/* Égaliseur de couleurs (color zones) — 3 courbes sur le spectre des teintes */
+	GtkWidget *hsl_vbox = gtk_vbox_new(FALSE, 2);
+	toolbox->hsl_enable[snapshot] = gtk_check_button_new_with_label(_("Activer Color scalpel"));
+	gtk_widget_set_sensitive(toolbox->hsl_enable[snapshot], FALSE);
+	g_signal_connect(toolbox->hsl_enable[snapshot], "toggled", G_CALLBACK(hsl_enable_toggled), toolbox);
+	gtk_box_pack_start(GTK_BOX(hsl_vbox), toolbox->hsl_enable[snapshot], FALSE, FALSE, 0);
+
+	GtkWidget *hsl_nb = gtk_notebook_new();
+	const gchar *cnames[3] = { _("Teinte"), _("Saturation"), _("Luminance") };
+	const gchar *cprops[3] = { "hsl-hue-curve", "hsl-sat-curve", "hsl-lum-curve" };
+	gint c;
+	for (c = 0; c < 3; c++)
+	{
+		toolbox->hslcurve[snapshot][c] = hslcurve_new(toolbox, snapshot, cprops[c]);
+		gtk_notebook_append_page(GTK_NOTEBOOK(hsl_nb), toolbox->hslcurve[snapshot][c],
+			gtk_label_new(cnames[c]));
+	}
+	gtk_box_pack_start(GTK_BOX(hsl_vbox), hsl_nb, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Color scalpel"), hsl_vbox, "show_colorzones", TRUE), FALSE, FALSE, 0);
+
+	/* Petite marge en bas pour ne pas coller le dernier module au bord de l'onglet */
+	GtkWidget *bottom_spacer = gtk_drawing_area_new();
+	gtk_widget_set_size_request(bottom_spacer, -1, 18);
+	gtk_box_pack_start(GTK_BOX(vbox), bottom_spacer, FALSE, FALSE, 0);
 
 	return vbox;
 }
@@ -1543,6 +1849,11 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 			if (toolbox->cwlum[snapshot][i])
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwlum[snapshot][i]), FALSE);
 		}
+		if (toolbox->hsl_enable[snapshot])
+			gtk_widget_set_sensitive(toolbox->hsl_enable[snapshot], FALSE);
+		for(i=0;i<3;i++)
+			if (toolbox->hslcurve[snapshot][i])
+				gtk_widget_set_sensitive(toolbox->hslcurve[snapshot][i], FALSE);
 		rs_curve_widget_reset(RS_CURVE_WIDGET(toolbox->curve[snapshot]));
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 0.0,0.0);
 		rs_curve_widget_add_knot(RS_CURVE_WIDGET(toolbox->curve[snapshot]), 1.0,1.0);
@@ -1676,6 +1987,17 @@ toolbox_copy_from_photo(RSToolbox *toolbox, const gint snapshot, const RSSetting
 				gtk_widget_queue_draw(toolbox->colorwheel[snapshot][i]);
 		}
 
+		/* Update color zones (HSL) */
+		if ((mask & MASK_HSL_ENABLED) && toolbox->hsl_enable[snapshot])
+		{
+			gboolean enabled;
+			g_object_get(toolbox->photo->settings[snapshot], "hsl-enabled", &enabled, NULL);
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(toolbox->hsl_enable[snapshot]), enabled);
+		}
+		for(i=0;i<3;i++)
+			if (mask && toolbox->hslcurve[snapshot][i])
+				gtk_widget_queue_draw(toolbox->hslcurve[snapshot][i]);
+
 		/* Update curve */
 		if(mask & MASK_CURVE)
 		{
@@ -1804,6 +2126,11 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 				if (toolbox->cwlum[snapshot][i])
 					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwlum[snapshot][i]), TRUE);
 			}
+			if (toolbox->hsl_enable[snapshot])
+				gtk_widget_set_sensitive(toolbox->hsl_enable[snapshot], TRUE);
+			for(i=0;i<3;i++)
+				if (toolbox->hslcurve[snapshot][i])
+					gtk_widget_set_sensitive(toolbox->hslcurve[snapshot][i], TRUE);
 		}
 	}
 	else
