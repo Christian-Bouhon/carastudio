@@ -94,6 +94,17 @@ typedef enum {
 	MASK_TONEEQ_BAND3   = MASK_SOFTLIGHT_STRENGTH,
 	MASK_TONEEQ_BAND4   = MASK_SOFTLIGHT_STRENGTH,
 	MASK_TONEEQ_PIVOT   = MASK_SOFTLIGHT_STRENGTH,
+	/* Correction couleur (roues 3 voies) — partage aussi le bit softlight */
+	MASK_COLORWHEELS_ENABLED = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_SHADOWS_X   = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_SHADOWS_Y   = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_SHADOWS_LUM = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_MID_X       = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_MID_Y       = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_MID_LUM     = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_HIGH_X      = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_HIGH_Y      = MASK_SOFTLIGHT_STRENGTH,
+	MASK_CW_HIGH_LUM    = MASK_SOFTLIGHT_STRENGTH,
 	/* Couvre tous les VRAIS réglages, bits 0-29 (N&B inclus : 21-29).
 	 * NB : les bits 30-31 sont réservés à l'encodage du snapshot (A/B/C) dans
 	 * le signal "settings-changed" — voir RS_PACK/UNPACK_SNAPSHOT ci-dessous.
@@ -173,6 +184,20 @@ typedef struct _RSsettings {
 	gfloat toneeq_band3;
 	gfloat toneeq_band4;
 	gfloat toneeq_pivot;
+	/* Correction couleur — roues 3 voies (ombres/médians/hautes lumières).
+	   Couleur par roue : x = axe rouge↔cyan, y = axe vert↔magenta, plage [-1,1]
+	   (angle = teinte, rayon = force). Luminance par zone : lift (ombres) /
+	   gamma (médians) / gain (hautes lumières), plage [-1,1]. */
+	gboolean colorwheels_enabled;
+	gfloat cw_shadows_x;
+	gfloat cw_shadows_y;
+	gfloat cw_shadows_lum;
+	gfloat cw_mid_x;
+	gfloat cw_mid_y;
+	gfloat cw_mid_lum;
+	gfloat cw_high_x;
+	gfloat cw_high_y;
+	gfloat cw_high_lum;
 } RSSettings;
 
 typedef struct {

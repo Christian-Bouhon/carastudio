@@ -58,6 +58,11 @@ typedef struct {
 	gfloat argentico_ref_r;
 	gfloat argentico_ref_g;
 	gfloat argentico_ref_b;
+	/* Correction couleur — roues 3 voies */
+	gboolean colorwheels_enabled;
+	gfloat cw_shadows_x, cw_shadows_y, cw_shadows_lum;
+	gfloat cw_mid_x, cw_mid_y, cw_mid_lum;
+	gfloat cw_high_x, cw_high_y, cw_high_lum;
 } RSEffects;
 
 typedef struct {
@@ -204,6 +209,16 @@ settings_changed(RSSettings *settings, RSSettingsMask mask, RSEffects *effects)
 		"argentico-ref-r",       &effects->argentico_ref_r,
 		"argentico-ref-g",       &effects->argentico_ref_g,
 		"argentico-ref-b",       &effects->argentico_ref_b,
+		"colorwheels-enabled",   &effects->colorwheels_enabled,
+		"cw-shadows-x",          &effects->cw_shadows_x,
+		"cw-shadows-y",          &effects->cw_shadows_y,
+		"cw-shadows-lum",        &effects->cw_shadows_lum,
+		"cw-mid-x",              &effects->cw_mid_x,
+		"cw-mid-y",              &effects->cw_mid_y,
+		"cw-mid-lum",            &effects->cw_mid_lum,
+		"cw-high-x",             &effects->cw_high_x,
+		"cw-high-y",             &effects->cw_high_y,
+		"cw-high-lum",           &effects->cw_high_lum,
 		NULL);
 	rs_filter_changed(RS_FILTER(effects), RS_FILTER_CHANGED_PIXELDATA);
 }
@@ -719,6 +734,74 @@ apply_toneeq(RS_IMAGE16 *img,
 }
 
 /* ------------------------------------------------------------------ */
+/* Correction couleur — roues 3 voies (ombres / médians / hautes)      */
+/* ------------------------------------------------------------------ */
+/*
+ * Étalonnage coloriste façon lift/gamma/gain. Pour chaque pixel on calcule
+ * sa luminance L∈[0,1] et trois poids de zone (base de Bernstein, partition
+ * de l'unité, neutre à plat) :
+ *   ws=(1-L)²   wm=2L(1-L)   wh=L²   (ws+wm+wh = 1)
+ * Chaque roue (x,y) donne un décalage RGB ÉQUILIBRÉ (somme ~0 → chroma pure,
+ * pas de dérive de luminance) : shift = radius·[cos θ, cos(θ-120°), cos(θ-240°)].
+ * On ajoute la somme pondérée des décalages couleur, puis un décalage de
+ * luminance par zone (lift/gamma/gain simplifié = offset additif pondéré). */
+
+/* Convertit une position de roue (x,y ∈ [-1,1]) en décalage RGB équilibré. */
+static inline void
+cw_shift(gfloat x, gfloat y, gfloat *sr, gfloat *sg, gfloat *sb)
+{
+	float radius = sqrtf(x*x + y*y);
+	if (radius > 1.0f) radius = 1.0f;
+	if (radius < 1e-4f) { *sr = *sg = *sb = 0.0f; return; }
+	float angle = atan2f(y, x);
+	*sr = radius * cosf(angle);
+	*sg = radius * cosf(angle - 2.0943951f); /* -120° */
+	*sb = radius * cosf(angle - 4.1887902f); /* -240° */
+}
+
+static void
+apply_colorcorrection(RS_IMAGE16 *img, RSEffects *e)
+{
+	const float COLOR_STRENGTH = 0.35f; /* amplitude max du décalage couleur */
+	const float LUM_STRENGTH   = 0.30f; /* amplitude max du décalage luminance */
+
+	float sr_s, sg_s, sb_s, sr_m, sg_m, sb_m, sr_h, sg_h, sb_h;
+	cw_shift(e->cw_shadows_x, e->cw_shadows_y, &sr_s, &sg_s, &sb_s);
+	cw_shift(e->cw_mid_x,     e->cw_mid_y,     &sr_m, &sg_m, &sb_m);
+	cw_shift(e->cw_high_x,    e->cw_high_y,    &sr_h, &sg_h, &sb_h);
+
+	const float ls = e->cw_shadows_lum, lm = e->cw_mid_lum, lh = e->cw_high_lum;
+
+	const gint W = img->w, H = img->h, ps = img->pixelsize, rs = img->rowstride;
+	for (gint yy = 0; yy < H; yy++)
+	{
+		gushort *row = img->pixels + yy * rs;
+		for (gint xx = 0; xx < W; xx++)
+		{
+			gushort *px = row + xx * ps;
+			float rf = px[0] / 65535.0f, gf = px[1] / 65535.0f, bf = px[2] / 65535.0f;
+			float L = 0.2126f*rf + 0.7152f*gf + 0.0722f*bf;
+			float ws = (1.0f - L) * (1.0f - L);
+			float wh = L * L;
+			float wm = 2.0f * L * (1.0f - L);
+
+			float dr = ws*sr_s + wm*sr_m + wh*sr_h;
+			float dg = ws*sg_s + wm*sg_m + wh*sg_h;
+			float db = ws*sb_s + wm*sb_m + wh*sb_h;
+			float dl = ws*ls + wm*lm + wh*lh;
+
+			rf += COLOR_STRENGTH*dr + LUM_STRENGTH*dl;
+			gf += COLOR_STRENGTH*dg + LUM_STRENGTH*dl;
+			bf += COLOR_STRENGTH*db + LUM_STRENGTH*dl;
+
+			px[0] = (gushort) CLAMP((gint)(rf*65535.0f + 0.5f), 0, 65535);
+			px[1] = (gushort) CLAMP((gint)(gf*65535.0f + 0.5f), 0, 65535);
+			px[2] = (gushort) CLAMP((gint)(bf*65535.0f + 0.5f), 0, 65535);
+		}
+	}
+}
+
+/* ------------------------------------------------------------------ */
 /* Entrée principale                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -739,8 +822,15 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	const gboolean need_bw = effects->bw_enabled;
 	const gboolean need_sl = (effects->softlight_strength >= 0.001f);
 	const gboolean need_vg = (fabsf(effects->art_vignette_strength) >= 0.001f);
+	const gboolean need_cc = effects->colorwheels_enabled &&
+		(fabsf(effects->cw_shadows_x) >= 0.001f || fabsf(effects->cw_shadows_y) >= 0.001f ||
+		 fabsf(effects->cw_shadows_lum) >= 0.001f ||
+		 fabsf(effects->cw_mid_x) >= 0.001f || fabsf(effects->cw_mid_y) >= 0.001f ||
+		 fabsf(effects->cw_mid_lum) >= 0.001f ||
+		 fabsf(effects->cw_high_x) >= 0.001f || fabsf(effects->cw_high_y) >= 0.001f ||
+		 fabsf(effects->cw_high_lum) >= 0.001f);
 
-	if (!need_ar && !need_dh && !need_te && !need_bw && !need_sl && !need_vg)
+	if (!need_ar && !need_dh && !need_te && !need_bw && !need_sl && !need_vg && !need_cc)
 		return previous;
 
 	RS_IMAGE16 *img = rs_filter_response_get_image(previous);
@@ -766,6 +856,9 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 		apply_toneeq(out, effects->toneeq_band0, effects->toneeq_band1,
 		             effects->toneeq_band2, effects->toneeq_band3,
 		             effects->toneeq_band4, effects->toneeq_pivot);
+
+	if (need_cc)
+		apply_colorcorrection(out, effects);
 
 	if (need_bw)
 		apply_bw(out, effects->bw_filter,

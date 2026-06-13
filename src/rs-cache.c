@@ -231,6 +231,16 @@ rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriter
 	RS_XML_WRITE_FLOAT(writer, "toneeq_band3",   rss->toneeq_band3);
 	RS_XML_WRITE_FLOAT(writer, "toneeq_band4",   rss->toneeq_band4);
 	RS_XML_WRITE_FLOAT(writer, "toneeq_pivot",   rss->toneeq_pivot);
+	RS_XML_WRITE_INT  (writer, "colorwheels_enabled", rss->colorwheels_enabled);
+	RS_XML_WRITE_FLOAT(writer, "cw_shadows_x",   rss->cw_shadows_x);
+	RS_XML_WRITE_FLOAT(writer, "cw_shadows_y",   rss->cw_shadows_y);
+	RS_XML_WRITE_FLOAT(writer, "cw_shadows_lum", rss->cw_shadows_lum);
+	RS_XML_WRITE_FLOAT(writer, "cw_mid_x",       rss->cw_mid_x);
+	RS_XML_WRITE_FLOAT(writer, "cw_mid_y",       rss->cw_mid_y);
+	RS_XML_WRITE_FLOAT(writer, "cw_mid_lum",     rss->cw_mid_lum);
+	RS_XML_WRITE_FLOAT(writer, "cw_high_x",      rss->cw_high_x);
+	RS_XML_WRITE_FLOAT(writer, "cw_high_y",      rss->cw_high_y);
+	RS_XML_WRITE_FLOAT(writer, "cw_high_lum",    rss->cw_high_lum);
 }
 
 guint
@@ -442,6 +452,30 @@ rs_cache_load_setting(RSSettings *rss, xmlDocPtr doc, xmlNodePtr cur, gint versi
 			mask |= MASK_TONEEQ_ENABLED;
 			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
 			if (val) { rss->toneeq_enabled = atoi((gchar *) val); xmlFree(val); }
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_shadows_x")))
+			{ mask |= MASK_CW_SHADOWS_X;   target = &rss->cw_shadows_x; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_shadows_y")))
+			{ mask |= MASK_CW_SHADOWS_Y;   target = &rss->cw_shadows_y; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_shadows_lum")))
+			{ mask |= MASK_CW_SHADOWS_LUM; target = &rss->cw_shadows_lum; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_mid_x")))
+			{ mask |= MASK_CW_MID_X;   target = &rss->cw_mid_x; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_mid_y")))
+			{ mask |= MASK_CW_MID_Y;   target = &rss->cw_mid_y; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_mid_lum")))
+			{ mask |= MASK_CW_MID_LUM; target = &rss->cw_mid_lum; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_high_x")))
+			{ mask |= MASK_CW_HIGH_X;   target = &rss->cw_high_x; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_high_y")))
+			{ mask |= MASK_CW_HIGH_Y;   target = &rss->cw_high_y; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "cw_high_lum")))
+			{ mask |= MASK_CW_HIGH_LUM; target = &rss->cw_high_lum; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "colorwheels_enabled")))
+		{
+			mask |= MASK_COLORWHEELS_ENABLED;
+			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+			if (val) { rss->colorwheels_enabled = atoi((gchar *) val); xmlFree(val); }
 		}
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "curve")))
 		{

@@ -98,7 +98,18 @@ enum {
 	PROP_TONEEQ_BAND2,
 	PROP_TONEEQ_BAND3,
 	PROP_TONEEQ_BAND4,
-	PROP_TONEEQ_PIVOT
+	PROP_TONEEQ_PIVOT,
+	/* Correction couleur — roues 3 voies */
+	PROP_COLORWHEELS_ENABLED,
+	PROP_CW_SHADOWS_X,
+	PROP_CW_SHADOWS_Y,
+	PROP_CW_SHADOWS_LUM,
+	PROP_CW_MID_X,
+	PROP_CW_MID_Y,
+	PROP_CW_MID_LUM,
+	PROP_CW_HIGH_X,
+	PROP_CW_HIGH_Y,
+	PROP_CW_HIGH_LUM
 };
 
 static void
@@ -373,6 +384,56 @@ rs_settings_class_init (RSSettingsClass *klass)
 			"toneeq-pivot", _("Pivot"), _("Tone Equalizer Pivot"),
 			-12.0, 12.0, 0.0, G_PARAM_READWRITE)
 	);
+	g_object_class_install_property(object_class,
+		PROP_COLORWHEELS_ENABLED, g_param_spec_boolean(
+			"colorwheels-enabled", _("Correction couleur"), _("Activer les roues 3 voies"),
+			FALSE, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_SHADOWS_X, g_param_spec_float(
+			"cw-shadows-x", _("Ombres X"), _("Color Wheel Shadows X"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_SHADOWS_Y, g_param_spec_float(
+			"cw-shadows-y", _("Ombres Y"), _("Color Wheel Shadows Y"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_SHADOWS_LUM, g_param_spec_float(
+			"cw-shadows-lum", _("Ombres luminance"), _("Color Wheel Shadows Luminance (lift)"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_MID_X, g_param_spec_float(
+			"cw-mid-x", _("Médians X"), _("Color Wheel Midtones X"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_MID_Y, g_param_spec_float(
+			"cw-mid-y", _("Médians Y"), _("Color Wheel Midtones Y"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_MID_LUM, g_param_spec_float(
+			"cw-mid-lum", _("Médians luminance"), _("Color Wheel Midtones Luminance (gamma)"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_HIGH_X, g_param_spec_float(
+			"cw-high-x", _("Hautes X"), _("Color Wheel Highlights X"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_HIGH_Y, g_param_spec_float(
+			"cw-high-y", _("Hautes Y"), _("Color Wheel Highlights Y"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_HIGH_LUM, g_param_spec_float(
+			"cw-high-lum", _("Hautes luminance"), _("Color Wheel Highlights Luminance (gain)"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
 
 	signals[SETTINGS_CHANGED] = g_signal_new ("settings-changed",
 		G_TYPE_FROM_CLASS (klass),
@@ -458,11 +519,23 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		CASE(TONEEQ_BAND3, toneeq_band3);
 		CASE(TONEEQ_BAND4, toneeq_band4);
 		CASE(TONEEQ_PIVOT, toneeq_pivot);
+		CASE(CW_SHADOWS_X, cw_shadows_x);
+		CASE(CW_SHADOWS_Y, cw_shadows_y);
+		CASE(CW_SHADOWS_LUM, cw_shadows_lum);
+		CASE(CW_MID_X, cw_mid_x);
+		CASE(CW_MID_Y, cw_mid_y);
+		CASE(CW_MID_LUM, cw_mid_lum);
+		CASE(CW_HIGH_X, cw_high_x);
+		CASE(CW_HIGH_Y, cw_high_y);
+		CASE(CW_HIGH_LUM, cw_high_lum);
 	case PROP_ARGENTICO_ENABLED:
 		g_value_set_boolean(value, settings->argentico_enabled);
 		break;
 	case PROP_TONEEQ_ENABLED:
 		g_value_set_boolean(value, settings->toneeq_enabled);
+		break;
+	case PROP_COLORWHEELS_ENABLED:
+		g_value_set_boolean(value, settings->colorwheels_enabled);
 		break;
 	case PROP_BW_ENABLED:
 		g_value_set_boolean(value, settings->bw_enabled);
@@ -572,6 +645,15 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		CASE(TONEEQ_BAND3, toneeq_band3);
 		CASE(TONEEQ_BAND4, toneeq_band4);
 		CASE(TONEEQ_PIVOT, toneeq_pivot);
+		CASE(CW_SHADOWS_X, cw_shadows_x);
+		CASE(CW_SHADOWS_Y, cw_shadows_y);
+		CASE(CW_SHADOWS_LUM, cw_shadows_lum);
+		CASE(CW_MID_X, cw_mid_x);
+		CASE(CW_MID_Y, cw_mid_y);
+		CASE(CW_MID_LUM, cw_mid_lum);
+		CASE(CW_HIGH_X, cw_high_x);
+		CASE(CW_HIGH_Y, cw_high_y);
+		CASE(CW_HIGH_LUM, cw_high_lum);
 	case PROP_ARGENTICO_ENABLED:
 		if (settings->argentico_enabled != g_value_get_boolean(value))
 		{
@@ -584,6 +666,13 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		{
 			settings->toneeq_enabled = g_value_get_boolean(value);
 			changed_mask |= MASK_TONEEQ_ENABLED;
+		}
+		break;
+	case PROP_COLORWHEELS_ENABLED:
+		if (settings->colorwheels_enabled != g_value_get_boolean(value))
+		{
+			settings->colorwheels_enabled = g_value_get_boolean(value);
+			changed_mask |= MASK_COLORWHEELS_ENABLED;
 		}
 		break;
 	case PROP_BW_ENABLED:
@@ -778,6 +867,16 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	rs_object_class_property_reset(object, "toneeq-band3");
 	rs_object_class_property_reset(object, "toneeq-band4");
 	rs_object_class_property_reset(object, "toneeq-pivot");
+	rs_object_class_property_reset(object, "colorwheels-enabled");
+	rs_object_class_property_reset(object, "cw-shadows-x");
+	rs_object_class_property_reset(object, "cw-shadows-y");
+	rs_object_class_property_reset(object, "cw-shadows-lum");
+	rs_object_class_property_reset(object, "cw-mid-x");
+	rs_object_class_property_reset(object, "cw-mid-y");
+	rs_object_class_property_reset(object, "cw-mid-lum");
+	rs_object_class_property_reset(object, "cw-high-x");
+	rs_object_class_property_reset(object, "cw-high-y");
+	rs_object_class_property_reset(object, "cw-high-lum");
 
 	if (mask & MASK_CURVE)
 	{
@@ -918,6 +1017,17 @@ do { \
 	SETTINGS_COPY(TONEEQ_BAND3, toneeq_band3);
 	SETTINGS_COPY(TONEEQ_BAND4, toneeq_band4);
 	SETTINGS_COPY(TONEEQ_PIVOT, toneeq_pivot);
+	if (mask & MASK_COLORWHEELS_ENABLED)
+		target->colorwheels_enabled = source->colorwheels_enabled;
+	SETTINGS_COPY(CW_SHADOWS_X, cw_shadows_x);
+	SETTINGS_COPY(CW_SHADOWS_Y, cw_shadows_y);
+	SETTINGS_COPY(CW_SHADOWS_LUM, cw_shadows_lum);
+	SETTINGS_COPY(CW_MID_X, cw_mid_x);
+	SETTINGS_COPY(CW_MID_Y, cw_mid_y);
+	SETTINGS_COPY(CW_MID_LUM, cw_mid_lum);
+	SETTINGS_COPY(CW_HIGH_X, cw_high_x);
+	SETTINGS_COPY(CW_HIGH_Y, cw_high_y);
+	SETTINGS_COPY(CW_HIGH_LUM, cw_high_lum);
 #undef SETTINGS_COPY
 
 	if (mask & MASK_WB)
