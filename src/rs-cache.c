@@ -30,6 +30,8 @@
 	xmlTextWriterWriteElement(writer, BAD_CAST name, \
 		BAD_CAST g_ascii_dtostr(_b, sizeof(_b), (gdouble)(val))); \
 } while(0)
+#define RS_XML_WRITE_INT(writer, name, val) \
+	xmlTextWriterWriteFormatElement(writer, BAD_CAST name, "%d", (gint)(val))
 #include "application.h"
 #include "rs-cache.h"
 #include "rs-photo.h"
@@ -193,6 +195,42 @@ rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriter
 		}
 		xmlTextWriterEndElement(writer);
 	}
+
+	/* Réglages de l'onglet Effets CaraStudio. Écrits inconditionnellement : leurs
+	   masques partagent des bits (RSSettingsMask saturé, cf. rs-settings.h), donc
+	   non filtrables fiablement ; sur le chemin de persistance le masque vaut de
+	   toute façon MASK_ALL. Sans ça, N&B/Voile/Argentico/Tonalité/etc. n'étaient
+	   pas sauvegardés → perdus au changement de photo ou à la réouverture. */
+	RS_XML_WRITE_FLOAT(writer, "softlight_strength",     rss->softlight_strength);
+	RS_XML_WRITE_FLOAT(writer, "art_vignette_strength",  rss->art_vignette_strength);
+	RS_XML_WRITE_FLOAT(writer, "art_vignette_feather",   rss->art_vignette_feather);
+	RS_XML_WRITE_FLOAT(writer, "art_vignette_roundness", rss->art_vignette_roundness);
+	RS_XML_WRITE_INT  (writer, "bw_enabled", rss->bw_enabled);
+	RS_XML_WRITE_INT  (writer, "bw_filter",  rss->bw_filter);
+	RS_XML_WRITE_FLOAT(writer, "bw_red",     rss->bw_red);
+	RS_XML_WRITE_FLOAT(writer, "bw_orange",  rss->bw_orange);
+	RS_XML_WRITE_FLOAT(writer, "bw_yellow",  rss->bw_yellow);
+	RS_XML_WRITE_FLOAT(writer, "bw_green",   rss->bw_green);
+	RS_XML_WRITE_FLOAT(writer, "bw_cyan",    rss->bw_cyan);
+	RS_XML_WRITE_FLOAT(writer, "bw_blue",    rss->bw_blue);
+	RS_XML_WRITE_FLOAT(writer, "bw_violet",  rss->bw_violet);
+	RS_XML_WRITE_FLOAT(writer, "dehaze_strength",   rss->dehaze_strength);
+	RS_XML_WRITE_FLOAT(writer, "dehaze_saturation", rss->dehaze_saturation);
+	RS_XML_WRITE_INT  (writer, "argentico_enabled",    rss->argentico_enabled);
+	RS_XML_WRITE_FLOAT(writer, "argentico_green_exp",  rss->argentico_green_exp);
+	RS_XML_WRITE_FLOAT(writer, "argentico_red_ratio",  rss->argentico_red_ratio);
+	RS_XML_WRITE_FLOAT(writer, "argentico_blue_ratio", rss->argentico_blue_ratio);
+	RS_XML_WRITE_FLOAT(writer, "argentico_exposure",   rss->argentico_exposure);
+	RS_XML_WRITE_FLOAT(writer, "argentico_ref_r",      rss->argentico_ref_r);
+	RS_XML_WRITE_FLOAT(writer, "argentico_ref_g",      rss->argentico_ref_g);
+	RS_XML_WRITE_FLOAT(writer, "argentico_ref_b",      rss->argentico_ref_b);
+	RS_XML_WRITE_INT  (writer, "toneeq_enabled", rss->toneeq_enabled);
+	RS_XML_WRITE_FLOAT(writer, "toneeq_band0",   rss->toneeq_band0);
+	RS_XML_WRITE_FLOAT(writer, "toneeq_band1",   rss->toneeq_band1);
+	RS_XML_WRITE_FLOAT(writer, "toneeq_band2",   rss->toneeq_band2);
+	RS_XML_WRITE_FLOAT(writer, "toneeq_band3",   rss->toneeq_band3);
+	RS_XML_WRITE_FLOAT(writer, "toneeq_band4",   rss->toneeq_band4);
+	RS_XML_WRITE_FLOAT(writer, "toneeq_pivot",   rss->toneeq_pivot);
 }
 
 guint
@@ -325,6 +363,85 @@ rs_cache_load_setting(RSSettings *rss, xmlDocPtr doc, xmlNodePtr cur, gint versi
 			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
 			rss->vignetting =  rs_atof((gchar *) val);
 			xmlFree(val);
+		}
+		/* Réglages de l'onglet Effets CaraStudio : floats via "target" (parsé en
+		   fin de boucle), bools/entier (bw_filter) parsés en direct. Absents des
+		   vieux caches → valeurs par défaut conservées (effets désactivés). */
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "softlight_strength")))
+			{ mask |= MASK_SOFTLIGHT_STRENGTH;    target = &rss->softlight_strength; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "art_vignette_strength")))
+			{ mask |= MASK_ART_VIGNETTE_STRENGTH; target = &rss->art_vignette_strength; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "art_vignette_feather")))
+			{ mask |= MASK_ART_VIGNETTE_FEATHER;  target = &rss->art_vignette_feather; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "art_vignette_roundness")))
+			{ mask |= MASK_ART_VIGNETTE_ROUNDNESS; target = &rss->art_vignette_roundness; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "bw_red")))
+			{ mask |= MASK_BW_RED;    target = &rss->bw_red; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "bw_orange")))
+			{ mask |= MASK_BW_ORANGE; target = &rss->bw_orange; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "bw_yellow")))
+			{ mask |= MASK_BW_YELLOW; target = &rss->bw_yellow; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "bw_green")))
+			{ mask |= MASK_BW_GREEN;  target = &rss->bw_green; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "bw_cyan")))
+			{ mask |= MASK_BW_CYAN;   target = &rss->bw_cyan; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "bw_blue")))
+			{ mask |= MASK_BW_BLUE;   target = &rss->bw_blue; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "bw_violet")))
+			{ mask |= MASK_BW_VIOLET; target = &rss->bw_violet; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "dehaze_strength")))
+			{ mask |= MASK_DEHAZE_STRENGTH;   target = &rss->dehaze_strength; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "dehaze_saturation")))
+			{ mask |= MASK_DEHAZE_SATURATION; target = &rss->dehaze_saturation; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_green_exp")))
+			{ mask |= MASK_ARGENTICO_GREEN_EXP;  target = &rss->argentico_green_exp; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_red_ratio")))
+			{ mask |= MASK_ARGENTICO_RED_RATIO;  target = &rss->argentico_red_ratio; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_blue_ratio")))
+			{ mask |= MASK_ARGENTICO_BLUE_RATIO; target = &rss->argentico_blue_ratio; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_exposure")))
+			{ mask |= MASK_ARGENTICO_EXPOSURE;   target = &rss->argentico_exposure; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_ref_r")))
+			{ mask |= MASK_ARGENTICO_REF_R; target = &rss->argentico_ref_r; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_ref_g")))
+			{ mask |= MASK_ARGENTICO_REF_G; target = &rss->argentico_ref_g; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_ref_b")))
+			{ mask |= MASK_ARGENTICO_REF_B; target = &rss->argentico_ref_b; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "toneeq_band0")))
+			{ mask |= MASK_TONEEQ_BAND0; target = &rss->toneeq_band0; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "toneeq_band1")))
+			{ mask |= MASK_TONEEQ_BAND1; target = &rss->toneeq_band1; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "toneeq_band2")))
+			{ mask |= MASK_TONEEQ_BAND2; target = &rss->toneeq_band2; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "toneeq_band3")))
+			{ mask |= MASK_TONEEQ_BAND3; target = &rss->toneeq_band3; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "toneeq_band4")))
+			{ mask |= MASK_TONEEQ_BAND4; target = &rss->toneeq_band4; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "toneeq_pivot")))
+			{ mask |= MASK_TONEEQ_PIVOT; target = &rss->toneeq_pivot; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "bw_enabled")))
+		{
+			mask |= MASK_BW_ENABLED;
+			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+			if (val) { rss->bw_enabled = atoi((gchar *) val); xmlFree(val); }
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "bw_filter")))
+		{
+			mask |= MASK_BW_FILTER;
+			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+			if (val) { rss->bw_filter = atoi((gchar *) val); xmlFree(val); }
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_enabled")))
+		{
+			mask |= MASK_ARGENTICO_ENABLED;
+			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+			if (val) { rss->argentico_enabled = atoi((gchar *) val); xmlFree(val); }
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "toneeq_enabled")))
+		{
+			mask |= MASK_TONEEQ_ENABLED;
+			val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+			if (val) { rss->toneeq_enabled = atoi((gchar *) val); xmlFree(val); }
 		}
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "curve")))
 		{
