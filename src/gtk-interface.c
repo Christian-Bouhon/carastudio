@@ -1656,6 +1656,13 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		g_signal_connect_swapped(btn_crop, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Crop");
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_crop, FALSE, FALSE, 0);
 
+		/* CaraStudio : bouton Séparer les vues (déclenche l'action Split, Ctrl+D,
+		 * qui reste active) ; icône reprise d'ART (beforeafter) */
+		GtkWidget *btn_split = cs_icon_label_button("tool-split", _("Séparer les vues"));
+		gtk_widget_set_tooltip_text(btn_split, _("Séparer les vues (Ctrl+D)"));
+		g_signal_connect_swapped(btn_split, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Split");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_split, FALSE, FALSE, 0);
+
 		gtk_box_pack_start(GTK_BOX(vbox), view_toolbar, FALSE, TRUE, 0);
 	}
     
