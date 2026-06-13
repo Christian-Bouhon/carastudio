@@ -85,6 +85,10 @@ struct _RSMetadata {
 	gdouble color_tone;
 	gshort focallength;
 	GdkPixbuf *thumbnail;
+	/* TRUE si la vignette en cache a été rendue via le pipeline complet (effets
+	   inclus), FALSE si c'est l'aperçu embarqué/import initial. Sert à régénérer
+	   en fond les vignettes des photos éditées dont le rendu ignore les effets. */
+	gboolean thumbnail_rendered;
 
 	/* Lens info */
 	gint lens_id;

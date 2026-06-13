@@ -896,6 +896,9 @@ rs_photo_close(RS_PHOTO *photo)
 			g_object_unref(photo->metadata->thumbnail);
 
 		photo->metadata->thumbnail = pixbuf2;
+		/* La vignette vient de thumbnail_filter (= chaîne navigateur, effets
+		   inclus) → marquer comme rendue, pour ne pas la régénérer en fond. */
+		photo->metadata->thumbnail_rendered = TRUE;
 		rs_metadata_cache_save(photo->metadata, photo->filename);
 	}
 }

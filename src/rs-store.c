@@ -2877,6 +2877,149 @@ rs_store_update_thumbnail(RSStore *store, const gchar *filename, GdkPixbuf *pixb
 	}
 }
 
+/* ====================================================================== */
+/* Régénération en arrière-plan des vignettes périmées                    */
+/* ---------------------------------------------------------------------- */
+/* Les vignettes en cache des photos éditées AVANT l'ajout des effets à la
+ * chaîne d'aperçu ne montrent pas ces effets (metadata->thumbnail_rendered =
+ * FALSE). Au chargement d'un dossier, on repère ces photos (réglages présents
+ * mais vignette non rendue avec effets) et on recalcule leur vignette une par
+ * une via g_idle (thread principal, étalé pour ne pas figer l'UI), en
+ * réutilisant une chaîne de rendu complète (effets inclus, cf. rs-batch). */
+
+typedef struct { RSStore *store; gchar *filename; } RSThumbRegenItem;
+static GQueue *rs_thumb_regen_queue = NULL;
+static guint rs_thumb_regen_idle = 0;
+static GMutex rs_thumb_regen_lock;
+
+/* Chaîne de rendu de vignette, construite une seule fois (réutilisée). */
+static RSFilter *
+rs_thumb_regen_chain(void)
+{
+	static RSFilter *fend = NULL;
+	/* Conservés en statique : la chaîne ne détient pas forcément de ref forte
+	   sur ses prédécesseurs (cf. rs-batch qui garde tous les pointeurs). */
+	static RSFilter *f[13];
+	if (!fend)
+	{
+		f[0]  = rs_filter_new("RSInputImage16", NULL);
+		f[1]  = rs_filter_new("RSDemosaic", f[0]);
+		f[2]  = rs_filter_new("RSFujiRotate", f[1]);
+		f[3]  = rs_filter_new("RSLensfun", f[2]);
+		f[4]  = rs_filter_new("RSRotate", f[3]);
+		f[5]  = rs_filter_new("RSCrop", f[4]);
+		f[6]  = rs_filter_new("RSColorspaceTransform", f[5]);
+		f[7]  = rs_filter_new("RSDcp", f[6]);
+		f[8]  = rs_filter_new("RSCache", f[7]);
+		f[9]  = rs_filter_new("RSResample", f[8]);
+		f[10] = rs_filter_new("RSDenoise", f[9]);
+		f[11] = rs_filter_new("RSEffects", f[10]);
+		f[12] = rs_filter_new("RSColorspaceTransform", f[11]);
+		fend = f[12];
+	}
+	return fend;
+}
+
+/* Rend la vignette (128 px, effets inclus) d'une photo d'après ses réglages,
+ * l'écrit en cache (.thumb.jpg + marqueur thumbnail_rendered) et la renvoie. */
+static GdkPixbuf *
+rs_thumb_regen_render(const gchar *filename)
+{
+	RS_PHOTO *photo = rs_photo_load_from_file(filename);
+	if (!photo)
+		return NULL;
+	rs_cache_load(photo); /* applique les réglages .cache.xml (idempotent) */
+
+	RSFilter *fend = rs_thumb_regen_chain();
+	GList *filters = g_list_append(NULL, fend);
+	rs_photo_apply_to_filters(photo, filters, 0); /* snapshot A */
+	g_list_free(filters);
+
+	rs_filter_set_recursive(fend,
+		"image", photo->input_response,
+		"filename", photo->filename,
+		"bounding-box", TRUE,
+		"width", 256, "height", 256,
+		NULL);
+
+	RSFilterRequest *request = rs_filter_request_new();
+	rs_filter_request_set_quick(request, TRUE);
+	rs_filter_param_set_object(RS_FILTER_PARAM(request), "colorspace",
+		rs_color_space_new_singleton("RSSrgb"));
+	RSFilterResponse *response = rs_filter_get_image8(fend, request);
+	GdkPixbuf *full = response ? rs_filter_response_get_image8(response) : NULL;
+
+	GdkPixbuf *thumb = NULL;
+	if (full)
+	{
+		gdouble ratio = ((gdouble) gdk_pixbuf_get_width(full)) / ((gdouble) gdk_pixbuf_get_height(full));
+		if (ratio > 1.0)
+			thumb = gdk_pixbuf_scale_simple(full, 128, (gint)(128.0/ratio), GDK_INTERP_BILINEAR);
+		else
+			thumb = gdk_pixbuf_scale_simple(full, (gint)(128.0*ratio), 128, GDK_INTERP_BILINEAR);
+		g_object_unref(full);
+	}
+	if (response) g_object_unref(response);
+	g_object_unref(request);
+
+	/* Persiste pour les démarrages suivants : .thumb.jpg + thumbnail_rendered=TRUE */
+	if (thumb && photo->metadata)
+	{
+		if (photo->metadata->thumbnail)
+			g_object_unref(photo->metadata->thumbnail);
+		photo->metadata->thumbnail = g_object_ref(thumb);
+		photo->metadata->thumbnail_rendered = TRUE;
+		rs_metadata_cache_save(photo->metadata, filename);
+	}
+	g_object_unref(photo);
+	return thumb;
+}
+
+static gboolean
+rs_thumb_regen_idle_cb(gpointer data)
+{
+	RSThumbRegenItem *item = NULL;
+
+	g_mutex_lock(&rs_thumb_regen_lock);
+	if (rs_thumb_regen_queue && !g_queue_is_empty(rs_thumb_regen_queue))
+		item = g_queue_pop_head(rs_thumb_regen_queue);
+	if (!item)
+		rs_thumb_regen_idle = 0;
+	g_mutex_unlock(&rs_thumb_regen_lock);
+
+	if (!item)
+		return G_SOURCE_REMOVE;
+
+	GdkPixbuf *thumb = rs_thumb_regen_render(item->filename);
+	if (thumb)
+	{
+		rs_store_update_thumbnail(item->store, item->filename, thumb);
+		g_object_unref(thumb);
+	}
+	g_object_unref(item->store);
+	g_free(item->filename);
+	g_free(item);
+
+	return G_SOURCE_CONTINUE;
+}
+
+/* Met une photo en file d'attente de régénération (appelable depuis un worker). */
+static void
+rs_thumb_regen_enqueue(RSStore *store, const gchar *filename)
+{
+	RSThumbRegenItem *item = g_new(RSThumbRegenItem, 1);
+	item->store = g_object_ref(store);
+	item->filename = g_strdup(filename);
+
+	g_mutex_lock(&rs_thumb_regen_lock);
+	if (!rs_thumb_regen_queue)
+		rs_thumb_regen_queue = g_queue_new();
+	g_queue_push_tail(rs_thumb_regen_queue, item);
+	if (!rs_thumb_regen_idle)
+		rs_thumb_regen_idle = g_idle_add_full(G_PRIORITY_LOW, rs_thumb_regen_idle_cb, NULL, NULL);
+	g_mutex_unlock(&rs_thumb_regen_lock);
+}
+
 void
 got_metadata(RSMetadata *metadata, gpointer user_data)
 {
@@ -2924,6 +3067,17 @@ got_metadata(RSMetadata *metadata, gpointer user_data)
 		ENFUSE_COLUMN, enfuse,
 		-1);
 	gdk_threads_leave();
+
+	/* Vignette périmée ? Si la photo a des réglages (.cache.xml) mais que sa
+	   vignette en cache n'a PAS été rendue avec les effets, on la régénère en
+	   fond pour qu'elle reflète le rendu réel dès le démarrage. */
+	if (!metadata->thumbnail_rendered)
+	{
+		gchar *cache_name = rs_cache_get_name(job->filename);
+		if (cache_name && g_file_test(cache_name, G_FILE_TEST_IS_REGULAR))
+			rs_thumb_regen_enqueue(job->store, job->filename);
+		g_free(cache_name);
+	}
 
 	/* Add to library */
 	rs_library_add_photo_with_metadata(rs_library_get_singleton(), job->filename, metadata);
