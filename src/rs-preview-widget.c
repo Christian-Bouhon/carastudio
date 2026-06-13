@@ -216,6 +216,7 @@ struct _RSPreviewWidget
 	RSFilter *navigator_filter_cache3;
 	RSFilter *navigator_filter_scale2;
 	RSFilter *navigator_filter_dcp;
+	RSFilter *navigator_filter_effects;
 	RSFilter *navigator_transform_display;
 	RSFilter *navigator_filter_end;
 	GtkWidget *navigator;
@@ -462,7 +463,10 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 	preview->navigator_filter_cache2 = rs_filter_new("RSCache", preview->navigator_filter_scale2);
 	preview->navigator_filter_dcp = rs_filter_new("RSDcp", preview->navigator_filter_cache2);
 	preview->navigator_filter_cache3 = rs_filter_new("RSCache", preview->navigator_filter_dcp);
-	preview->navigator_transform_display = rs_filter_new("RSColorspaceTransform", preview->navigator_filter_cache3);
+	/* Effets (N&B, Voile, Argentico, Tonalité…) après le DCP, comme dans l'aperçu
+	   principal : sans ça les vignettes/navigateur ignorent les effets. */
+	preview->navigator_filter_effects = rs_filter_new("RSEffects", preview->navigator_filter_cache3);
+	preview->navigator_transform_display = rs_filter_new("RSColorspaceTransform", preview->navigator_filter_effects);
 	preview->navigator_filter_end = preview->navigator_transform_display;
 
 	g_object_set(preview->navigator_filter_cache, "ignore-roi", TRUE, NULL);
