@@ -692,7 +692,7 @@ rs_preview_widget_set_zoom_to_fit(RSPreviewWidget *preview, gboolean zoom_to_fit
 /**
  * CaraStudio: Set a variable zoom factor (1.0 = 100%, 0.5 = 50%, 2.0 = 200%).
  * @param preview A RSPreviewWidget
- * @param zoom_factor The desired zoom factor (clamped to [0.05, 8.0])
+ * @param zoom_factor The desired zoom factor (clamped to [0.05, 2.0])
  */
 void
 rs_preview_widget_set_zoom(RSPreviewWidget *preview, gdouble zoom_factor)
@@ -705,9 +705,14 @@ rs_preview_widget_set_zoom(RSPreviewWidget *preview, gdouble zoom_factor)
 	if (!preview->photo)
 		return;
 
-	/* Clamp dans des limites raisonnables */
+	/* Clamp dans des limites raisonnables. Plafond à 2.0 (200 %) : le resample
+	   matérialise TOUT le cadre à l'échelle du zoom (il n'honore pas le ROI),
+	   donc le coût croît en zoom². À 400 % sur 20 Mpx ≈ 2,5 Go/buffer → aperçu
+	   inexploitable. 200 % garde des buffers raisonnables (~0,4-0,8 Go) tout en
+	   permettant l'inspection. Pour aller plus haut sans ralentir, il faudrait
+	   borner le resample à la zone visible (cf. bug #15, option non faite). */
 	if (zoom_factor < 0.05) zoom_factor = 0.05;
-	if (zoom_factor > 8.0) zoom_factor = 8.0;
+	if (zoom_factor > 2.0) zoom_factor = 2.0;
 
 	preview->zoom_factor = zoom_factor;
 
@@ -2481,6 +2486,18 @@ make_cbdata(RSPreviewWidget *preview, const gint view, RS_PREVIEW_CALLBACK_DATA 
 	if (preview->zoom_to_fit)
 		rs_filter_request_set_roi(request, NULL);
 	rs_filter_set_recursive(RS_FILTER(preview->filter_input), "demosaic-allow-downscale",  preview->zoom_to_fit, NULL);
+
+	/* En zoom manuel (pas zoom_to_fit), sans ROI, la chaîne produirait l'image
+	   ENTIÈRE au facteur de zoom courant — p.ex. 217 Mpx / 2,7 Go à fort
+	   grossissement (le demosaic ne downscale pas). Ça survient le temps d'une
+	   frame pendant un changement de zoom, avant que le dessin ne fixe le ROI
+	   visible. On saute la lecture du pixel pour cette frame plutôt que
+	   d'allouer/copier une image géante (relevé R/V/B simplement non mis à jour). */
+	if (!preview->zoom_to_fit && rs_filter_request_get_roi(request) == NULL)
+	{
+		g_object_unref(request);
+		return FALSE;
+	}
 
 	RSFilterResponse *response = rs_filter_get_image(preview->filter_cache1[view], request);
 	RS_IMAGE16 *image = rs_filter_response_get_image(response);
