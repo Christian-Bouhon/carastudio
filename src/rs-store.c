@@ -2926,9 +2926,21 @@ rs_thumb_regen_chain(void)
 static GdkPixbuf *
 rs_thumb_regen_render(const gchar *filename)
 {
+	/* CaraStudio : la régén tourne sur le thread principal et charge le RAW +
+	 * (selon les réglages) un profil DCP depuis le disque, donc elle touche le
+	 * sous-système IO en concurrence avec les threads workers qui chargent les
+	 * vignettes du dossier. Sans verrou, cet accès concurrent corrompt le tas
+	 * (mêmes symptômes que #8). On prend le verrou IO (GRecMutex, récursif →
+	 * sûr même si appelé dans une section déjà verrouillée) pour toute la durée
+	 * du chargement + rendu. */
+	rs_io_lock();
+
 	RS_PHOTO *photo = rs_photo_load_from_file(filename);
 	if (!photo)
+	{
+		rs_io_unlock();
 		return NULL;
+	}
 	rs_cache_load(photo); /* applique les réglages .cache.xml (idempotent) */
 
 	RSFilter *fend = rs_thumb_regen_chain();
@@ -2973,6 +2985,8 @@ rs_thumb_regen_render(const gchar *filename)
 		rs_metadata_cache_save(photo->metadata, filename);
 	}
 	g_object_unref(photo);
+
+	rs_io_unlock();
 	return thumb;
 }
 
