@@ -11,7 +11,7 @@ msgstr ""
 "PO-Revision-Date: 2011-03-21 00:10+0100\n"
 "Last-Translator: Edouard Gomez <ed.gomez@free.fr>\n"
 "Language-Team: Rawstudio development <rawstudio-dev@rawstudio.org>\n"
-"Language: \n"
+"Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -24,14 +24,13 @@ msgstr "Tous les objectifs"
 
 #: librawstudio/rs-lens-db-editor.c:364
 msgid "Deselect"
-msgstr ""
+msgstr "Désélectionner"
 
 #: librawstudio/rs-lens-db-editor.c:570
 msgid "Error updating lensfun database"
 msgstr "Erreur lors de la mise à jour de la base de donnée lensfun"
 
 #: librawstudio/rs-lens-db-editor.c:572
-#, fuzzy
 msgid "LensFun database updated"
 msgstr "Base de donnée lensfun mise à jour"
 
@@ -70,7 +69,7 @@ msgstr "Activé"
 
 #: librawstudio/rs-lens-db-editor.c:687
 msgid "Defish"
-msgstr ""
+msgstr "Défisheye"
 
 #: librawstudio/rs-lens-db-editor.c:725
 msgid "Update lensfun database"
@@ -129,7 +128,6 @@ msgid "Enable this lens"
 msgstr "Activer cet objectif"
 
 #: librawstudio/rs-lens-db-editor.c:1083
-#, fuzzy
 msgid "Enable Defish"
 msgstr "Activer cet objectif"
 
@@ -229,7 +227,7 @@ msgstr "F/%.1f "
 #: librawstudio/rs-metadata.c:553
 #, c-format
 msgid "%+.1fEV "
-msgstr ""
+msgstr "%+.1fEV "
 
 #: librawstudio/rs-metadata.c:555
 #, c-format
@@ -538,7 +536,6 @@ msgstr "Profil de colorimétrie pour la sauvergarde"
 
 #: plugins/output-jpegfile/output-jpegfile.c:107
 #: plugins/output-tifffile/output-tifffile.c:96
-#, fuzzy
 msgid "Copy Exif metadata"
 msgstr "Copier les données EXIF"
 
@@ -547,7 +544,6 @@ msgid "JPEG (Joint Photographic Experts Group)"
 msgstr "JPEG (Joint Photographic Experts Group)"
 
 #: plugins/output-picasa/output-picasa.c:119
-#, fuzzy
 msgid "Retain Exif metadata"
 msgstr "Conserver les données EXIF"
 
@@ -621,7 +617,6 @@ msgid "Save 16 bit linear PNG"
 msgstr "Sauvegarder en  PNG 16 bit linéaires"
 
 #: plugins/output-pngfile/output-pngfile.c:95
-#, fuzzy
 msgid "Copy Exif metadata to XMP"
 msgstr "Copier les données EXIF dans les données XMP"
 
@@ -642,57 +637,51 @@ msgid "TIFF (Tagged Image File Format)"
 msgstr "TIFF (Tagged Image File Format)"
 
 #: src/filename.c:379
-#, fuzzy, c-format
+#, c-format
 msgid "%f - Original Filename"
 msgstr "%f - Nom de fichier original"
 
 #: src/filename.c:380
-#, fuzzy, c-format
+#, c-format
 msgid "%p - Path of Original File"
-msgstr "%p - Nom de fichier original"
+msgstr "%p - Chemin du fichier original"
 
 #: src/filename.c:381
-#, fuzzy, c-format
+#, c-format
 msgid "%2c - Incremental Counter"
 msgstr "%2c - Compteur incrémental"
 
 #: src/filename.c:382
-#, fuzzy, c-format
+#, c-format
 msgid "%s - Setting ID (A, B or C)"
 msgstr "%s - Id de paramètres (A, B ou C)"
 
 #: src/filename.c:383
-#, fuzzy, c-format
+#, c-format
 msgid "%d - Date from Exif (YYYY-MM-DD)"
 msgstr "%d - Date des EXIF (AAAA-MM-JJ)"
 
 #: src/filename.c:384
-#, fuzzy
 msgid "%DY - Year from Exif (YYYY)"
 msgstr "%DY - Année des EXIF (AAAA)"
 
 #: src/filename.c:385
-#, fuzzy
 msgid "%Dy - Year from Exif (YY)"
 msgstr "%Dy - Année des EXIF (AA)"
 
 #: src/filename.c:386
-#, fuzzy
 msgid "%Dm - Month from Exif (MM)"
 msgstr "%Dm - Mois des EXIF (MM)"
 
 #: src/filename.c:387
-#, fuzzy
 msgid "%DM - Month from Exif (Text)"
 msgstr "%DM - Mois des EXIF (Texte)"
 
 #: src/filename.c:388
-#, fuzzy
 msgid "%Dd - Date from Exif (DD)"
 msgstr "%Dd - Jour des EXIF (JJ)"
 
 #: src/filename.c:389
-#, fuzzy
 msgid "%DD - Day of Week from Exif"
 msgstr "%DD - Jour de la semaine des EXIF (Texte)"
 
@@ -702,31 +691,31 @@ msgstr "%t - Heure des EXIF (HH:MM:SS)"
 
 #: src/filename.c:391
 msgid "%w - Week Number from Exif (Start Sunday)"
-msgstr ""
+msgstr "%w - Numéro de semaine des EXIF (début dimanche)"
 
 #: src/filename.c:392
 msgid "%W - Week Number from Exif (Start Monday)"
-msgstr ""
+msgstr "%W - Numéro de semaine des EXIF (début lundi)"
 
 #: src/filename.c:393
 msgid "%Mi - ISO Value of Image"
-msgstr ""
+msgstr "%Mi - Valeur ISO de l'image"
 
 #: src/filename.c:394
 msgid "%Ma - Aperture (2.8)"
-msgstr ""
+msgstr "%Ma - Ouverture (2.8)"
 
 #: src/filename.c:395
 msgid "%Ms - Shutter Time in Seconds (0.008)"
-msgstr ""
+msgstr "%Ms - Temps de pose en secondes (0.008)"
 
 #: src/filename.c:396
 msgid "%MS - Inverted Shutter Time (125)"
-msgstr ""
+msgstr "%MS - Temps de pose inversé (125)"
 
 #: src/filename.c:397
 msgid "%Mf - Focal Length in mm (70)"
-msgstr ""
+msgstr "%Mf - Focale en mm (70)"
 
 #: src/gtk-interface.c:210
 msgid "Width"
@@ -797,22 +786,18 @@ msgid "Directory:"
 msgstr "Répertoire :"
 
 #: src/gtk-interface.c:849 src/rs-batch.c:1068
-#, fuzzy
 msgid "Choose Output Directory"
 msgstr "Choisir le répertoire d'enregistrement"
 
 #: src/gtk-interface.c:865 src/rs-batch.c:1079
-#, fuzzy
 msgid "Filename Template:"
 msgstr "Motif de nom de fichier :"
 
 #: src/gtk-interface.c:878
-#, fuzzy
 msgid "Filename Example:"
 msgstr "Exemple de nom de fichier :"
 
 #: src/gtk-interface.c:889
-#, fuzzy
 msgid "File Type:"
 msgstr "Type de fichier :"
 
@@ -822,22 +807,18 @@ msgid "Preferences"
 msgstr "Préférences"
 
 #: src/gtk-interface.c:966
-#, fuzzy
 msgid "Preview Background Color:"
 msgstr "Couleur d'arrière plan de la prévisualisation :"
 
 #: src/gtk-interface.c:981
-#, fuzzy
 msgid "Histogram Height:"
 msgstr "Hauteur de l'histogramme :"
 
 #: src/gtk-interface.c:991
-#, fuzzy
 msgid "Use System Theme"
 msgstr "Utiliser le thème système"
 
 #: src/gtk-interface.c:996
-#, fuzzy
 msgid "Place Cache in Home Directory"
 msgstr "Placer le cache dans le répertoire de l'utilisateur"
 
@@ -847,7 +828,7 @@ msgstr "Profil de colorimétrie pour l'affichage"
 
 #: src/gtk-interface.c:1013
 msgid "Histogram, Curve & Exp. Mask:"
-msgstr ""
+msgstr "Histogramme, courbe et masque d'expo. :"
 
 #: src/gtk-interface.c:1086
 msgid "General"
@@ -855,9 +836,8 @@ msgstr "Général"
 
 #. gtk_notebook_append_page(GTK_NOTEBOOK(notebook), batch_page, gtk_label_new(_("Batch")));
 #: src/gtk-interface.c:1088 src/rs-tethered-shooting.c:1151
-#, fuzzy
 msgid "Quick Export"
-msgstr "_Export rapide"
+msgstr "Export rapide"
 
 #: src/gtk-interface.c:1408
 msgid "Opening directory..."
@@ -868,7 +848,6 @@ msgid "Rawstudio"
 msgstr "Rawstudio"
 
 #: src/gtk-interface.c:1532
-#, fuzzy
 msgid "Open Recursive"
 msgstr "Ouvrir récursivement"
 
@@ -877,9 +856,8 @@ msgid "Directory"
 msgstr "Répertoire"
 
 #: src/gtk-interface.c:1543
-#, fuzzy
 msgid "Tag Search"
-msgstr "Recharche de tag"
+msgstr "Recherche de tag"
 
 #: src/gtk-interface.c:1549
 msgid "Tools"
@@ -900,7 +878,7 @@ msgstr "Prêt"
 #. Construct this to load dcp profiles early
 #: src/gtk-interface.c:1674
 msgid "Rawstudio: Loading Color Profiles"
-msgstr ""
+msgstr "CaraStudio : chargement des profils de couleur"
 
 #: src/gtk-progress.c:63 src/gtk-progress.c:100 src/gtk-progress.c:123
 msgid "Progress"
@@ -976,9 +954,8 @@ msgid "Exposure"
 msgstr "Exposition"
 
 #: src/rs-actions.c:468
-#, fuzzy
 msgid "White Balance"
-msgstr "_Balance des blancs"
+msgstr "Balance des blancs"
 
 #: src/rs-actions.c:469
 msgid "Sharpen"
@@ -989,7 +966,6 @@ msgid "Denoise"
 msgstr "Débruiter"
 
 #: src/rs-actions.c:471
-#, fuzzy
 msgid "Color Denoise"
 msgstr "Débruitage des plans de couleur"
 
@@ -1014,7 +990,6 @@ msgid "Select All/None"
 msgstr "Sélectionner Tout/Aucun"
 
 #: src/rs-actions.c:498
-#, fuzzy
 msgid "Select Settings to Copy"
 msgstr "Sélectionner les paramètres à copier"
 
@@ -1041,7 +1016,7 @@ msgstr "Buffer vide"
 #: src/rs-actions.c:699
 #, c-format
 msgid "Settings saved as default for %s %s"
-msgstr ""
+msgstr "Paramètres enregistrés par défaut pour %s %s"
 
 #: src/rs-actions.c:782
 msgid "Adjusting to auto white balance"
@@ -1060,7 +1035,6 @@ msgid "Tags, separated by spaces:"
 msgstr "Tags, séparés par des espaces:"
 
 #: src/rs-actions.c:940
-#, fuzzy
 msgid "Add Tags to Selected Photo(s)."
 msgstr "Ajouter des tags aux photos sélectionnées."
 
@@ -1201,7 +1175,6 @@ msgid "_Reload directory"
 msgstr "_Recharger le répertoire"
 
 #: src/rs-actions.c:1464
-#, fuzzy
 msgid "_Delete Flagged Photos"
 msgstr "_Supprimer les photos marquées"
 
@@ -1211,27 +1184,22 @@ msgstr "_Quitter"
 
 #. Edit menu
 #: src/rs-actions.c:1468
-#, fuzzy
 msgid "_Revert Settings"
 msgstr "Revenir aux _anciens paramètres"
 
 #: src/rs-actions.c:1469
-#, fuzzy
 msgid "_Copy Settings"
 msgstr "Copier les paramètres"
 
 #: src/rs-actions.c:1470
-#, fuzzy
 msgid "_Paste Settings"
 msgstr "Coller les paramètres"
 
 #: src/rs-actions.c:1471
-#, fuzzy
 msgid "_Reset Settings"
 msgstr "Réinitialiser les paramètres"
 
 #: src/rs-actions.c:1472
-#, fuzzy
 msgid "_Save Camera Default Settings"
 msgstr "_Sauvegarder les paramètres par défaut de l'appareil"
 
@@ -1241,7 +1209,6 @@ msgstr "_Préférences"
 
 #. Photo menu
 #: src/rs-actions.c:1476
-#, fuzzy
 msgid "_Flag Photo for Deletion"
 msgstr "Marquer la photo pour _suppression"
 
@@ -1258,7 +1225,6 @@ msgid "_3"
 msgstr "_3"
 
 #: src/rs-actions.c:1480
-#, fuzzy
 msgid "_Remove Priority"
 msgstr "_Supprimer la priorité"
 
@@ -1295,7 +1261,6 @@ msgid "_Ungroup"
 msgstr "_Dégrouper"
 
 #: src/rs-actions.c:1489
-#, fuzzy
 msgid "_Auto Group"
 msgstr "Groupement automatique"
 
@@ -1308,9 +1273,8 @@ msgid "Rotate Clockwise"
 msgstr "_Tourner dans le sens horaire"
 
 #: src/rs-actions.c:1492
-#, fuzzy
 msgid "Rotate Counterclockwise"
-msgstr "Tourner dans le sens trigonométrique"
+msgstr "Tourner dans le sens antihoraire"
 
 #: src/rs-actions.c:1493
 msgid "Flip"
@@ -1322,7 +1286,6 @@ msgstr "Mirroir"
 
 #. View menu
 #: src/rs-actions.c:1497
-#, fuzzy
 msgid "_Previous Photo"
 msgstr "Photo _précédente"
 
@@ -1340,17 +1303,14 @@ msgstr "_Prise de vue pilotée"
 
 #. Batch menu
 #: src/rs-actions.c:1503
-#, fuzzy
 msgid "_Add to Batch Queue"
 msgstr "Ajouter au traitement par lot"
 
 #: src/rs-actions.c:1504
-#, fuzzy
 msgid "_Add View to Queue..."
 msgstr "Ajouter la _vue courante au traitement par lot"
 
 #: src/rs-actions.c:1505
-#, fuzzy
 msgid "_Remove from Batch Queue"
 msgstr "Supprimer du traitement par lot"
 
@@ -1368,7 +1328,6 @@ msgid "_About"
 msgstr "À _propos"
 
 #: src/rs-actions.c:1519
-#, fuzzy
 msgid "_Zoom to Fit"
 msgstr "Zoom à la taille de la _fenêtre"
 
@@ -1385,7 +1344,6 @@ msgid "_Fullscreen"
 msgstr "Plein _écran"
 
 #: src/rs-actions.c:1523
-#, fuzzy
 msgid "_Show Photo on Secondary Monitor"
 msgstr "_Montrer la photo sur le moniteur secondaire"
 
@@ -1402,7 +1360,6 @@ msgid "Do not Load Selected Images"
 msgstr "Ne pas charger les images sélectionnées"
 
 #: src/rs-actions.c:1527
-#, fuzzy
 msgid "_Exposure Mask"
 msgstr "_Masque d'exposition"
 
@@ -1411,9 +1368,8 @@ msgid "_Split"
 msgstr "_Séparer"
 
 #: src/rs-actions.c:1530
-#, fuzzy
 msgid "_Lights Out"
-msgstr "_Voil noir"
+msgstr "_Voile noir"
 
 #: src/rs-actions.c:1536
 msgid "Name"
@@ -1510,52 +1466,42 @@ msgid "Remove"
 msgstr "Supprimer"
 
 #: src/rs-batch.c:809
-#, fuzzy
 msgid "Remove All"
 msgstr "Supprimer tout"
 
 #: src/rs-batch.c:919 src/rs-batch.c:1090
-#, fuzzy
 msgid "Edit Output Settings"
 msgstr "Éditer les paramètres de sortie"
 
 #: src/rs-batch.c:955
-#, fuzzy
 msgid "Photo Size"
 msgstr "Taille de la photo"
 
 #: src/rs-batch.c:963
-#, fuzzy
 msgid "Constant Scale"
 msgstr "Rapport constant"
 
 #: src/rs-batch.c:964
-#, fuzzy
 msgid "Constant Width"
 msgstr "Largeur constante"
 
 #: src/rs-batch.c:965
-#, fuzzy
 msgid "Constant Height"
 msgstr "Hauteur constante"
 
 #: src/rs-batch.c:966
-#, fuzzy
 msgid "Maximum Size"
 msgstr "Taille maximum"
 
 #: src/rs-batch.c:979
-#, fuzzy
 msgid "Photo Width:"
 msgstr "Largeur de la photo :"
 
 #: src/rs-batch.c:981
-#, fuzzy
 msgid "Pixels"
 msgstr "pixels"
 
 #: src/rs-batch.c:988
-#, fuzzy
 msgid "Photo Height:"
 msgstr "Hauteur de la photo :"
 
@@ -1564,7 +1510,6 @@ msgid "pixels"
 msgstr "pixels"
 
 #: src/rs-batch.c:997
-#, fuzzy
 msgid "Photo Scale:"
 msgstr "Rapport de la photo :"
 
@@ -1573,7 +1518,7 @@ msgid "%"
 msgstr "%"
 
 #: src/rs-batch.c:1035
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "Constant Width:\n"
 "%d"
@@ -1582,7 +1527,7 @@ msgstr ""
 "%d"
 
 #: src/rs-batch.c:1038
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "Constant Height:\n"
 "%d"
@@ -1600,7 +1545,7 @@ msgstr ""
 "%d"
 
 #: src/rs-batch.c:1045
-#, fuzzy, c-format
+#, c-format
 msgid ""
 "Maximum Size:\n"
 "%d x %d"
@@ -1609,16 +1554,14 @@ msgstr ""
 "%d x %d"
 
 #: src/rs-batch.c:1075
-#, fuzzy
 msgid "Output Directory:"
-msgstr "Répertoire d'enregistrement"
+msgstr "Répertoire d'enregistrement :"
 
 #: src/rs-batch.c:1099
 msgid "Change"
 msgstr "Changer"
 
 #: src/rs-batch.c:1104
-#, fuzzy
 msgid "Export Dimensions"
 msgstr "Exporter les dimensions"
 
@@ -1627,6 +1570,8 @@ msgid ""
 "WARNING: Failed to save image settings! Check you have sufficient rights, "
 "and free space on your device."
 msgstr ""
+"ATTENTION : échec de l'enregistrement des réglages de l'image ! Vérifiez vos "
+"droits d'accès et l'espace disponible sur le périphérique."
 
 #: src/rs-camera-db.c:437
 msgid "Camera defaults editor"
@@ -1920,17 +1865,17 @@ msgid "<b>Model</b>: %s\n"
 msgstr "<b>Modèle</b>: %s\n"
 
 #: src/rs-store.c:674
-#, fuzzy, c-format
+#, c-format
 msgid "<b>Focal Length</b>: %dmm\n"
 msgstr "<b>Focale</b>: %dmm\n"
 
 #: src/rs-store.c:677
-#, fuzzy, c-format
+#, c-format
 msgid "<b>Shutter Speed</b>: %.1fs\n"
 msgstr "<b>Vitesse d'obturation</b>: %.1fs\n"
 
 #: src/rs-store.c:679
-#, fuzzy, c-format
+#, c-format
 msgid "<b>Shutter Speed</b>: 1/%.0fs\n"
 msgstr "<b>Vitesse d'obturation</b>: 1/%.0fs\n"
 
@@ -1945,9 +1890,9 @@ msgid "<b>ISO</b>: %u\n"
 msgstr "<b>ISO</b>: %u\n"
 
 #: src/rs-store.c:688
-#, fuzzy, c-format
+#, c-format
 msgid "<b>Exposure Compensation</b>: %+.1fEV\n"
-msgstr "Compensation d'exposition"
+msgstr "<b>Compensation d'exposition</b> : %+.1fEV\n"
 
 #: src/rs-store.c:691
 #, c-format
@@ -2133,7 +2078,6 @@ msgid "Shutting down already running thread.\n"
 msgstr "Arrêt déjà en cours de la thread de contrôle.\n"
 
 #: src/rs-tethered-shooting.c:892
-#, fuzzy
 msgid "Starting Monitor Thread.\n"
 msgstr "Démarrage de la thread de monitoring.\n"
 
@@ -2278,7 +2222,6 @@ msgstr "Ajustement automatique des extrémités de courbe"
 
 #. ROW HARDCODED TO 0
 #: src/rs-toolbox.c:790
-#, fuzzy
 msgid "Edit Lens"
 msgstr "Éditer l'objectif"
 
@@ -2366,11 +2309,9 @@ msgstr "Photo _suivante"
 #~ msgid "Load 8 bit photos (jpeg, png, etc)"
 #~ msgstr "Charger les photos 8 bit (JPEG, PNG, etc...)"
 
-#, fuzzy
 #~ msgid "Warmth"
 #~ msgstr "Température/Teinte"
 
-#, fuzzy
 #~ msgid "CA Red"
 #~ msgstr "Prêt"
 
@@ -2420,7 +2361,6 @@ msgstr "Photo _suivante"
 #~ msgid "Colors"
 #~ msgstr "Couleurs"
 
-#, fuzzy
 #~ msgid "Change this"
 #~ msgstr "Changer"
 
