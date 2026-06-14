@@ -63,7 +63,14 @@ queue_worker(gpointer data)
 			/* If we somehow got NULL, continue. I'm not sure this will ever happen, but this is better than random segfaults :) */
 			if (job)
 			{
+				/* Sérialise le décodage (chaîne de filtres DCP) avec la
+				 * régénération de vignettes du thread principal, qui prend
+				 * aussi rs_io_lock → évite la corruption de tas concurrente
+				 * (#19). On NE verrouille PAS le callback : il marshale vers
+				 * le thread principal et provoquerait un interblocage. */
+				rs_io_lock();
 				rs_io_job_execute(job);
+				rs_io_unlock();
 				rs_io_job_do_callback(job);
 				g_mutex_lock(&count_lock);
 				queue_active_count--;
