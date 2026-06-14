@@ -1718,7 +1718,7 @@ ACTION(enfuse)
   dialog = gui_dialog_make_from_text(GTK_STOCK_DIALOG_QUESTION, _("Enfuse"), _("This might take quite some time and will lock up UI until finished..."));
   gtk_dialog_add_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
   gtk_dialog_add_button (GTK_DIALOG (dialog), GTK_STOCK_EXECUTE, GTK_RESPONSE_ACCEPT);
-  gtk_window_set_title(GTK_WINDOW(dialog), _("Rawstudio Enfuse"));
+  gtk_window_set_title(GTK_WINDOW(dialog), _("CaraStudio Enfuse"));
 
   GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
   GtkWidget *image = gtk_image_new_from_file(thumb);
@@ -1781,7 +1781,7 @@ ACTION(enfuse)
   GtkWidget *size_scale = gtk_hscale_new_with_range(300, maxsize, 1.0);
   gtk_range_set_value(GTK_RANGE(size_scale), size_value);
   g_signal_connect(size_scale, "value-changed", G_CALLBACK(enfuse_size_changed), &maxsize);
-  GtkWidget *size_label = gtk_label_new("Size:");
+  GtkWidget *size_label = gtk_label_new(_("Size:"));
   GtkWidget *size_box = gtk_hbox_new(FALSE, 5);
   gtk_box_pack_start(GTK_BOX(size_box), size_label, FALSE, TRUE, 5);
   gtk_box_pack_start(GTK_BOX(size_box), size_scale, TRUE, TRUE, 5);

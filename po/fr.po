@@ -2282,6 +2282,43 @@ msgstr "Photo _précédente"
 msgid "_Next"
 msgstr "Photo _suivante"
 
+#: src/rs-actions.c:1676 src/rs-actions.c:1915
+msgid "Enfuse"
+msgstr "Enfuse"
+
+#: src/rs-actions.c:1676
+msgid "This might take quite some time and will lock up UI until finished..."
+msgstr ""
+"Cela peut prendre un certain temps et bloquera l'interface jusqu'à la fin…"
+
+#: src/rs-actions.c:1679
+msgid "CaraStudio Enfuse"
+msgstr "CaraStudio Enfuse"
+
+#: src/rs-actions.c:1702
+msgid "Enfuse method"
+msgstr "Méthode Enfuse"
+
+#: src/rs-actions.c:1705
+msgid "Align images (may take a long time)"
+msgstr "Aligner les images (peut être long)"
+
+#: src/rs-actions.c:1708 src/rs-actions.c:1725
+msgid "Extend exposure"
+msgstr "Étendre l'exposition"
+
+#: src/rs-actions.c:1717
+msgid "Extend negative steps"
+msgstr "Pas négatifs supplémentaires"
+
+#: src/rs-actions.c:1721
+msgid "Extend positive steps"
+msgstr "Pas positifs supplémentaires"
+
+#: src/rs-actions.c:1784
+msgid "Size:"
+msgstr "Taille :"
+
 #~ msgid "Exposure Mask Colorspace:"
 #~ msgstr "Profil de colorimétrie pour le masque d'exposition"
 
