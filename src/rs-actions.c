@@ -1809,6 +1809,10 @@ ACTION(enfuse)
   cache_cleanup(rs->enfuse_cache);
 
   g_list_free(selected_names);
+  /* Tag la photo fusionnée en priorité 1 : sinon elle hérite du filtre actif
+     (0 = aucune) et se noie dans la masse. Ainsi on la retrouve via le filtre
+     de priorité « 1 » du sélecteur de gauche. */
+  priority = 1;
   rs_cache_save_flags(filename, &priority, NULL, &enfuse);
 
   /* reload store - grabbed from reload function */
