@@ -1555,6 +1555,9 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 			gtk_label_new(_("Tonalité")));
 		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox), batchbox, gtk_label_new(_("Batch")));
 		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox), open_box, gtk_label_new(_("Open")));
+		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox),
+			rs_toolbox_get_metadata_widget(RS_TOOLBOX(tools)),
+			gtk_label_new(_("Infos")));
 	}
 
 	/* Metadata infobox */

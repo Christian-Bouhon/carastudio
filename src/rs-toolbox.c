@@ -119,6 +119,13 @@ const static BasicSettings argentico[] = {
 };
 #define NARGENTICO (4)
 
+/* Lignes du panneau d'informations EXIF (onglet « Infos ») */
+enum {
+	EXIF_CAMERA, EXIF_DATE, EXIF_LENS, EXIF_FOCAL, EXIF_APERTURE,
+	EXIF_SHUTTER, EXIF_ISO, EXIF_EXPBIAS, EXIF_WB,
+	N_EXIF
+};
+
 struct _RSToolbox {
 	GtkScrolledWindow parent;
 
@@ -164,6 +171,8 @@ struct _RSToolbox {
 	guint histogram_connection; /* Got GConf notification */
 	gboolean mute_from_sliders;
 	gboolean mute_from_photo;
+
+	GtkWidget *exif_value[N_EXIF]; /* étiquettes de valeurs du panneau « Infos » */
 };
 
 G_DEFINE_TYPE (RSToolbox, rs_toolbox, GTK_TYPE_SCROLLED_WINDOW)
@@ -1651,6 +1660,134 @@ rs_toolbox_get_effects_widget(RSToolbox *toolbox)
 	return notebook;
 }
 
+/* Remplit le panneau « Infos » depuis les métadonnées de la photo (ou met
+   des tirets si aucune photo). Appelé depuis rs_toolbox_set_photo. */
+static void
+toolbox_update_metadata(RSToolbox *toolbox, RS_PHOTO *photo)
+{
+	gint i;
+	RSMetadata *m = (photo && photo->metadata) ? photo->metadata : NULL;
+
+	/* Le widget n'est pas forcément encore construit (set_photo(NULL) à l'init) */
+	if (!toolbox->exif_value[0])
+		return;
+
+	if (!m)
+	{
+		for (i = 0; i < N_EXIF; i++)
+			gtk_label_set_text(GTK_LABEL(toolbox->exif_value[i]), "—");
+		return;
+	}
+
+#define EXIF_SET(idx, cond, ...) do { \
+		if (cond) { gchar *_t = g_strdup_printf(__VA_ARGS__); \
+			gtk_label_set_text(GTK_LABEL(toolbox->exif_value[idx]), _t); g_free(_t); } \
+		else gtk_label_set_text(GTK_LABEL(toolbox->exif_value[idx]), "—"); \
+	} while (0)
+
+	/* Appareil : marque + modèle */
+	{
+		GString *s = g_string_new("");
+		if (m->make_ascii && *m->make_ascii)
+			g_string_append(s, m->make_ascii);
+		if (m->model_ascii && *m->model_ascii)
+		{
+			if (s->len)
+				g_string_append_c(s, ' ');
+			g_string_append(s, m->model_ascii);
+		}
+		gtk_label_set_text(GTK_LABEL(toolbox->exif_value[EXIF_CAMERA]), s->len ? s->str : "—");
+		g_string_free(s, TRUE);
+	}
+
+	/* Date / heure */
+	gtk_label_set_text(GTK_LABEL(toolbox->exif_value[EXIF_DATE]),
+		(m->time_ascii && *m->time_ascii) ? m->time_ascii : "—");
+
+	/* Objectif */
+	{
+		const gchar *lens = (m->lens_identifier && *m->lens_identifier)
+			? m->lens_identifier : m->fixed_lens_identifier;
+		gtk_label_set_text(GTK_LABEL(toolbox->exif_value[EXIF_LENS]),
+			(lens && *lens) ? lens : "—");
+	}
+
+	/* Focale */
+	EXIF_SET(EXIF_FOCAL, m->focallength > 0, _("%d mm"), m->focallength);
+
+	/* Ouverture */
+	EXIF_SET(EXIF_APERTURE, m->aperture > 0.0, "f/%.1f", m->aperture);
+
+	/* Vitesse d'obturation (même logique que le pop-up de vignette) */
+	if (m->shutterspeed > 0.0 && m->shutterspeed < 4)
+		EXIF_SET(EXIF_SHUTTER, TRUE, _("%.1f s"), 1.0 / m->shutterspeed);
+	else
+		EXIF_SET(EXIF_SHUTTER, m->shutterspeed >= 4, _("1/%.0f s"), m->shutterspeed);
+
+	/* ISO */
+	EXIF_SET(EXIF_ISO, m->iso != 0, "%d", m->iso);
+
+	/* Correction d'exposition */
+	EXIF_SET(EXIF_EXPBIAS, TRUE, _("%+.1f IL"), m->exposurebias);
+
+	/* Balance des blancs (multiplicateurs R/V/B) */
+	if (m->cam_mul[0] > 0.0 && m->cam_mul[1] > 0.0 && m->cam_mul[2] > 0.0)
+		EXIF_SET(EXIF_WB, TRUE, _("R %.2f  V %.2f  B %.2f"),
+			m->cam_mul[0], m->cam_mul[1], m->cam_mul[2]);
+	else
+		gtk_label_set_text(GTK_LABEL(toolbox->exif_value[EXIF_WB]), "—");
+
+#undef EXIF_SET
+}
+
+GtkWidget *
+rs_toolbox_get_metadata_widget(RSToolbox *toolbox)
+{
+	static const gchar *labels[N_EXIF] = {
+		N_("Appareil"), N_("Date"), N_("Objectif"), N_("Focale"),
+		N_("Ouverture"), N_("Vitesse"), N_("ISO"),
+		N_("Correction expo"), N_("Balance des blancs")
+	};
+	GtkWidget *scroller = gtk_scrolled_window_new(NULL, NULL);
+	GtkWidget *grid = gtk_grid_new();
+	gint i;
+
+	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroller),
+		GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	gtk_grid_set_row_spacing(GTK_GRID(grid), 5);
+	gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
+	gtk_container_set_border_width(GTK_CONTAINER(grid), 10);
+
+	for (i = 0; i < N_EXIF; i++)
+	{
+		gchar *markup = g_markup_printf_escaped("<b>%s</b>", _(labels[i]));
+		GtkWidget *key = gtk_label_new(NULL);
+		GtkWidget *val = gtk_label_new("—");
+
+		gtk_label_set_markup(GTK_LABEL(key), markup);
+		g_free(markup);
+		gtk_label_set_xalign(GTK_LABEL(key), 0.0);
+		gtk_widget_set_valign(key, GTK_ALIGN_START);
+
+		gtk_label_set_xalign(GTK_LABEL(val), 0.0);
+		gtk_label_set_line_wrap(GTK_LABEL(val), TRUE);
+		gtk_label_set_selectable(GTK_LABEL(val), TRUE);
+		gtk_widget_set_hexpand(val, TRUE);
+		toolbox->exif_value[i] = val;
+
+		gtk_grid_attach(GTK_GRID(grid), key, 0, i, 1, 1);
+		gtk_grid_attach(GTK_GRID(grid), val, 1, i, 1, 1);
+	}
+
+	gtk_container_add(GTK_CONTAINER(scroller), grid);
+	gtk_widget_show_all(scroller);
+
+	/* Renseigne immédiatement si une photo est déjà ouverte */
+	toolbox_update_metadata(toolbox, toolbox->photo);
+
+	return scroller;
+}
+
 static void
 gui_transform_rot90_clicked(GtkWidget *w, RS_BLOB *rs)
 {
@@ -2204,6 +2341,9 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 	/* Update histogram */
 	rs_histogram_redraw(RS_HISTOGRAM_WIDGET(toolbox->histogram));
 	gtk_widget_set_sensitive(toolbox->transforms, !!(toolbox->photo));
+
+	/* Met à jour le panneau « Infos » (EXIF) */
+	toolbox_update_metadata(toolbox, photo);
 }
 
 GtkWidget *

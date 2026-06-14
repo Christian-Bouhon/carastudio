@@ -81,6 +81,13 @@ extern GtkWidget *
 rs_toolbox_get_tones_widget(RSToolbox *toolbox);
 
 /**
+ * Construit l'onglet « Infos » : un panneau EXIF (clé/valeur) mis à jour
+ * automatiquement à chaque changement de photo via rs_toolbox_set_photo.
+ */
+extern GtkWidget *
+rs_toolbox_get_metadata_widget(RSToolbox *toolbox);
+
+/**
  * Donne au toolbox un pointeur vers l'aperçu (pour piloter la pioche Argentico)
  * et connecte le signal "argentico-picked".
  */
