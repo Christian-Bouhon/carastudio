@@ -153,6 +153,7 @@ struct _RSToolbox {
 	GtkRange *argentico[3][NARGENTICO];
 	GtkWidget *argentico_enable[3];
 	GtkWidget *argentico_pick[3];   /* bouton bascule « Échantillonner » */
+	GtkWidget *wb_pick[3];          /* bouton bascule pipette balance des blancs */
 	GtkWidget *preview;             /* pour piloter la pioche (non détenu) */
 	GtkWidget *lenslabel[3];
 	GtkWidget *lensbutton[3];
@@ -856,13 +857,38 @@ argentico_pick_toggled(GtkToggleButton *btn, gpointer user_data)
 		gtk_toggle_button_get_active(btn));
 }
 
+/* Callback : (dé)activation du mode pipette balance des blancs → pilote l'aperçu */
+static void
+wb_pick_toggled(GtkToggleButton *btn, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (!toolbox->preview)
+		return;
+	rs_preview_widget_set_wb_pick(RS_PREVIEW_WIDGET(toolbox->preview),
+		gtk_toggle_button_get_active(btn));
+}
+
+/* Callback : après prélèvement WB, on sort visuellement du mode pipette */
+static void
+wb_picked_reset_cb(GtkWidget *preview, gpointer cbdata, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	gint i;
+	for (i = 0; i < 3; i++)
+		if (toolbox->wb_pick[i])
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(toolbox->wb_pick[i]), FALSE);
+}
+
 void
 rs_toolbox_set_preview(RSToolbox *toolbox, GtkWidget *preview)
 {
 	g_return_if_fail(RS_IS_TOOLBOX(toolbox));
 	toolbox->preview = preview;
 	if (preview)
+	{
 		g_signal_connect(preview, "argentico-picked", G_CALLBACK(argentico_picked_cb), toolbox);
+		g_signal_connect(preview, "wb-picked", G_CALLBACK(wb_picked_reset_cb), toolbox);
+	}
 }
 
 /* Callback : activation/désactivation du négatif Argentico */
@@ -918,29 +944,37 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	g_signal_connect(toolbox->curve[snapshot], "changed", G_CALLBACK(curve_changed), toolbox);
 	g_signal_connect(toolbox->curve[snapshot], "right-click", G_CALLBACK(curve_context_callback), NULL);
 
-	/* Section Argentico (négatif argentique) — en tête : c'est une étape de
-	 * développement amont (avant WB/expo, qui suivent dans cet onglet). */
-	GtkWidget *argentico_vbox = gtk_vbox_new(FALSE, 2);
-	toolbox->argentico_enable[snapshot] = gtk_check_button_new_with_label(_("Développer le négatif"));
-	gtk_widget_set_sensitive(toolbox->argentico_enable[snapshot], FALSE);
-	g_signal_connect(toolbox->argentico_enable[snapshot], "toggled", G_CALLBACK(argentico_enable_toggled), toolbox);
-	gtk_box_pack_start(GTK_BOX(argentico_vbox), toolbox->argentico_enable[snapshot], FALSE, FALSE, 0);
+	/* Bloc Balance des blancs en tête (le WB se règle en premier) :
+	 * pipette (mode bascule) + auto + boîtier, icônes ART. */
+	GtkWidget *wb_hbox = gtk_hbox_new(FALSE, 4);
 
-	GtkTable *argenticotable = GTK_TABLE(gtk_table_new(NARGENTICO, 5, FALSE));
-	for(row=0;row<NARGENTICO;row++)
-		toolbox->argentico[snapshot][row] = basic_slider(toolbox, snapshot, argenticotable, row, &argentico[row]);
-	gtk_box_pack_start(GTK_BOX(argentico_vbox), GTK_WIDGET(argenticotable), FALSE, FALSE, 0);
+	toolbox->wb_pick[snapshot] = gtk_toggle_button_new();
+	gtk_button_set_image(GTK_BUTTON(toolbox->wb_pick[snapshot]),
+		gtk_image_new_from_icon_name("wb-pick", GTK_ICON_SIZE_LARGE_TOOLBAR));
+	gtk_widget_set_tooltip_text(toolbox->wb_pick[snapshot],
+		_("Pipette : cliquez ce bouton, puis une zone neutre (grise) de l'image pour régler la balance des blancs."));
+	g_signal_connect(toolbox->wb_pick[snapshot], "toggled", G_CALLBACK(wb_pick_toggled), toolbox);
 
-	/* Pioche : échantillonne 2 taches neutres → calcule les ratios R/B */
-	toolbox->argentico_pick[snapshot] = gtk_toggle_button_new_with_label(_("Échantillonner (point clair + point sombre)"));
-	gtk_widget_set_sensitive(toolbox->argentico_pick[snapshot], FALSE);
-	gtk_widget_set_tooltip_text(toolbox->argentico_pick[snapshot],
-		_("Cliquez ce bouton, puis dans l'aperçu cliquez une zone neutre CLAIRE puis une zone neutre SOMBRE. Les ratios rouge et bleu sont calculés pour neutraliser le voile."));
-	g_signal_connect(toolbox->argentico_pick[snapshot], "toggled", G_CALLBACK(argentico_pick_toggled), toolbox);
-	gtk_box_pack_start(GTK_BOX(argentico_vbox), toolbox->argentico_pick[snapshot], FALSE, FALSE, 0);
+	GtkWidget *wb_auto_btn = gtk_button_new();
+	gtk_button_set_image(GTK_BUTTON(wb_auto_btn),
+		gtk_image_new_from_icon_name("wb-auto", GTK_ICON_SIZE_LARGE_TOOLBAR));
+	gtk_widget_set_tooltip_text(wb_auto_btn, _("Balance des blancs automatique"));
+	g_signal_connect_swapped(wb_auto_btn, "clicked",
+		G_CALLBACK(rs_core_action_group_activate), "AutoWB");
 
-	/* Pack everything nice */
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Argentico"), argentico_vbox, "show_argentico", TRUE), FALSE, FALSE, 0);
+	GtkWidget *wb_cam_btn = gtk_button_new();
+	gtk_button_set_image(GTK_BUTTON(wb_cam_btn),
+		gtk_image_new_from_icon_name("wb-camera", GTK_ICON_SIZE_LARGE_TOOLBAR));
+	gtk_widget_set_tooltip_text(wb_cam_btn, _("Balance des blancs du boîtier"));
+	g_signal_connect_swapped(wb_cam_btn, "clicked",
+		G_CALLBACK(rs_core_action_group_activate), "CameraWB");
+
+	gtk_box_pack_start(GTK_BOX(wb_hbox), toolbox->wb_pick[snapshot], FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(wb_hbox), wb_auto_btn, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(wb_hbox), wb_cam_btn, FALSE, FALSE, 0);
+
+	/* Pack everything nice (Argentico a été déplacé dans l'onglet Effets) */
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Balance des blancs"), wb_hbox, "show_wb", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Basic"), GTK_WIDGET(table), "show_basic", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Channel Mixer"), GTK_WIDGET(channelmixertable), "show_channelmixer", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Lens Correction"), GTK_WIDGET(lenstable), "show_lens", TRUE), FALSE, FALSE, 0);
@@ -1030,6 +1064,28 @@ new_effects_page(RSToolbox *toolbox, const gint snapshot)
 	for (row = 0; row < NDEHAZE; row++)
 		toolbox->dehaze_slider[snapshot][row] = basic_slider(toolbox, snapshot, dehazetable, row, &dehaze[row]);
 
+	/* Section Argentico (négatif argentique) — déplacée depuis l'onglet Basique :
+	 * c'est un traitement créatif, sa place est dans les Effets. */
+	GtkWidget *argentico_vbox = gtk_vbox_new(FALSE, 2);
+	toolbox->argentico_enable[snapshot] = gtk_check_button_new_with_label(_("Développer le négatif"));
+	gtk_widget_set_sensitive(toolbox->argentico_enable[snapshot], FALSE);
+	g_signal_connect(toolbox->argentico_enable[snapshot], "toggled", G_CALLBACK(argentico_enable_toggled), toolbox);
+	gtk_box_pack_start(GTK_BOX(argentico_vbox), toolbox->argentico_enable[snapshot], FALSE, FALSE, 0);
+
+	GtkTable *argenticotable = GTK_TABLE(gtk_table_new(NARGENTICO, 5, FALSE));
+	for(row=0;row<NARGENTICO;row++)
+		toolbox->argentico[snapshot][row] = basic_slider(toolbox, snapshot, argenticotable, row, &argentico[row]);
+	gtk_box_pack_start(GTK_BOX(argentico_vbox), GTK_WIDGET(argenticotable), FALSE, FALSE, 0);
+
+	/* Pioche : échantillonne 2 taches neutres → calcule les ratios R/B */
+	toolbox->argentico_pick[snapshot] = gtk_toggle_button_new_with_label(_("Échantillonner (point clair + point sombre)"));
+	gtk_widget_set_sensitive(toolbox->argentico_pick[snapshot], FALSE);
+	gtk_widget_set_tooltip_text(toolbox->argentico_pick[snapshot],
+		_("Cliquez ce bouton, puis dans l'aperçu cliquez une zone neutre CLAIRE puis une zone neutre SOMBRE. Les ratios rouge et bleu sont calculés pour neutraliser le voile."));
+	g_signal_connect(toolbox->argentico_pick[snapshot], "toggled", G_CALLBACK(argentico_pick_toggled), toolbox);
+	gtk_box_pack_start(GTK_BOX(argentico_vbox), toolbox->argentico_pick[snapshot], FALSE, FALSE, 0);
+
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Argentico"), argentico_vbox, "show_argentico", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Voile"), GTK_WIDGET(dehazetable), "show_dehaze", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Soft Light"), GTK_WIDGET(softlighttable), "show_softlight", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Vignette"), GTK_WIDGET(artvignettetable), "show_artvignette", TRUE), FALSE, FALSE, 0);

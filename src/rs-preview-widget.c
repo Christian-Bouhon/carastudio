@@ -163,6 +163,7 @@ struct _RSPreviewWidget
 
 	/* Pioche Argentico : échantillonnage du négatif (= filter_cache2, post-DCP) */
 	gboolean argentico_picking;
+	gboolean wb_picking;            /* mode pipette balance des blancs (bouton) */
 	gint argentico_spot_count;
 	gfloat argentico_spots[2][3];
 
@@ -415,6 +416,7 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 
 	preview->filter_input = NULL;
 	preview->argentico_picking = FALSE;
+	preview->wb_picking = FALSE;
 	preview->argentico_spot_count = 0;
 	for(i=0;i<MAX_VIEWS;i++)
 	{
@@ -1849,6 +1851,20 @@ button(GtkWidget *widget, GdkEventButton *event, RSPreviewWidget *preview)
 		return TRUE;
 	}
 
+	/* Pipette balance des blancs (bouton) : clic gauche simple, sans Ctrl. */
+	if (preview->wb_picking
+		&& inside_image
+		&& (event->type == GDK_BUTTON_PRESS)
+		&& (event->button == 1)
+		&& g_signal_has_handler_pending(preview, signals[WB_PICKED], 0, FALSE))
+	{
+		RS_PREVIEW_CALLBACK_DATA cbdata;
+		make_cbdata(preview, view, &cbdata, scaled_x, scaled_y, real_x, real_y);
+		preview->wb_picking = FALSE;
+		g_signal_emit (G_OBJECT (preview), signals[WB_PICKED], 0, &cbdata);
+		return TRUE;
+	}
+
 	/* White balance picker — Ctrl+clic uniquement */
 	if (inside_image
 		&& (event->type == GDK_BUTTON_PRESS)
@@ -2240,6 +2256,15 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 
 	/* Pioche Argentico : pipette permanente tant que le mode est actif */
 	if (preview->argentico_picking)
+	{
+		if (inside_image)
+			gdk_window_set_cursor(window, cur_color_picker);
+		else
+			gdk_window_set_cursor(window, cur_normal);
+	}
+
+	/* Pipette balance des blancs (bouton) : pipette permanente tant qu'actif */
+	if (preview->wb_picking)
 	{
 		if (inside_image)
 			gdk_window_set_cursor(window, cur_color_picker);
@@ -2774,6 +2799,13 @@ rs_preview_widget_set_argentico_pick(RSPreviewWidget *preview, gboolean active)
 	g_return_if_fail(RS_IS_PREVIEW_WIDGET(preview));
 	preview->argentico_picking = active;
 	preview->argentico_spot_count = 0;
+}
+
+void
+rs_preview_widget_set_wb_pick(RSPreviewWidget *preview, gboolean active)
+{
+	g_return_if_fail(RS_IS_PREVIEW_WIDGET(preview));
+	preview->wb_picking = active;
 }
 
 static void

@@ -196,6 +196,11 @@ rs_preview_widget_update_display_colorspace(RSPreviewWidget *preview);
 extern void
 rs_preview_widget_set_argentico_pick(RSPreviewWidget *preview, gboolean active);
 
+/* Active/désactive le mode pipette balance des blancs : le prochain clic
+ * gauche dans l'aperçu prélève le WB (émet "wb-picked"), sans Ctrl. */
+extern void
+rs_preview_widget_set_wb_pick(RSPreviewWidget *preview, gboolean active);
+
 extern void
 rs_preview_widget_blank(RSPreviewWidget *preview);
 
