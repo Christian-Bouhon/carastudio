@@ -673,6 +673,37 @@ rs_library_photo_add_tag(RSLibrary *library, const gchar *filename, gint tag_id,
 }
 
 void
+rs_library_photo_remove_tag(RSLibrary *library, const gchar *filename, const gchar *tagname)
+{
+	g_return_if_fail(RS_IS_LIBRARY(library));
+	g_return_if_fail(filename != NULL);
+	g_return_if_fail(tagname != NULL);
+
+	if (!rs_library_has_database_connection(library)) return;
+
+	gint photo_id = library_find_photo_id(library, filename);
+	gint tag_id = library_find_tag_id(library, tagname);
+	if (photo_id == -1 || tag_id == -1)
+		return;
+
+	sqlite3_stmt *stmt;
+	gint rc;
+
+	g_mutex_lock(&library->id_lock);
+	rc = sqlite3_prepare_v2(library->db, "DELETE FROM phototags WHERE photo = ?1 AND tag = ?2;", -1, &stmt, NULL);
+	rc = sqlite3_bind_int(stmt, 1, photo_id);
+	rc = sqlite3_bind_int(stmt, 2, tag_id);
+	rc = sqlite3_step(stmt);
+	g_mutex_unlock(&library->id_lock);
+	if (rc != SQLITE_DONE)
+		library_sqlite_error(library->db, rc);
+	sqlite3_finalize(stmt);
+
+	/* Garde le fichier de sauvegarde des tags (.rawstudio) en phase */
+	rs_library_backup_tags(library, filename);
+}
+
+void
 rs_library_delete_photo(RSLibrary *library, const gchar *photo)
 {
 	g_return_if_fail(RS_IS_LIBRARY(library));

@@ -105,6 +105,7 @@ rs_core_actions_update_menu_items(RS_BLOB *rs)
 	rs_core_action_group_set_sensivity("Straighten", RS_IS_PHOTO(rs->photo));
 	rs_core_action_group_set_sensivity("Unstraighten", (RS_IS_PHOTO(rs->photo) && (rs->photo->angle != 0.0)));
 	rs_core_action_group_set_sensivity("TagPhoto", RS_IS_PHOTO(rs->photo));
+	rs_core_action_group_set_sensivity("RemoveTagPhoto", (num_selected > 0));
 	rs_core_action_group_set_sensivity("Group", (num_selected > 1));
 	rs_core_action_group_set_sensivity("Ungroup", (selected_groups > 0));
 	rs_core_action_group_set_sensivity("PackSelected", (num_selected > 0));
@@ -1041,6 +1042,110 @@ ACTION(tag_photo)
 	g_signal_connect(apply_button, "clicked", G_CALLBACK(tag_photo_input_changed), info);
 }
 
+ACTION(remove_tag_photo)
+{
+	RSLibrary *library = rs_library_get_singleton();
+	GList *selected = rs_store_get_selected_names(rs->store);
+	GList *s;
+
+	if (!selected)
+		return;
+
+	/* Union de TOUS les mots-clés (auto + manuels) des photos sélectionnées */
+	GHashTable *tagset = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+	for (s = selected; s != NULL; s = s->next)
+	{
+		GList *tags = rs_library_photo_tags(library, (gchar *) s->data, TRUE);
+		GList *t;
+		for (t = tags; t != NULL; t = t->next)
+			if (!g_hash_table_contains(tagset, t->data))
+				g_hash_table_insert(tagset, g_strdup((gchar *) t->data), GINT_TO_POINTER(1));
+		g_list_free_full(tags, g_free);
+	}
+
+	GtkWidget *dialog = gtk_dialog_new_with_buttons(_("Supprimer un mot-clé"),
+		GTK_WINDOW(rs->window),
+		GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+		_("Retirer"), GTK_RESPONSE_APPLY,
+		_("Fermer"), GTK_RESPONSE_CLOSE,
+		NULL);
+	gtk_window_set_default_size(GTK_WINDOW(dialog), 300, 340);
+	GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+	gtk_container_set_border_width(GTK_CONTAINER(content), 10);
+	gtk_box_set_spacing(GTK_BOX(content), 6);
+
+	GtkWidget *label = gtk_label_new(_("Sélectionnez le mot-clé à retirer de la sélection :"));
+	gtk_label_set_xalign(GTK_LABEL(label), 0.0);
+	gtk_label_set_line_wrap(GTK_LABEL(label), TRUE);
+	gtk_box_pack_start(GTK_BOX(content), label, FALSE, FALSE, 0);
+
+	GtkWidget *scroller = gtk_scrolled_window_new(NULL, NULL);
+	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroller),
+		GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	GtkWidget *listbox = gtk_list_box_new();
+	gtk_list_box_set_selection_mode(GTK_LIST_BOX(listbox), GTK_SELECTION_SINGLE);
+	gtk_container_add(GTK_CONTAINER(scroller), listbox);
+	gtk_box_pack_start(GTK_BOX(content), scroller, TRUE, TRUE, 0);
+
+	GtkWidget *status = gtk_label_new("");
+	gtk_label_set_xalign(GTK_LABEL(status), 0.0);
+	gtk_label_set_line_wrap(GTK_LABEL(status), TRUE);
+	gtk_box_pack_start(GTK_BOX(content), status, FALSE, FALSE, 0);
+
+	/* Remplit la liste (triée), le tag étant stocké sur chaque ligne */
+	GList *keys = g_hash_table_get_keys(tagset);
+	keys = g_list_sort(keys, (GCompareFunc) g_strcmp0);
+	GList *k;
+	for (k = keys; k != NULL; k = k->next)
+	{
+		GtkWidget *row = gtk_list_box_row_new();
+		GtkWidget *rlabel = gtk_label_new((gchar *) k->data);
+		gtk_label_set_xalign(GTK_LABEL(rlabel), 0.0);
+		gtk_widget_set_margin_start(rlabel, 6);
+		gtk_widget_set_margin_top(rlabel, 3);
+		gtk_widget_set_margin_bottom(rlabel, 3);
+		gtk_container_add(GTK_CONTAINER(row), rlabel);
+		g_object_set_data_full(G_OBJECT(row), "tag", g_strdup((gchar *) k->data), g_free);
+		gtk_list_box_insert(GTK_LIST_BOX(listbox), row, -1);
+	}
+	g_list_free(keys); /* clés possédées par la table */
+
+	if (g_hash_table_size(tagset) == 0)
+	{
+		gtk_label_set_text(GTK_LABEL(status), _("La sélection ne porte aucun mot-clé."));
+		gtk_dialog_set_response_sensitive(GTK_DIALOG(dialog), GTK_RESPONSE_APPLY, FALSE);
+	}
+
+	gtk_widget_show_all(dialog);
+
+	while (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_APPLY)
+	{
+		GtkListBoxRow *row = gtk_list_box_get_selected_row(GTK_LIST_BOX(listbox));
+		if (!row)
+		{
+			gtk_label_set_text(GTK_LABEL(status), _("Choisissez d'abord un mot-clé dans la liste."));
+			continue;
+		}
+		const gchar *tag = g_object_get_data(G_OBJECT(row), "tag");
+		for (s = selected; s != NULL; s = s->next)
+			rs_library_photo_remove_tag(library, (gchar *) s->data, tag);
+
+		gchar *msg = g_strdup_printf(_("« %s » retiré de la sélection. ✓"), tag);
+		gtk_label_set_text(GTK_LABEL(status), msg);
+		g_free(msg);
+
+		gtk_widget_destroy(GTK_WIDGET(row)); /* retire la ligne de la liste */
+
+		/* Plus aucun mot-clé restant ? */
+		if (gtk_list_box_get_row_at_index(GTK_LIST_BOX(listbox), 0) == NULL)
+			gtk_dialog_set_response_sensitive(GTK_DIALOG(dialog), GTK_RESPONSE_APPLY, FALSE);
+	}
+
+	gtk_widget_destroy(dialog);
+	g_hash_table_destroy(tagset);
+	g_list_free(selected);
+}
+
 ACTION(previous_photo)
 {
 	gchar *current_filename = NULL;
@@ -1954,6 +2059,7 @@ rs_get_core_action_group(RS_BLOB *rs)
 	{ "Ungroup", NULL, _("_Ungroup"), NULL, NULL, ACTION_CB(ungroup_photos) },
 	{ "AutoGroup", NULL, _("_Auto Group"), NULL, NULL, ACTION_CB(auto_group_photos) },
 	{ "TagPhoto", NULL, _("_Tag Photo..."), "<alt>T", NULL, ACTION_CB(tag_photo) },
+	{ "RemoveTagPhoto", NULL, _("_Retirer un mot-clé..."), NULL, NULL, ACTION_CB(remove_tag_photo) },
 	{ "RotateClockwise", RS_STOCK_ROTATE_CLOCKWISE, _("Rotate Clockwise"), "<alt>Right", NULL, ACTION_CB(rotate_clockwise) },
 	{ "RotateCounterClockwise", RS_STOCK_ROTATE_COUNTER_CLOCKWISE, _("Rotate Counterclockwise"), "<alt>Left", NULL, ACTION_CB(rotate_counter_clockwise) },
 	{ "Flip", RS_STOCK_FLIP, _("Flip"), NULL, NULL, ACTION_CB(flip) },
