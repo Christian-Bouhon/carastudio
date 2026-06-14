@@ -88,7 +88,13 @@ init(void)
 	if (!queue)
 	{
 		queue = g_async_queue_new();
-		for (i = 0; i < rs_get_number_of_processor_cores(); i++)
+		/* STABILISATION (14/06/2026) : on sérialise les workers IO sur UN SEUL
+		 * thread. En multi-worker, le décodage concurrent des vignettes RAW passe
+		 * par raw_thumbnail_reader → chaîne de filtres DCP, et corrompt une liste
+		 * partagée (rs_filter_changed / g_slist_length → SIGSEGV, famille #8).
+		 * Un seul worker = pas de concurrence sur ces chaînes. À rétablir en
+		 * multicœur une fois la corruption corrigée à la racine (diagnostic ASan). */
+		for (i = 0; i < 1; i++)
 			g_thread_new("io worker", queue_worker, queue);
 
 		io_lock_timer = g_timer_new();

@@ -3022,6 +3022,15 @@ rs_thumb_regen_idle_cb(gpointer data)
 static void
 rs_thumb_regen_enqueue(RSStore *store, const gchar *filename)
 {
+	/* DÉSACTIVÉ TEMPORAIREMENT (14/06/2026) : la régénération en masse au
+	 * chargement d'un dossier de RAW déjà édités fait planter l'appli par
+	 * corruption de tas dans le filtre DCP (rs_filter_response_clone, famille
+	 * #8/#16b). Le verrou IO ne suffit pas. En attendant un diagnostic ASan,
+	 * on neutralise l'enfilage : les vignettes intégrées s'affichent
+	 * normalement, et la mise à jour live à l'édition (rs_photo_update_thumbnail,
+	 * chaîne d'aperçu) reste opérationnelle car elle ne passe pas par ici. */
+	return;
+
 	RSThumbRegenItem *item = g_new(RSThumbRegenItem, 1);
 	item->store = g_object_ref(store);
 	item->filename = g_strdup(filename);
