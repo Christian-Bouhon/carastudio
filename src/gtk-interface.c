@@ -1759,10 +1759,10 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 			g_free(lwd);
 		}
 
-		gint last_priority_page = 0;
-		if (!rs_conf_get_integer(CONF_LAST_PRIORITY_PAGE, &last_priority_page))
-			rs_conf_set_integer(CONF_LAST_PRIORITY_PAGE, 0);
-		rs_store_set_current_page(rs->store, last_priority_page);
+		/* Toujours démarrer sur la page 0 « Toutes les photos » : restaurer un
+		 * filtre de priorité (ex. « 1 ») au lancement masquait les photos sans
+		 * priorité → l'utilisateur croyait le dossier vide. */
+		rs_store_set_current_page(rs->store, 0);
 
 	}
 	/* Construct this to load dcp profiles early */
