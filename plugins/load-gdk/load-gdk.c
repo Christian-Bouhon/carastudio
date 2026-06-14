@@ -122,7 +122,14 @@ load_gdk(const gchar *filename)
 		rs_filter_response_set_height(response, image->h);
 		g_object_unref(image);
 		rs_filter_param_set_object(RS_FILTER_PARAM(response), "embedded-colorspace", input_space);
-		rs_filter_param_set_boolean(RS_FILTER_PARAM(response), "is-premultiplied", TRUE);
+		/* CaraStudio : on NE marque PLUS l'image 8 bits comme « WB déjà cuite »
+		 * (is-premultiplied=FALSE) → RSColorspaceTransform applique les
+		 * multiplicateurs WB (premul) en espace linéaire, rendant la balance des
+		 * blancs réglable sur les JPEG/TIFF. La neutralité au repos est assurée
+		 * en initialisant ces photos en WB boîtier (cam_mul=1,1,1 → tint=1 →
+		 * premul=(1,1,1)), cf. rs_photo. Toute la chaîne WB (pipette/curseur/auto)
+		 * reste cohérente car elle partage la même formule premul. */
+		rs_filter_param_set_boolean(RS_FILTER_PARAM(response), "is-premultiplied", FALSE);
 	}
 	return response;
 }

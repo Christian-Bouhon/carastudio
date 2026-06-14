@@ -724,7 +724,16 @@ rs_photo_set_wb_from_camera(RS_PHOTO *photo, const gint snapshot)
 
 	if (!((snapshot>=0) && (snapshot<=2))) return FALSE;
 
-	if (!photo->dcp)
+	if (photo->embedded_profile && photo->metadata && photo->metadata->cam_mul[R] != -1.0)
+	{
+		/* CaraStudio : images 8 bits (JPEG/TIFF). Leur WB passe par le premul,
+		 * pas par dcp-temp. La WB « boîtier » = multiplicateurs du fichier
+		 * (typiquement 1,1,1 → warmth=0/tint=1 → neutre). On passe donc par
+		 * set_wb_from_mul, sinon warmth/tint restaient faux (→ dérive bleu-vert). */
+		rs_photo_set_wb_from_mul(photo, snapshot, photo->metadata->cam_mul, PRESET_WB_CAMERA);
+		ret = TRUE;
+	}
+	else if (!photo->dcp)
 	{
 		rs_settings_commit_start(photo->settings[snapshot]);
 		g_object_set(photo->settings[snapshot], "dcp-temp", 5000.0, "dcp-tint", 0.0, "wb_ascii", PRESET_WB_CAMERA, "recalc_temp", FALSE, NULL);
@@ -819,6 +828,23 @@ rs_photo_load_from_file(const gchar *filename)
 				RSColorSpace *cs = rs_color_space_icc_new_from_icc(photo->icc);
 				rs_filter_param_set_object(RS_FILTER_PARAM(photo->input_response), "colorspace", cs);
 				photo->dcp = NULL;
+			}
+		}
+
+		/* CaraStudio : images 8 bits (JPEG/TIFF via load-gdk → embedded_profile).
+		 * Leur WB passe par le premul (formule RAW), neutre quand warmth=0/tint=1.
+		 * Or rs_photo_set_wb_from_camera laisse warmth/tint à (0,0) pour ces photos
+		 * (branche !dcp), donnant premul=(2,1,2) → dérive magenta au repos. On
+		 * initialise donc tint=1 lorsque la WB n'a jamais été réglée (warmth=0 ET
+		 * tint=0), sans écraser une WB utilisateur existante. */
+		if (photo->embedded_profile)
+		{
+			for (i = 0; i < 3; i++)
+			{
+				gfloat w = 0.0, t = 0.0;
+				g_object_get(photo->settings[i], "warmth", &w, "tint", &t, NULL);
+				if (w == 0.0 && t == 0.0)
+					rs_settings_set_wb(photo->settings[i], 0.0, 1.0, PRESET_WB_CAMERA);
 			}
 		}
 
