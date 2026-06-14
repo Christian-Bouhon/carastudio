@@ -93,7 +93,11 @@ gint calculate_lightness(RSFilter *filter)
 gint export_image(gchar *filename, GHashTable *cache, RSOutput *output, RSFilter *filter, gint snapshot, double exposure, gchar *outputname, gint boundingbox, RSFilter *resample) {
   RS_PHOTO *photo = NULL;
 
-  if (cache) 
+  /* Garde-fou : un filename NULL ferait planter g_hash_table_lookup/g_str_hash */
+  if (filename == NULL)
+    return -1;
+
+  if (cache)
     {
       photo = (RS_PHOTO *) g_hash_table_lookup(cache, filename);
       if (!photo)
@@ -215,29 +219,33 @@ GList * export_images(RS_BLOB *rs, GList *files, gboolean extend, gint dark, gfl
   if (extend)
     {
       gint n;
-      for (n = 1; n <= dark; n++)
-	{
-	  output_unique = g_string_new(output_str->str);
-	  g_string_append_printf(output_unique, "%d", i);
-	  g_string_append_printf(output_unique, "_%.1f", (darkstep*n*-1));
-	  output_unique = g_string_append(output_unique, ".png");
-	  exported_names = g_list_append(exported_names, g_strdup(output_unique->str));
-	  export_image(darkest, rs->enfuse_cache, output, fend, 0, (darkstep*n*-1), output_unique->str, boundingbox, fresample); /* FIXME: snapshot hardcoded */
-	  g_string_free(output_unique, TRUE);
-	  i++;
-	}
+      /* darkest/brightest peuvent rester NULL si aucune image n'a satisfait
+         les tests de luminosité : on saute alors la passe correspondante. */
+      if (darkest)
+	for (n = 1; n <= dark; n++)
+	  {
+	    output_unique = g_string_new(output_str->str);
+	    g_string_append_printf(output_unique, "%d", i);
+	    g_string_append_printf(output_unique, "_%.1f", (darkstep*n*-1));
+	    output_unique = g_string_append(output_unique, ".png");
+	    exported_names = g_list_append(exported_names, g_strdup(output_unique->str));
+	    export_image(darkest, rs->enfuse_cache, output, fend, 0, (darkstep*n*-1), output_unique->str, boundingbox, fresample); /* FIXME: snapshot hardcoded */
+	    g_string_free(output_unique, TRUE);
+	    i++;
+	  }
       g_free(darkest);
-      for (n = 1; n <= bright; n++)
-	{
-	  output_unique = g_string_new(output_str->str);
-	  g_string_append_printf(output_unique, "%d", i);
-	  g_string_append_printf(output_unique, "_%.1f", (brightstep*n));
-	  output_unique = g_string_append(output_unique, ".png");
-	  exported_names = g_list_append(exported_names, g_strdup(output_unique->str));
-	  export_image(brightest, rs->enfuse_cache, output, fend, 0, (brightstep*n), output_unique->str, boundingbox, fresample); /* FIXME: snapshot hardcoded */
-	  g_string_free(output_unique, TRUE);
-	  i++;
-	}
+      if (brightest)
+	for (n = 1; n <= bright; n++)
+	  {
+	    output_unique = g_string_new(output_str->str);
+	    g_string_append_printf(output_unique, "%d", i);
+	    g_string_append_printf(output_unique, "_%.1f", (brightstep*n));
+	    output_unique = g_string_append(output_unique, ".png");
+	    exported_names = g_list_append(exported_names, g_strdup(output_unique->str));
+	    export_image(brightest, rs->enfuse_cache, output, fend, 0, (brightstep*n), output_unique->str, boundingbox, fresample); /* FIXME: snapshot hardcoded */
+	    g_string_free(output_unique, TRUE);
+	    i++;
+	  }
       g_free(brightest);
     }
 
@@ -283,7 +291,7 @@ void enfuse_images(GList *files, gchar *out, gchar *options, gboolean has_enfuse
       if (has_enfuse_mp)
 	command = g_string_new("enfuse-mp ");
       else
-	command = g_string_new("enfuse");
+	command = g_string_new("enfuse ");
       for(i=0; i<num_selected; i++)
 	{
 	  name = (gchar*) g_list_nth_data(files, i);
@@ -396,14 +404,19 @@ gchar * rs_enfuse(RS_BLOB *rs, GList *files, gboolean quick, gint boundingbox)
 	  name = (gchar*) g_list_nth_data(files, i);
 	  if (first == NULL)
 	    first = g_strdup(name);
-	  file = g_malloc(sizeof(char)*strlen(name));
-	  sscanf(g_path_get_basename(name), "%[^.]", file);
+	  gchar *basename = g_path_get_basename(name);
+	  /* +1 pour le '\0' : sinon sscanf ecrit hors du buffer et corrompt le tas */
+	  file = g_malloc(sizeof(char)*(strlen(basename)+1));
+	  sscanf(basename, "%[^.]", file);
 	  outname = g_string_append(outname, file);
 	  g_free(file);
+	  g_free(basename);
 	  if (i+1 != num_selected)
 	    outname = g_string_append(outname, "+");
 	}
-      fullpath = g_string_new(g_path_get_dirname(name));
+      gchar *dirname = g_path_get_dirname(name);
+      fullpath = g_string_new(dirname);
+      g_free(dirname);
       fullpath = g_string_append(fullpath, "/");
       fullpath = g_string_append(fullpath, outname->str);
       fullpath = g_string_append(fullpath, "_%2c");
@@ -477,10 +490,15 @@ gchar * rs_enfuse(RS_BLOB *rs, GList *files, gboolean quick, gint boundingbox)
 
 gboolean has_enfuse_mp()
 {
-  if (popen("enfuse-mp", "r"))
-    return TRUE;
-  else
-    return FALSE;
+  /* popen() reussit toujours (il fork un shell) : il faut chercher le
+     binaire dans le PATH pour savoir s'il est reellement installe. */
+  gchar *path = g_find_program_in_path("enfuse-mp");
+  if (path)
+    {
+      g_free(path);
+      return TRUE;
+    }
+  return FALSE;
 }
 
 gboolean rs_has_enfuse (gint major, gint minor)
