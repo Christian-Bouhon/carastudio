@@ -19,6 +19,7 @@
 
 #include <rawstudio.h>
 #include <string.h> /* memset() */
+#include <stdio.h> /* [WBPIP] trace comparative ART vs CaraStudio (#21) — temporaire */
 #include "rs-photo.h"
 #include "rs-cache.h"
 #include "rs-camera-db.h"
@@ -622,6 +623,38 @@ rs_photo_set_wb_from_color(RS_PHOTO *photo, const gint snapshot, const gdouble r
 	warmth = (b-r)/(r+b); /* r*(1+warmth) = b*(1-warmth) */
 	tint = -g/(r+r*warmth)+2.0; /* magic */
 
+	/* [WBPIP] instrumentation comparative ART vs CaraStudio (#21) — TEMPORAIRE.
+	 * Ne modifie PAS le calcul : on logge le triplet prélevé, le warmth/tint
+	 * obtenu, et la température/teinte colorimétrique équivalente du spot
+	 * (sRGB D65 -> XYZ -> xy -> Robertson) afin de comparer aux nombres
+	 * qu'ART affiche en mode verbose (AVG + temp/green) sur le MÊME point. */
+	{
+		FILE *wbpip = fopen("/tmp/carastudio_wb.log", "a");
+		if (wbpip)
+		{
+			static const gdouble srgb_to_xyz[3][3] = {
+				{ 0.4124564, 0.3575761, 0.1804375 },
+				{ 0.2126729, 0.7151522, 0.0721750 },
+				{ 0.0193339, 0.1191920, 0.9503041 }
+			};
+			RS_XYZ_VECTOR xyz;
+			RS_xy_COORD xy;
+			gfloat ctemp = 0.0f, ctint = 0.0f;
+
+			xyz.X = srgb_to_xyz[0][0]*r + srgb_to_xyz[0][1]*g + srgb_to_xyz[0][2]*b;
+			xyz.Y = srgb_to_xyz[1][0]*r + srgb_to_xyz[1][1]*g + srgb_to_xyz[1][2]*b;
+			xyz.Z = srgb_to_xyz[2][0]*r + srgb_to_xyz[2][1]*g + srgb_to_xyz[2][2]*b;
+			xy = XYZ_to_xy(&xyz);
+			rs_color_whitepoint_to_temp(&xy, &ctemp, &ctint);
+
+			fprintf(wbpip,
+				"[WBPIP] %-4s spot r=%.4f g=%.4f b=%.4f | warmth=%.4f tint=%.4f | xy=(%.4f,%.4f) temp=%.0fK tint_col=%.4f\n",
+				photo->embedded_profile ? "8bit" : "RAW",
+				r, g, b, warmth, tint, xy.x, xy.y, ctemp, ctint);
+			fclose(wbpip);
+		}
+	}
+
 	rs_photo_set_wb_from_wt(photo, snapshot, warmth, tint);
 }
 
@@ -669,7 +702,8 @@ rs_photo_set_wb_auto(RS_PHOTO *photo, const gint snapshot)
 	  return;
 
 	RS_IMAGE16 *input = calculate_auto_wb_data(photo);
-	gint row, col, x, y, c, val;
+	gint row, col, x, y, c, pass;
+	gint pr, pg, pb, mx, mn;
 	gint sum[8];
 	gdouble pre_mul[4];
 	gdouble dsum[8];
@@ -677,29 +711,72 @@ rs_photo_set_wb_auto(RS_PHOTO *photo, const gint snapshot)
 	g_assert(RS_IS_PHOTO(photo));
 	g_return_if_fail ((snapshot>=0) && (snapshot<=2));
 
-	for (c=0; c < 8; c++)
-		dsum[c] = 0.0;
+	/* CaraStudio : grey-world ROBUSTE pour les images 8 bits (JPEG/TIFF).
+	 * Le grey-world classique force la moyenne de TOUTE l'image au gris ;
+	 * sur une scène à dominante chaude (plage, bois, soleil couchant) il
+	 * sur-refroidit → grosse dominante bleue. Correction : ne moyenner que
+	 * les pixels PROCHES DU NEUTRE (faible saturation) pour que les sujets
+	 * colorés ne biaisent plus la balance. Si trop peu de pixels neutres
+	 * (scène uniformément colorée), on retombe automatiquement sur le
+	 * grey-world classique → jamais de résultat aberrant. Les RAW gardent
+	 * le comportement d'origine (passe non filtrée) : à ce stade le signal
+	 * est camera-linéaire vert-dominant, un « neutre » n'y est pas équilibré. */
+	gboolean robust = (photo->embedded_profile != NULL);
+	gboolean robust_insufficient = FALSE;
 
-	for (row=0; row < input->h-15; row += 8)
-		for (col=0; col < input->w-15; col += 8)
-		{
-			memset (sum, 0, sizeof sum);
-			for (y=row; y < row+8; y++)
-				for (x=col; x < col+8; x++)
-					for(c=0;c<3;c++)
+	for (pass = 0; pass < 2; pass++)
+	{
+		gboolean reject_colored = robust && (pass == 0);
+
+		for (c=0; c < 8; c++)
+			dsum[c] = 0.0;
+
+		for (row=0; row < input->h-15; row += 8)
+			for (col=0; col < input->w-15; col += 8)
+			{
+				memset (sum, 0, sizeof sum);
+				for (y=row; y < row+8; y++)
+					for (x=col; x < col+8; x++)
 					{
-						val = input->pixels[y*input->rowstride+x*4+c];
-						if (!val) continue;
-						if (val > 65100)
-							goto skip_block; /* I'm sorry mom */
-						sum[c] += val;
-						sum[c+4]++;
+						pr = input->pixels[y*input->rowstride+x*4+R];
+						pg = input->pixels[y*input->rowstride+x*4+G];
+						pb = input->pixels[y*input->rowstride+x*4+B];
+						if (pr > 65100 || pg > 65100 || pb > 65100)
+							goto skip_block; /* bloc quasi-écrêté */
+						if (pr <= 0 || pg <= 0 || pb <= 0)
+							continue;
+						if (reject_colored)
+						{
+							mx = MAX(pr, MAX(pg, pb));
+							mn = MIN(pr, MIN(pg, pb));
+							/* (max-min)/max > 20 % = pixel coloré → rejeté */
+							if ((mx - mn) * 5 > mx)
+								continue;
+						}
+						sum[R] += pr; sum[R+4]++;
+						sum[G] += pg; sum[G+4]++;
+						sum[B] += pb; sum[B+4]++;
 					}
-			for (c=0; c < 8; c++)
-				dsum[c] += sum[c];
+				for (c=0; c < 8; c++)
+					dsum[c] += sum[c];
 skip_block:
 							continue;
-		}
+			}
+
+		/* Passe non filtrée (RAW) = résultat final ; sinon on valide qu'on a
+		 * assez de pixels neutres. */
+		if (!reject_colored || dsum[R+4] >= 256.0)
+			break;
+		/* 8 bits avec trop peu de neutres : NE PAS retomber sur le greyworld
+		 * classique (il sur-refroidit les scènes colorées → bleu-vert). On
+		 * impose une WB neutre, jamais aberrante. */
+		robust_insufficient = TRUE;
+		break;
+	}
+
+	if (robust_insufficient)
+		for (c = 0; c < 4; c++) { dsum[c] = 1.0; dsum[c+4] = 1.0; }
+
 	for(c=0;c<4;c++)
 		if (dsum[c])
 		{

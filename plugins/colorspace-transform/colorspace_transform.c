@@ -110,8 +110,9 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 
 	for( i = 0; i < 4; i++)
 		colorspace_transform->premul[i] = 1.0f;
+	colorspace_transform->has_premul = FALSE;
 
-	if (input_space && output_space && (input_space != output_space))
+	if (input_space && output_space)
 	{
 		gboolean is_premultiplied = FALSE;
 		rs_filter_param_get_boolean(RS_FILTER_PARAM(previous_response), "is-premultiplied", &is_premultiplied);
@@ -120,25 +121,40 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 			colorspace_transform->has_premul = rs_filter_param_get_float4(RS_FILTER_PARAM(request), "premul", colorspace_transform->premul);
 		rs_cmm_set_premul(colorspace_transform->cmm, colorspace_transform->premul);
 
-		output = rs_image16_copy(input, FALSE);
+		/* CaraStudio : on entre dans la conversion si les espaces diffèrent OU
+		 * s'il y a un premul (WB) à appliquer. Sinon, quand l'espace embarqué
+		 * de la photo coïncide avec l'espace demandé en aval (le DCP demande du
+		 * ProPhoto), la branche était sautée et la balance des blancs 8 bits
+		 * était SILENCIEUSEMENT perdue (ni pipette ni Auto n'avaient d'effet).
+		 * convert_colorspace16 gère le cas même-espace + premul : mat =
+		 * b·a·diag(premul) avec b·a = identité → application du premul seul. */
+		if (input_space != output_space || colorspace_transform->has_premul)
+		{
+			output = rs_image16_copy(input, FALSE);
 
-		if (convert_colorspace16(colorspace_transform, input, output, input_space, output_space, roi))
+			if (convert_colorspace16(colorspace_transform, input, output, input_space, output_space, roi))
+			{
+				/* Image was converted */
+				response = rs_filter_response_clone(previous_response);
+				g_object_unref(previous_response);
+				if (colorspace_transform->has_premul)
+					rs_filter_param_set_boolean(RS_FILTER_PARAM(response), "is-premultiplied", TRUE);
+				rs_filter_param_set_object(RS_FILTER_PARAM(response), "colorspace", output_space);
+				rs_filter_response_set_image(response, output);
+				g_object_unref(output);
+				g_object_unref(input);
+				return response;
+			} else
+			{
+				/* No conversion was needed */
+				g_object_unref(input);
+				g_object_unref(output);
+				return previous_response;
+			}
+		}
+		else
 		{
-			/* Image was converted */
-			response = rs_filter_response_clone(previous_response);
-			g_object_unref(previous_response);
-			if (colorspace_transform->has_premul)
-				rs_filter_param_set_boolean(RS_FILTER_PARAM(response), "is-premultiplied", TRUE);
-			rs_filter_param_set_object(RS_FILTER_PARAM(response), "colorspace", output_space);
-			rs_filter_response_set_image(response, output);
-			g_object_unref(output);
 			g_object_unref(input);
-			return response;
-		} else
-		{
-			/* No conversion was needed */
-			g_object_unref(input);
-			g_object_unref(output);
 			return previous_response;
 		}
 	}
