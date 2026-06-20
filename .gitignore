@@ -36,7 +36,7 @@
 /install-sh
 /libtool
 /ltmain.sh
-/librawstudio/rawstudio-2.1.pc
+/librawstudio/rawstudio-*.pc
 /m4
 /profiles/write-dcp
 /profiles/*simple.dcp

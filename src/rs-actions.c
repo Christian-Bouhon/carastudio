@@ -1646,6 +1646,10 @@ ACTION(online_documentation)
 ACTION(about)
 {
 	const static gchar *authors[] = {
+		"CaraStudio — Carafife",
+		"https://github.com/carafife/CaraStudio",
+		"",
+		"D'après / based on RawStudio (rawstudio.org) :",
 		"Anders Brander <anders@brander.dk>",
 		"Anders Kvist <anders@kvistmail.dk>",
 		"Klaus Post <klauspost@gmail.com>",
@@ -1694,9 +1698,11 @@ ACTION(about)
 		"authors", authors,
 		"artists", artists,
 		"translator-credits", translators,
-		"comments", _("A raw image converter for GTK+/GNOME"),
+		"comments", _("Développeur de photos RAW, convivial et accessible — un fork de RawStudio par Carafife."),
 		"version", RAWSTUDIO_VERSION,
+		"copyright", "© 2026 Carafife (CaraStudio)\n© RawStudio team",
 		"website", "https://github.com/carafife/CaraStudio",
+		"website-label", "github.com/carafife/CaraStudio",
 		"name", "CaraStudio",
 		NULL
 	);
