@@ -632,6 +632,16 @@ main(int argc, char **argv)
 	dbus_threads_init_default();
 
 #ifdef ENABLE_NLS
+	/* Langue de l'interface. Si l'utilisateur a choisi une langue dans
+	   CaraStudio (conf « ui-language » : "fr" ou "en"), on force le catalogue
+	   gettext correspondant via la variable LANGUAGE, AVANT le chargement des
+	   textes. Sans réglage, on suit la locale système (comportement d'origine). */
+	{
+		gchar *ui_lang = rs_conf_get_string("ui-language");
+		if (ui_lang && ui_lang[0])
+			g_setenv("LANGUAGE", ui_lang, TRUE);
+		g_free(ui_lang);
+	}
 	bindtextdomain(GETTEXT_PACKAGE, PACKAGE_LOCALE_DIR);
 	bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");
 	textdomain(GETTEXT_PACKAGE);

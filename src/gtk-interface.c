@@ -33,6 +33,7 @@
 #include "rs-batch.h"
 #include <string.h>
 #include <unistd.h>
+#include <locale.h>
 #include "filename.h"
 #include "rs-store.h"
 #include "rs-preview-widget.h"
@@ -1362,9 +1363,16 @@ pane_position(GtkWidget* widget, gpointer dummy, gpointer user_data)
 	GtkPaned *paned = GTK_PANED(widget);
 	gint pos;
 	gint window_width;
+	gint toolbox_width;
 	gtk_window_get_size(rawstudio_window, &window_width, NULL);
 	pos = gtk_paned_get_position(paned);
-	rs_conf_set_integer(CONF_TOOLBOX_WIDTH, window_width - pos);
+	toolbox_width = window_width - pos;
+	/* Ne pas enregistrer une largeur aberrante : pendant la construction de la
+	   fenêtre, notify::position peut se déclencher avec une taille transitoire,
+	   ce qui sauvegardait un toolbox_width ≈ 0 → panneau réduit à néant au
+	   lancement suivant. On n'enregistre que des valeurs plausibles. */
+	if (toolbox_width >= 150 && toolbox_width <= window_width - 100)
+		rs_conf_set_integer(CONF_TOOLBOX_WIDTH, toolbox_width);
 	return TRUE;
 }
 
@@ -1449,6 +1457,61 @@ cs_icon_label_button(const gchar *icon_name, const gchar *label_text)
 	return btn;
 }
 
+/* — Bascule de langue FR/EN (s'applique au redémarrage) — */
+
+/* Demande de relance posée par le bouton de langue ; honorée après gtk_main(). */
+static gboolean cs_relaunch_requested = FALSE;
+static char   **cs_saved_argv = NULL; /* argv d'origine, pour la ré-exécution */
+
+/* Langue d'interface courante : "fr" ou "en". Priorité à la conf « ui-language »,
+   sinon déduite de l'environnement/locale (défaut "fr"). À libérer. */
+static gchar *
+cs_current_ui_lang(void)
+{
+	gchar *l = rs_conf_get_string("ui-language");
+	if (l && (g_str_has_prefix(l, "fr") || g_str_has_prefix(l, "en")))
+		return l;
+	g_free(l);
+
+	const gchar *env = g_getenv("LANGUAGE");
+	if (!env || !*env)
+		env = setlocale(LC_MESSAGES, NULL);
+	if (env && g_str_has_prefix(env, "en"))
+		return g_strdup("en");
+	return g_strdup("fr");
+}
+
+/* Clic sur le bouton de langue : propose de basculer FR↔EN puis de redémarrer. */
+static void
+cs_language_clicked(GtkWidget *button, RS_BLOB *rs)
+{
+	gchar *cur = cs_current_ui_lang();
+	const gchar *next = (g_strcmp0(cur, "en") == 0) ? "fr" : "en";
+	g_free(cur);
+
+	GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(rs->window),
+		GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+		GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE,
+		"%s", (g_strcmp0(next, "en") == 0)
+			? _("Passer l'interface en anglais ?")
+			: _("Passer l'interface en français ?"));
+	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
+		"%s", _("CaraStudio doit redémarrer pour appliquer le changement de langue."));
+	gtk_dialog_add_button(GTK_DIALOG(dialog), _("Annuler"), GTK_RESPONSE_CANCEL);
+	gtk_dialog_add_button(GTK_DIALOG(dialog), _("Redémarrer"), GTK_RESPONSE_ACCEPT);
+	gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+
+	gint resp = gtk_dialog_run(GTK_DIALOG(dialog));
+	gtk_widget_destroy(dialog);
+
+	if (resp != GTK_RESPONSE_ACCEPT)
+		return;
+
+	rs_conf_set_string("ui-language", next);
+	cs_relaunch_requested = TRUE;
+	rs_core_action_group_activate("Quit"); /* sauvegarde des réglages + gtk_main_quit */
+}
+
 int
 gui_init(int argc, char **argv, RS_BLOB *rs)
 {
@@ -1468,7 +1531,9 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	GtkWidget *hbox; /* for statusbar */
 	GtkWidget *valuefield[3];
 
-	
+	/* Mémorise argv pour une éventuelle ré-exécution (bascule de langue). */
+	cs_saved_argv = argv;
+
 	gtk_window_set_default_icon_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S PACKAGE ".png", NULL);
 	rs->window = gui_window_make(rs);
 	gtk_widget_show(rs->window);
@@ -1609,7 +1674,11 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	pane = gtk_hpaned_new();
 	g_signal_connect_after(G_OBJECT(pane), "notify::position", G_CALLBACK(pane_position), NULL);
 	gtk_paned_pack1(GTK_PANED(pane), left_vbox,  TRUE,  TRUE);
-	gtk_paned_pack2(GTK_PANED(pane), right_vbox, FALSE, TRUE);
+	/* shrink=FALSE : le panneau d'outils ne peut pas être réduit sous sa largeur
+	   naturelle → la colonne des valeurs (à droite) reste toujours visible sans
+	   que l'utilisateur ait à tirer la poignée. Rend aussi impossible l'escamotage
+	   accidentel à ~0 px. La poignée reste utilisable pour l'élargir. */
+	gtk_paned_pack2(GTK_PANED(pane), right_vbox, FALSE, FALSE);
 
 	/* Vertical packing box */
 	vbox = gtk_vbox_new (FALSE, 0);
@@ -1666,6 +1735,19 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		g_signal_connect_swapped(btn_split, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Split");
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_split, FALSE, FALSE, 0);
 
+		/* CaraStudio : bouton de langue FR/EN, calé à droite de la barre. Le
+		 * libellé montre la langue CIBLE (ce que le clic appliquera). */
+		{
+			gchar *cur = cs_current_ui_lang();
+			const gchar *target = (g_strcmp0(cur, "en") == 0) ? "FR" : "EN";
+			GtkWidget *btn_lang = cs_icon_label_button("preferences-desktop-locale", target);
+			gtk_widget_set_tooltip_text(btn_lang,
+				_("Changer la langue de l'interface (français/anglais)"));
+			g_signal_connect(btn_lang, "clicked", G_CALLBACK(cs_language_clicked), rs);
+			gtk_box_pack_end(GTK_BOX(view_toolbar), btn_lang, FALSE, FALSE, 0);
+			g_free(cur);
+		}
+
 		gtk_box_pack_start(GTK_BOX(vbox), view_toolbar, FALSE, TRUE, 0);
 	}
     
@@ -1689,6 +1771,10 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	gtk_widget_show_all (rs->window);
 	toolbox_width = 240;
 	rs_conf_get_integer(CONF_TOOLBOX_WIDTH, &toolbox_width);
+	/* Borne de sécurité : une conf corrompue (largeur ≈ 0) escamoterait le
+	   panneau d'outils sans retour possible. On revient au défaut si hors plage. */
+	if (toolbox_width < 150 || toolbox_width > 1200)
+		toolbox_width = 240;
 	gdk_threads_enter();
 	GTK_CATCHUP();
 	gdk_threads_leave();
@@ -1784,5 +1870,19 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	gdk_threads_enter();
 	gtk_main();
 	gdk_threads_leave();
+
+	/* Bascule de langue demandée : les réglages ont été sauvegardés par l'action
+	   Quit, on relance CaraStudio qui relira « ui-language » au démarrage.
+	   execv remplace le processus → pas de conflit (verrou sqlite, etc.). */
+	if (cs_relaunch_requested && cs_saved_argv)
+	{
+		gchar *exe = g_file_read_link("/proc/self/exe", NULL);
+		if (exe)
+		{
+			execv(exe, cs_saved_argv);
+			g_free(exe); /* atteint seulement si execv échoue */
+		}
+	}
+
 	return(0);
 }
