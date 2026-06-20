@@ -1613,35 +1613,34 @@ ACTION(add_profile)
 
 ACTION(online_documentation)
 {
-	const gchar *link = "https://github.com/rawstudio/rawstudio";
-
-	gchar *argv[]= {
-		"gnome-open", /* this feels like cheating! */
-		(gchar *) link,
-		NULL
-		};
-
 	GError *error = NULL;
-	gint status = 0;
-	gboolean res;
 
-	res = g_spawn_sync(
-		NULL /*PWD*/,
-		argv,
-		NULL /*envp*/,
-		G_SPAWN_SEARCH_PATH, /*flags*/
-		NULL, /*setup_func*/
-		NULL, /*user data for setup*/
-		NULL,
-		NULL, /* stdin/out/error */
-		&status,
-		&error);
+	/* Langue de l'aide : suit le choix « ui-language » (sinon LANGUAGE, sinon
+	   français par défaut). On ouvre le manuel HTML LOCAL installé avec le
+	   programme, dans le navigateur de l'utilisateur. */
+	const gchar *lang = "fr";
+	gchar *conf_lang = rs_conf_get_string("ui-language");
+	const gchar *env_lang = g_getenv("LANGUAGE");
+	if (conf_lang && g_str_has_prefix(conf_lang, "en"))
+		lang = "en";
+	else if ((!conf_lang || !conf_lang[0]) && env_lang && g_str_has_prefix(env_lang, "en"))
+		lang = "en";
 
-	if(!res)
+	gchar *fname = g_strdup_printf("index.%s.html", lang);
+	gchar *path = g_build_filename(PACKAGE_DATA_DIR, PACKAGE, "help", fname, NULL);
+	gchar *uri = g_filename_to_uri(path, NULL, NULL);
+
+	if (!uri || !gtk_show_uri_on_window(GTK_WINDOW(rawstudio_window), uri, GDK_CURRENT_TIME, &error))
 	{
-		gui_status_error(_("Could not open browser, please go to http://rawstudio.org/documentation"));
-		return ;
+		gui_status_error(_("Could not open the help file in your browser."));
+		if (error)
+			g_error_free(error);
 	}
+
+	g_free(conf_lang);
+	g_free(fname);
+	g_free(path);
+	g_free(uri);
 }
 
 ACTION(about)
@@ -2082,7 +2081,7 @@ rs_get_core_action_group(RS_BLOB *rs)
 	{ "PackSelected", "drive-harddisk", _("_Pack selected"), NULL, NULL, ACTION_CB(PackSelected) },
 
 	/* help menu */
-	{ "OnlineDocumentation", "help-browser", _("_Online Documentation"), NULL, NULL, ACTION_CB(online_documentation) },
+	{ "OnlineDocumentation", "help-browser", _("CaraStudio _Help"), "F1", NULL, ACTION_CB(online_documentation) },
 	{ "About", "help-about", _("_About"), NULL, NULL, ACTION_CB(about) },
 	{ "FilterGraph", NULL, "_Filter Graph", NULL, NULL, ACTION_CB(filter_graph) },
 
