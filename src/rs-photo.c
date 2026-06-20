@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -19,6 +19,7 @@
 
 #include <rawstudio.h>
 #include <string.h> /* memset() */
+#include <stdio.h> /* [WBPIP] trace comparative ART vs CaraStudio (#21) — temporaire */
 #include "rs-photo.h"
 #include "rs-cache.h"
 #include "rs-camera-db.h"
@@ -165,7 +166,7 @@ photo_settings_changed_cb(RSSettings *settings, RSSettingsMask mask, gpointer us
 		for(i=0;i<3;i++)
 			if (settings == photo->settings[i])
 			{
-				g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, mask|(i<<24));
+				g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, RS_PACK_SNAPSHOT(mask, i));
 				break;
 			}
 }
@@ -338,7 +339,7 @@ rs_photo_set_##setting(RS_PHOTO *photo, const gint snapshot, const gdouble value
 	/*if (!photo) return;*/ \
 	/*g_return_if_fail ((snapshot>=0) && (snapshot<=2));*/ \
 	photo->settings[snapshot]->setting = value; \
-	g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, MASK_##uppersetting|(snapshot<<24)); \
+	g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, RS_PACK_SNAPSHOT(MASK_##uppersetting, snapshot)); \
 }
 
 RS_PHOTO_SET_GDOUBLE_VALUE(exposure, EXPOSURE)
@@ -564,7 +565,7 @@ rs_photo_set_wb_from_wt(RS_PHOTO *photo, const gint snapshot, const gdouble warm
 
 	rs_settings_set_wb(photo->settings[snapshot], warmth, tint, NULL);
 
-	g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, MASK_WB|(snapshot<<24));
+	g_signal_emit(photo, signals[SETTINGS_CHANGED], 0, RS_PACK_SNAPSHOT(MASK_WB, snapshot));
 }
 
 /**
@@ -622,6 +623,38 @@ rs_photo_set_wb_from_color(RS_PHOTO *photo, const gint snapshot, const gdouble r
 	warmth = (b-r)/(r+b); /* r*(1+warmth) = b*(1-warmth) */
 	tint = -g/(r+r*warmth)+2.0; /* magic */
 
+	/* [WBPIP] instrumentation comparative ART vs CaraStudio (#21) — TEMPORAIRE.
+	 * Ne modifie PAS le calcul : on logge le triplet prélevé, le warmth/tint
+	 * obtenu, et la température/teinte colorimétrique équivalente du spot
+	 * (sRGB D65 -> XYZ -> xy -> Robertson) afin de comparer aux nombres
+	 * qu'ART affiche en mode verbose (AVG + temp/green) sur le MÊME point. */
+	{
+		FILE *wbpip = fopen("/tmp/carastudio_wb.log", "a");
+		if (wbpip)
+		{
+			static const gdouble srgb_to_xyz[3][3] = {
+				{ 0.4124564, 0.3575761, 0.1804375 },
+				{ 0.2126729, 0.7151522, 0.0721750 },
+				{ 0.0193339, 0.1191920, 0.9503041 }
+			};
+			RS_XYZ_VECTOR xyz;
+			RS_xy_COORD xy;
+			gfloat ctemp = 0.0f, ctint = 0.0f;
+
+			xyz.X = srgb_to_xyz[0][0]*r + srgb_to_xyz[0][1]*g + srgb_to_xyz[0][2]*b;
+			xyz.Y = srgb_to_xyz[1][0]*r + srgb_to_xyz[1][1]*g + srgb_to_xyz[1][2]*b;
+			xyz.Z = srgb_to_xyz[2][0]*r + srgb_to_xyz[2][1]*g + srgb_to_xyz[2][2]*b;
+			xy = XYZ_to_xy(&xyz);
+			rs_color_whitepoint_to_temp(&xy, &ctemp, &ctint);
+
+			fprintf(wbpip,
+				"[WBPIP] %-4s spot r=%.4f g=%.4f b=%.4f | warmth=%.4f tint=%.4f | xy=(%.4f,%.4f) temp=%.0fK tint_col=%.4f\n",
+				photo->embedded_profile ? "8bit" : "RAW",
+				r, g, b, warmth, tint, xy.x, xy.y, ctemp, ctint);
+			fclose(wbpip);
+		}
+	}
+
 	rs_photo_set_wb_from_wt(photo, snapshot, warmth, tint);
 }
 
@@ -669,7 +702,8 @@ rs_photo_set_wb_auto(RS_PHOTO *photo, const gint snapshot)
 	  return;
 
 	RS_IMAGE16 *input = calculate_auto_wb_data(photo);
-	gint row, col, x, y, c, val;
+	gint row, col, x, y, c, pass;
+	gint pr, pg, pb, mx, mn;
 	gint sum[8];
 	gdouble pre_mul[4];
 	gdouble dsum[8];
@@ -677,29 +711,72 @@ rs_photo_set_wb_auto(RS_PHOTO *photo, const gint snapshot)
 	g_assert(RS_IS_PHOTO(photo));
 	g_return_if_fail ((snapshot>=0) && (snapshot<=2));
 
-	for (c=0; c < 8; c++)
-		dsum[c] = 0.0;
+	/* CaraStudio : grey-world ROBUSTE pour les images 8 bits (JPEG/TIFF).
+	 * Le grey-world classique force la moyenne de TOUTE l'image au gris ;
+	 * sur une scène à dominante chaude (plage, bois, soleil couchant) il
+	 * sur-refroidit → grosse dominante bleue. Correction : ne moyenner que
+	 * les pixels PROCHES DU NEUTRE (faible saturation) pour que les sujets
+	 * colorés ne biaisent plus la balance. Si trop peu de pixels neutres
+	 * (scène uniformément colorée), on retombe automatiquement sur le
+	 * grey-world classique → jamais de résultat aberrant. Les RAW gardent
+	 * le comportement d'origine (passe non filtrée) : à ce stade le signal
+	 * est camera-linéaire vert-dominant, un « neutre » n'y est pas équilibré. */
+	gboolean robust = (photo->embedded_profile != NULL);
+	gboolean robust_insufficient = FALSE;
 
-	for (row=0; row < input->h-15; row += 8)
-		for (col=0; col < input->w-15; col += 8)
-		{
-			memset (sum, 0, sizeof sum);
-			for (y=row; y < row+8; y++)
-				for (x=col; x < col+8; x++)
-					for(c=0;c<3;c++)
+	for (pass = 0; pass < 2; pass++)
+	{
+		gboolean reject_colored = robust && (pass == 0);
+
+		for (c=0; c < 8; c++)
+			dsum[c] = 0.0;
+
+		for (row=0; row < input->h-15; row += 8)
+			for (col=0; col < input->w-15; col += 8)
+			{
+				memset (sum, 0, sizeof sum);
+				for (y=row; y < row+8; y++)
+					for (x=col; x < col+8; x++)
 					{
-						val = input->pixels[y*input->rowstride+x*4+c];
-						if (!val) continue;
-						if (val > 65100)
-							goto skip_block; /* I'm sorry mom */
-						sum[c] += val;
-						sum[c+4]++;
+						pr = input->pixels[y*input->rowstride+x*4+R];
+						pg = input->pixels[y*input->rowstride+x*4+G];
+						pb = input->pixels[y*input->rowstride+x*4+B];
+						if (pr > 65100 || pg > 65100 || pb > 65100)
+							goto skip_block; /* bloc quasi-écrêté */
+						if (pr <= 0 || pg <= 0 || pb <= 0)
+							continue;
+						if (reject_colored)
+						{
+							mx = MAX(pr, MAX(pg, pb));
+							mn = MIN(pr, MIN(pg, pb));
+							/* (max-min)/max > 20 % = pixel coloré → rejeté */
+							if ((mx - mn) * 5 > mx)
+								continue;
+						}
+						sum[R] += pr; sum[R+4]++;
+						sum[G] += pg; sum[G+4]++;
+						sum[B] += pb; sum[B+4]++;
 					}
-			for (c=0; c < 8; c++)
-				dsum[c] += sum[c];
+				for (c=0; c < 8; c++)
+					dsum[c] += sum[c];
 skip_block:
 							continue;
-		}
+			}
+
+		/* Passe non filtrée (RAW) = résultat final ; sinon on valide qu'on a
+		 * assez de pixels neutres. */
+		if (!reject_colored || dsum[R+4] >= 256.0)
+			break;
+		/* 8 bits avec trop peu de neutres : NE PAS retomber sur le greyworld
+		 * classique (il sur-refroidit les scènes colorées → bleu-vert). On
+		 * impose une WB neutre, jamais aberrante. */
+		robust_insufficient = TRUE;
+		break;
+	}
+
+	if (robust_insufficient)
+		for (c = 0; c < 4; c++) { dsum[c] = 1.0; dsum[c+4] = 1.0; }
+
 	for(c=0;c<4;c++)
 		if (dsum[c])
 		{
@@ -724,7 +801,16 @@ rs_photo_set_wb_from_camera(RS_PHOTO *photo, const gint snapshot)
 
 	if (!((snapshot>=0) && (snapshot<=2))) return FALSE;
 
-	if (!photo->dcp)
+	if (photo->embedded_profile && photo->metadata && photo->metadata->cam_mul[R] != -1.0)
+	{
+		/* CaraStudio : images 8 bits (JPEG/TIFF). Leur WB passe par le premul,
+		 * pas par dcp-temp. La WB « boîtier » = multiplicateurs du fichier
+		 * (typiquement 1,1,1 → warmth=0/tint=1 → neutre). On passe donc par
+		 * set_wb_from_mul, sinon warmth/tint restaient faux (→ dérive bleu-vert). */
+		rs_photo_set_wb_from_mul(photo, snapshot, photo->metadata->cam_mul, PRESET_WB_CAMERA);
+		ret = TRUE;
+	}
+	else if (!photo->dcp)
 	{
 		rs_settings_commit_start(photo->settings[snapshot]);
 		g_object_set(photo->settings[snapshot], "dcp-temp", 5000.0, "dcp-tint", 0.0, "wb_ascii", PRESET_WB_CAMERA, "recalc_temp", FALSE, NULL);
@@ -822,6 +908,23 @@ rs_photo_load_from_file(const gchar *filename)
 			}
 		}
 
+		/* CaraStudio : images 8 bits (JPEG/TIFF via load-gdk → embedded_profile).
+		 * Leur WB passe par le premul (formule RAW), neutre quand warmth=0/tint=1.
+		 * Or rs_photo_set_wb_from_camera laisse warmth/tint à (0,0) pour ces photos
+		 * (branche !dcp), donnant premul=(2,1,2) → dérive magenta au repos. On
+		 * initialise donc tint=1 lorsque la WB n'a jamais été réglée (warmth=0 ET
+		 * tint=0), sans écraser une WB utilisateur existante. */
+		if (photo->embedded_profile)
+		{
+			for (i = 0; i < 3; i++)
+			{
+				gfloat w = 0.0, t = 0.0;
+				g_object_get(photo->settings[i], "warmth", &w, "tint", &t, NULL);
+				if (w == 0.0 && t == 0.0)
+					rs_settings_set_wb(photo->settings[i], 0.0, 1.0, PRESET_WB_CAMERA);
+			}
+		}
+
 		/* Load default DCP */
 		if (!photo->dcp && !photo->icc && !photo->embedded_profile && photo->metadata && photo->metadata->model_ascii)
 		{
@@ -864,40 +967,63 @@ extern RSMetadata *rs_photo_get_metadata(RS_PHOTO *photo)
  * Closes a RS_PHOTO - this basically means saving cache
  * @param photo A RS_PHOTO
  */
-void
-rs_photo_close(RS_PHOTO *photo)
+GdkPixbuf *
+rs_photo_update_thumbnail(RS_PHOTO *photo)
 {
 	GdkPixbuf *pixbuf=NULL;
 	GdkPixbuf *pixbuf2=NULL;
+
+	if (!photo || !photo->metadata || !photo->thumbnail_filter)
+		return NULL;
+
+	RSFilterRequest *request = rs_filter_request_new();
+	rs_filter_request_set_roi(request, FALSE);
+	rs_filter_request_set_quick(request, TRUE);
+	rs_filter_param_set_object(RS_FILTER_PARAM(request), "colorspace", rs_color_space_new_singleton("RSSrgb"));
+
+	RSFilterResponse *response = rs_filter_get_image8(photo->thumbnail_filter, request);
+	pixbuf = response ? rs_filter_response_get_image8(response) : NULL;
+	if (!pixbuf)
+	{
+		if (response) g_object_unref(response);
+		g_object_unref(request);
+		return NULL;
+	}
+
+	/* Scale to a bounding box of 128x128 pixels */
+	gdouble ratio = ((gdouble) gdk_pixbuf_get_width(pixbuf))/((gdouble) gdk_pixbuf_get_height(pixbuf));
+	if (ratio>1.0)
+		pixbuf2 = gdk_pixbuf_scale_simple(pixbuf, 128, (gint) (128.0/ratio), GDK_INTERP_BILINEAR);
+	else
+		pixbuf2 = gdk_pixbuf_scale_simple(pixbuf, (gint) (128.0*ratio), 128, GDK_INTERP_BILINEAR);
+	g_object_unref(pixbuf);
+	g_object_unref(request);
+	g_object_unref(response);
+
+	if (photo->metadata->thumbnail)
+		g_object_unref(photo->metadata->thumbnail);
+
+	photo->metadata->thumbnail = pixbuf2;
+	/* La vignette vient de thumbnail_filter (= chaîne navigateur, effets
+	   inclus) → marquer comme rendue, pour ne pas la régénérer en fond. */
+	photo->metadata->thumbnail_rendered = TRUE;
+	rs_metadata_cache_save(photo->metadata, photo->filename);
+
+	/* Le caller possède la ref retournée (metadata conserve la sienne). */
+	return g_object_ref(pixbuf2);
+}
+
+void
+rs_photo_close(RS_PHOTO *photo)
+{
 	if (!photo) return;
 
 	rs_cache_save(photo, MASK_ALL);
-	if (photo->metadata && photo->thumbnail_filter)
-	{
-		RSFilterRequest *request = rs_filter_request_new();
-		rs_filter_request_set_roi(request, FALSE);
-		rs_filter_request_set_quick(request, TRUE);
-		rs_filter_param_set_object(RS_FILTER_PARAM(request), "colorspace", rs_color_space_new_singleton("RSSrgb"));	
-
-		RSFilterResponse *response = rs_filter_get_image8(photo->thumbnail_filter, request);
-		pixbuf = rs_filter_response_get_image8(response);
-
-		/* Scale to a bounding box of 128x128 pixels */
-		gdouble ratio = ((gdouble) gdk_pixbuf_get_width(pixbuf))/((gdouble) gdk_pixbuf_get_height(pixbuf));
-		if (ratio>1.0)
-			pixbuf2 = gdk_pixbuf_scale_simple(pixbuf, 128, (gint) (128.0/ratio), GDK_INTERP_BILINEAR);
-		else
-			pixbuf2 = gdk_pixbuf_scale_simple(pixbuf, (gint) (128.0*ratio), 128, GDK_INTERP_BILINEAR);
-		g_object_unref(pixbuf);
-		g_object_unref(request);
-		g_object_unref(response);
-
-		if (photo->metadata->thumbnail)
-			g_object_unref(photo->metadata->thumbnail);
-
-		photo->metadata->thumbnail = pixbuf2;
-		rs_metadata_cache_save(photo->metadata, photo->filename);
-	}
+	/* CaraStudio : rendu de vignette factorisé dans rs_photo_update_thumbnail
+	 * (réutilisé pour le rafraîchissement live du navigateur). */
+	GdkPixbuf *thumb = rs_photo_update_thumbnail(photo);
+	if (thumb)
+		g_object_unref(thumb);
 }
 
 void 

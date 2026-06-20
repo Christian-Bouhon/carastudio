@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([carastudio],[2.1])
+AC_INIT([carastudio],[1.0])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_HEADERS(config.h)
 AM_MAINTAINER_MODE
@@ -166,6 +166,7 @@ plugins/crop/Makefile
 plugins/dcp/Makefile
 plugins/demosaic/Makefile
 plugins/denoise/Makefile
+plugins/effects/Makefile
 plugins/exposure-mask/Makefile
 plugins/fuji-rotate/Makefile
 plugins/input-file/Makefile

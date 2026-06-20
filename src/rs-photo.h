@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -314,6 +314,16 @@ extern RSMetadata *rs_photo_get_metadata(RS_PHOTO *photo);
  * @param photo A RS_PHOTO
  */
 extern void rs_photo_close(RS_PHOTO *photo);
+
+/**
+ * CaraStudio : recalcule la vignette (128 px, effets inclus) d'une photo
+ * chargée à partir de sa chaîne d'aperçu live (thumbnail_filter), la stocke
+ * dans metadata->thumbnail et la persiste en cache. Sert au rafraîchissement
+ * en direct de la vignette du navigateur pendant l'édition.
+ * @param photo A RS_PHOTO (doit avoir thumbnail_filter et metadata)
+ * @return La vignette brute 128 px (le caller doit g_object_unref), ou NULL
+ */
+extern GdkPixbuf *rs_photo_update_thumbnail(RS_PHOTO *photo);
 
 /**
  * Indicate that the lens has changed.

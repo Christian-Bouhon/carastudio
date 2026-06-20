@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -186,12 +186,14 @@ rs_filetype_can_load(const gchar *filename)
 	gboolean can_load = FALSE;
 	gint priority = 0;
 	RSLoaderFlags flags = RS_LOADER_FLAGS_RAW;
-	gboolean load_8bit = FALSE;
+	gboolean load_8bit = TRUE;
 
 	g_return_val_if_fail(rs_filetype_is_initialized, FALSE);
 	g_return_val_if_fail(filename != NULL, FALSE);
 
-	rs_conf_get_boolean("open_8bit_images", &load_8bit);
+	/* JPEG/TIFF/PNG chargés par défaut (défaut TRUE) ; respecte le choix
+	 * explicite de l'utilisateur via le menu "Charger les images non-RAW". */
+	rs_conf_get_boolean_with_default("open_8bit_images", &load_8bit, TRUE);
 	if (load_8bit)
 		flags |= RS_LOADER_FLAGS_8BIT;
 

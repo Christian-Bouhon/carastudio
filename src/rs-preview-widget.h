@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -38,6 +38,13 @@ typedef struct _rs_preview_callback_data {
 	gint x;
 	gint y;
 } RS_PREVIEW_CALLBACK_DATA;
+
+/* Données émises par le signal "argentico-picked" : valeurs RGB du NÉGATIF
+ * (avant inversion) des deux taches neutres échantillonnées. */
+typedef struct _rs_argentico_pick_data {
+	gfloat ref1[3];
+	gfloat ref2[3];
+} RS_ARGENTICO_PICK_DATA;
 
 extern GType rs_preview_widget_get_type (void);
 
@@ -136,6 +143,15 @@ extern void
 rs_preview_widget_crop_start(RSPreviewWidget *preview);
 
 /*
+ * CaraStudio : gère Entrée (valider) / Échap (annuler) en mode recadrage
+ * @param preview A RSPreviewWidget
+ * @param keyval La touche (GDK_KEY_*)
+ * @return TRUE si la touche a été consommée
+ */
+extern gboolean
+rs_preview_widget_crop_key(RSPreviewWidget *preview, guint keyval);
+
+/*
  * Removes crop from the loaded photo
  * @param preview A RSpreviewWidget
  */
@@ -172,6 +188,18 @@ rs_preview_widget_quick_end(RSPreviewWidget *preview);
 
 extern void 
 rs_preview_widget_update_display_colorspace(RSPreviewWidget *preview);
+
+/**
+ * Active/désactive le mode pioche Argentico (échantillonnage de 2 taches
+ * neutres). Après 2 clics, émet "argentico-picked" et sort du mode.
+ */
+extern void
+rs_preview_widget_set_argentico_pick(RSPreviewWidget *preview, gboolean active);
+
+/* Active/désactive le mode pipette balance des blancs : le prochain clic
+ * gauche dans l'aperçu prélève le WB (émet "wb-picked"), sans Ctrl. */
+extern void
+rs_preview_widget_set_wb_pick(RSPreviewWidget *preview, gboolean active);
 
 extern void
 rs_preview_widget_blank(RSPreviewWidget *preview);

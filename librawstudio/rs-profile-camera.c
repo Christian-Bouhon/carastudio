@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -115,6 +115,6 @@ rs_profile_camera_find(const gchar *make, const gchar *model)
 		camera = camera->next;
 	}
 	xmlFree(doc);
-	g_warning("Could not find unique camera: Make:'%s'. Model:'%s'", make, model);
+	g_debug("No DCP profile for camera: Make:'%s'. Model:'%s' (will use LibRaw matrix)", make, model);
 	return NULL;
 }

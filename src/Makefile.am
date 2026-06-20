@@ -16,10 +16,14 @@ AM_CXXFLAGS = $(AM_CFLAGS)
 uidir = $(datadir)/carastudio/
 ui_DATA = ui.xml ui-client.xml theme.css
 
+helpdir = $(datadir)/carastudio/help
+help_DATA = $(top_srcdir)/help/index.fr.html $(top_srcdir)/help/index.en.html
+
 bin_PROGRAMS = carastudio
 
 EXTRA_DIST = \
-	$(ui_DATA)
+	$(ui_DATA) \
+	$(help_DATA)
 
 carastudio_SOURCES = \
 	application.c application.h \
@@ -44,7 +48,8 @@ carastudio_SOURCES = \
 	rs-dir-selector.c rs-dir-selector.h \
 	rs-tag-gui.c rs-tag-gui.h\
 	rs-tethered-shooting.c rs-tethered-shooting.h \
-	rs-enfuse.c rs-enfuse.h
+	rs-enfuse.c rs-enfuse.h \
+	rs-splash.c rs-splash.h
 
 carastudio_LDADD = ../librawstudio/librawstudio.la @PACKAGE_LIBS@ @LENSFUN_LIBS@ @LIBGPHOTO2_LIBS@ @DBUS_LIBS@ @SQLITE3_LIBS@ $(INTLLIBS)
 

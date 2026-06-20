@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -33,6 +33,7 @@
 #include "rs-batch.h"
 #include <string.h>
 #include <unistd.h>
+#include <locale.h>
 #include "filename.h"
 #include "rs-store.h"
 #include "rs-preview-widget.h"
@@ -1362,9 +1363,16 @@ pane_position(GtkWidget* widget, gpointer dummy, gpointer user_data)
 	GtkPaned *paned = GTK_PANED(widget);
 	gint pos;
 	gint window_width;
+	gint toolbox_width;
 	gtk_window_get_size(rawstudio_window, &window_width, NULL);
 	pos = gtk_paned_get_position(paned);
-	rs_conf_set_integer(CONF_TOOLBOX_WIDTH, window_width - pos);
+	toolbox_width = window_width - pos;
+	/* Ne pas enregistrer une largeur aberrante : pendant la construction de la
+	   fenêtre, notify::position peut se déclencher avec une taille transitoire,
+	   ce qui sauvegardait un toolbox_width ≈ 0 → panneau réduit à néant au
+	   lancement suivant. On n'enregistre que des valeurs plausibles. */
+	if (toolbox_width >= 150 && toolbox_width <= window_width - 100)
+		rs_conf_set_integer(CONF_TOOLBOX_WIDTH, toolbox_width);
 	return TRUE;
 }
 
@@ -1438,6 +1446,72 @@ cs_zoom_100(GtkButton *button, gpointer user_data)
 	rs_preview_widget_set_zoom(RS_PREVIEW_WIDGET(user_data), 1.0);
 }
 
+static GtkWidget *
+cs_icon_label_button(const gchar *icon_name, const gchar *label_text)
+{
+	GtkWidget *btn = gtk_button_new();
+	GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+	gtk_box_pack_start(GTK_BOX(box), gtk_image_new_from_icon_name(icon_name, GTK_ICON_SIZE_LARGE_TOOLBAR), FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(box), gtk_label_new(label_text), FALSE, FALSE, 0);
+	gtk_container_add(GTK_CONTAINER(btn), box);
+	return btn;
+}
+
+/* — Bascule de langue FR/EN (s'applique au redémarrage) — */
+
+/* Demande de relance posée par le bouton de langue ; honorée après gtk_main(). */
+static gboolean cs_relaunch_requested = FALSE;
+static char   **cs_saved_argv = NULL; /* argv d'origine, pour la ré-exécution */
+
+/* Langue d'interface courante : "fr" ou "en". Priorité à la conf « ui-language »,
+   sinon déduite de l'environnement/locale (défaut "fr"). À libérer. */
+static gchar *
+cs_current_ui_lang(void)
+{
+	gchar *l = rs_conf_get_string("ui-language");
+	if (l && (g_str_has_prefix(l, "fr") || g_str_has_prefix(l, "en")))
+		return l;
+	g_free(l);
+
+	const gchar *env = g_getenv("LANGUAGE");
+	if (!env || !*env)
+		env = setlocale(LC_MESSAGES, NULL);
+	if (env && g_str_has_prefix(env, "en"))
+		return g_strdup("en");
+	return g_strdup("fr");
+}
+
+/* Clic sur le bouton de langue : propose de basculer FR↔EN puis de redémarrer. */
+static void
+cs_language_clicked(GtkWidget *button, RS_BLOB *rs)
+{
+	gchar *cur = cs_current_ui_lang();
+	const gchar *next = (g_strcmp0(cur, "en") == 0) ? "fr" : "en";
+	g_free(cur);
+
+	GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(rs->window),
+		GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+		GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE,
+		"%s", (g_strcmp0(next, "en") == 0)
+			? _("Passer l'interface en anglais ?")
+			: _("Passer l'interface en français ?"));
+	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
+		"%s", _("CaraStudio doit redémarrer pour appliquer le changement de langue."));
+	gtk_dialog_add_button(GTK_DIALOG(dialog), _("Annuler"), GTK_RESPONSE_CANCEL);
+	gtk_dialog_add_button(GTK_DIALOG(dialog), _("Redémarrer"), GTK_RESPONSE_ACCEPT);
+	gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+
+	gint resp = gtk_dialog_run(GTK_DIALOG(dialog));
+	gtk_widget_destroy(dialog);
+
+	if (resp != GTK_RESPONSE_ACCEPT)
+		return;
+
+	rs_conf_set_string("ui-language", next);
+	cs_relaunch_requested = TRUE;
+	rs_core_action_group_activate("Quit"); /* sauvegarde des réglages + gtk_main_quit */
+}
+
 int
 gui_init(int argc, char **argv, RS_BLOB *rs)
 {
@@ -1457,7 +1531,9 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	GtkWidget *hbox; /* for statusbar */
 	GtkWidget *valuefield[3];
 
-	
+	/* Mémorise argv pour une éventuelle ré-exécution (bascule de langue). */
+	cs_saved_argv = argv;
+
 	gtk_window_set_default_icon_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S PACKAGE ".png", NULL);
 	rs->window = gui_window_make(rs);
 	gtk_widget_show(rs->window);
@@ -1536,8 +1612,17 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	{
 		rs->toolbox = gtk_notebook_new();
 		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox), tools, gtk_label_new(_("Tools")));
+		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox),
+			rs_toolbox_get_effects_widget(RS_TOOLBOX(tools)),
+			gtk_label_new(_("Effects")));
+		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox),
+			rs_toolbox_get_tones_widget(RS_TOOLBOX(tools)),
+			gtk_label_new(_("Tonalité")));
 		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox), batchbox, gtk_label_new(_("Batch")));
 		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox), open_box, gtk_label_new(_("Open")));
+		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox),
+			rs_toolbox_get_metadata_widget(RS_TOOLBOX(tools)),
+			gtk_label_new(_("Infos")));
 	}
 
 	/* Metadata infobox */
@@ -1553,6 +1638,9 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	rs_conf_set_boolean("fullscreen-preview", FALSE);
 	rs->preview = rs_preview_widget_new(tools);
 	rs_preview_widget_set_filter(RS_PREVIEW_WIDGET(rs->preview), rs->filter_end, rs->filter_demosaic_cache);
+	/* Relie le toolbox à l'aperçu (pour piloter la pioche Argentico, qui
+	 * échantillonne le négatif post-DCP directement dans l'aperçu). */
+	rs_toolbox_set_preview(RS_TOOLBOX(tools), rs->preview);
 
 	rs_conf_get_color(CONF_PREBGCOLOR, &bgcolor);
 	rs_preview_widget_set_bgcolor(RS_PREVIEW_WIDGET(rs->preview), &bgcolor);
@@ -1560,13 +1648,37 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	g_signal_connect(G_OBJECT(rs->preview), "motion", G_CALLBACK(preview_motion), valuefield);
 	g_signal_connect(G_OBJECT(rs->preview), "leave", G_CALLBACK(preview_leave), valuefield);
 
-	/* Split pane below iconbox */
-	pane = gtk_hpaned_new ();
+	/* Colonne gauche : filmstrip + prévisualisation */
+	GtkWidget *left_vbox = gtk_vbox_new(FALSE, 0);
 	frame_preview_toolbox = gtk_frame_new(NULL);
 	gtk_container_add(GTK_CONTAINER(frame_preview_toolbox), rs->preview);
+
+	rs_conf_get_boolean("client-mode", &client_mode);
+	if (!client_mode)
+	{
+		gtk_widget_set_size_request(rs->iconbox, -1, 140);
+		gtk_box_pack_start(GTK_BOX(left_vbox), rs->iconbox, FALSE, FALSE, 0);
+	}
+	gtk_box_pack_start(GTK_BOX(left_vbox), frame_preview_toolbox, TRUE, TRUE, 0);
+
+	/* Colonne droite : histogramme fixe + onglets outils */
+	GtkWidget *right_vbox = gtk_vbox_new(FALSE, 0);
+	GtkWidget *hist_widget = rs_toolbox_get_histogram_widget(RS_TOOLBOX(rs->tools));
+	GtkWidget *hist_section = gui_box(_("Histogramme"), hist_widget, "show_histogram", TRUE);
+	gtk_box_pack_start(GTK_BOX(right_vbox), hist_section, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(right_vbox), rs->toolbox, TRUE, TRUE, 0);
+	/* Le toggle "Panneau d'outils" masque tout le panneau droit (histogramme + onglets) */
+	rs->toolbox = right_vbox;
+
+	/* Paned principal */
+	pane = gtk_hpaned_new();
 	g_signal_connect_after(G_OBJECT(pane), "notify::position", G_CALLBACK(pane_position), NULL);
-	gtk_paned_pack1 (GTK_PANED (pane), frame_preview_toolbox, TRUE, TRUE);
-	gtk_paned_pack2 (GTK_PANED (pane), rs->toolbox, FALSE, TRUE);
+	gtk_paned_pack1(GTK_PANED(pane), left_vbox,  TRUE,  TRUE);
+	/* shrink=FALSE : le panneau d'outils ne peut pas être réduit sous sa largeur
+	   naturelle → la colonne des valeurs (à droite) reste toujours visible sans
+	   que l'utilisateur ait à tirer la poignée. Rend aussi impossible l'escamotage
+	   accidentel à ~0 px. La poignée reste utilisable pour l'élargir. */
+	gtk_paned_pack2(GTK_PANED(pane), right_vbox, FALSE, FALSE);
 
 	/* Vertical packing box */
 	vbox = gtk_vbox_new (FALSE, 0);
@@ -1577,40 +1689,68 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	/* CaraStudio : barre de boutons d'affichage (toggle des panneaux) */
 	{
 		GtkWidget *view_toolbar = gtk_hbox_new(FALSE, 2);
-		GtkWidget *btn_iconbox = gtk_button_new_with_label(_("Bande d'images"));
-		GtkWidget *btn_toolbox = gtk_button_new_with_label(_("Panneau d'outils"));
-		GtkWidget *btn_fullscreen = gtk_button_new_with_label(_("Plein écran"));
-		gtk_widget_set_tooltip_text(btn_iconbox, _("Afficher/masquer la bande d'images (Ctrl+I)"));
-		gtk_widget_set_tooltip_text(btn_toolbox, _("Afficher/masquer le panneau d'outils (Ctrl+T)"));
+
+		/* Boutons toggle avec icône + libellé */
+		GtkWidget *btn_iconbox    = cs_icon_label_button("camera-photo",          _("Bande d'images"));
+		GtkWidget *btn_toolbox    = cs_icon_label_button("preferences-system",    _("Panneau d'outils"));
+		GtkWidget *btn_fullscreen = cs_icon_label_button("view-fullscreen",       _("Plein écran"));
+
+		gtk_widget_set_tooltip_text(btn_iconbox,    _("Afficher/masquer la bande d'images (Ctrl+I)"));
+		gtk_widget_set_tooltip_text(btn_toolbox,    _("Afficher/masquer le panneau d'outils (Ctrl+T)"));
 		gtk_widget_set_tooltip_text(btn_fullscreen, _("Plein écran (F11)"));
-		g_signal_connect_swapped(btn_iconbox, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Iconbox");
-		g_signal_connect_swapped(btn_toolbox, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Toolbox");
+		g_signal_connect_swapped(btn_iconbox,    "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Iconbox");
+		g_signal_connect_swapped(btn_toolbox,    "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Toolbox");
 		g_signal_connect_swapped(btn_fullscreen, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Fullscreen");
-		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_iconbox, FALSE, FALSE, 0);
-		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_toolbox, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_iconbox,    FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_toolbox,    FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_fullscreen, FALSE, FALSE, 0);
 
-		/* Separateur + boutons de zoom variable (CaraStudio) */
+		/* Séparateur + boutons de zoom (icône seule) */
 		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
-		GtkWidget *btn_zoom_out = gtk_button_new_with_label(_("Zoom -"));
-		GtkWidget *btn_zoom_100 = gtk_button_new_with_label(_("100%"));
-		GtkWidget *btn_zoom_in = gtk_button_new_with_label(_("Zoom +"));
-		gtk_widget_set_tooltip_text(btn_zoom_out, _("Dezoomer"));
-		gtk_widget_set_tooltip_text(btn_zoom_100, _("Zoom 100% (taille reelle)"));
-		gtk_widget_set_tooltip_text(btn_zoom_in, _("Zoomer"));
+		GtkWidget *btn_zoom_out = gtk_button_new_from_icon_name("zoom-out",        GTK_ICON_SIZE_LARGE_TOOLBAR);
+		GtkWidget *btn_zoom_100 = gtk_button_new_from_icon_name("zoom-original",   GTK_ICON_SIZE_LARGE_TOOLBAR);
+		GtkWidget *btn_zoom_in  = gtk_button_new_from_icon_name("zoom-in",         GTK_ICON_SIZE_LARGE_TOOLBAR);
+		gtk_widget_set_tooltip_text(btn_zoom_out, _("Dézoomer"));
+		gtk_widget_set_tooltip_text(btn_zoom_100, _("Zoom 100% (taille réelle)"));
+		gtk_widget_set_tooltip_text(btn_zoom_in,  _("Zoomer"));
 		g_signal_connect(btn_zoom_out, "clicked", G_CALLBACK(cs_zoom_out), rs->preview);
 		g_signal_connect(btn_zoom_100, "clicked", G_CALLBACK(cs_zoom_100), rs->preview);
-		g_signal_connect(btn_zoom_in, "clicked", G_CALLBACK(cs_zoom_in), rs->preview);
+		g_signal_connect(btn_zoom_in,  "clicked", G_CALLBACK(cs_zoom_in),  rs->preview);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_out, FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_100, FALSE, FALSE, 0);
-		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_in, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_in,  FALSE, FALSE, 0);
+
+		/* CaraStudio : séparateur + bouton Recadrer (remplace le raccourci Maj+C,
+		 * qui reste actif) */
+		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
+		GtkWidget *btn_crop = cs_icon_label_button("tool-crop", _("Recadrer"));
+		gtk_widget_set_tooltip_text(btn_crop, _("Recadrer l'image (Maj+C)"));
+		g_signal_connect_swapped(btn_crop, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Crop");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_crop, FALSE, FALSE, 0);
+
+		/* CaraStudio : bouton Séparer les vues (déclenche l'action Split, Ctrl+D,
+		 * qui reste active) ; icône reprise d'ART (beforeafter) */
+		GtkWidget *btn_split = cs_icon_label_button("tool-split", _("Séparer les vues"));
+		gtk_widget_set_tooltip_text(btn_split, _("Séparer les vues (Ctrl+D)"));
+		g_signal_connect_swapped(btn_split, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Split");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_split, FALSE, FALSE, 0);
+
+		/* CaraStudio : bouton de langue FR/EN, calé à droite de la barre. Le
+		 * libellé montre la langue CIBLE (ce que le clic appliquera). */
+		{
+			gchar *cur = cs_current_ui_lang();
+			const gchar *target = (g_strcmp0(cur, "en") == 0) ? "FR" : "EN";
+			GtkWidget *btn_lang = cs_icon_label_button("preferences-desktop-locale", target);
+			gtk_widget_set_tooltip_text(btn_lang,
+				_("Changer la langue de l'interface (français/anglais)"));
+			g_signal_connect(btn_lang, "clicked", G_CALLBACK(cs_language_clicked), rs);
+			gtk_box_pack_end(GTK_BOX(view_toolbar), btn_lang, FALSE, FALSE, 0);
+			g_free(cur);
+		}
 
 		gtk_box_pack_start(GTK_BOX(vbox), view_toolbar, FALSE, TRUE, 0);
 	}
     
-    rs_conf_get_boolean("client-mode", &client_mode);
-    if (!client_mode)
-        gtk_box_pack_start (GTK_BOX (vbox), rs->iconbox, FALSE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (vbox), pane, TRUE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (vbox), hbox, FALSE, TRUE, 0);
 
@@ -1631,6 +1771,10 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	gtk_widget_show_all (rs->window);
 	toolbox_width = 240;
 	rs_conf_get_integer(CONF_TOOLBOX_WIDTH, &toolbox_width);
+	/* Borne de sécurité : une conf corrompue (largeur ≈ 0) escamoterait le
+	   panneau d'outils sans retour possible. On revient au défaut si hors plage. */
+	if (toolbox_width < 150 || toolbox_width > 1200)
+		toolbox_width = 240;
 	gdk_threads_enter();
 	GTK_CATCHUP();
 	gdk_threads_leave();
@@ -1701,10 +1845,10 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 			g_free(lwd);
 		}
 
-		gint last_priority_page = 0;
-		if (!rs_conf_get_integer(CONF_LAST_PRIORITY_PAGE, &last_priority_page))
-			rs_conf_set_integer(CONF_LAST_PRIORITY_PAGE, 0);
-		rs_store_set_current_page(rs->store, last_priority_page);
+		/* Toujours démarrer sur la page 0 « Toutes les photos » : restaurer un
+		 * filtre de priorité (ex. « 1 ») au lancement masquait les photos sans
+		 * priorité → l'utilisateur croyait le dossier vide. */
+		rs_store_set_current_page(rs->store, 0);
 
 	}
 	/* Construct this to load dcp profiles early */
@@ -1726,5 +1870,19 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	gdk_threads_enter();
 	gtk_main();
 	gdk_threads_leave();
+
+	/* Bascule de langue demandée : les réglages ont été sauvegardés par l'action
+	   Quit, on relance CaraStudio qui relira « ui-language » au démarrage.
+	   execv remplace le processus → pas de conflit (verrou sqlite, etc.). */
+	if (cs_relaunch_requested && cs_saved_argv)
+	{
+		gchar *exe = g_file_read_link("/proc/self/exe", NULL);
+		if (exe)
+		{
+			execv(exe, cs_saved_argv);
+			g_free(exe); /* atteint seulement si execv échoue */
+		}
+	}
+
 	return(0);
 }

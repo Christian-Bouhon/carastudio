@@ -1,6 +1,7 @@
 **/*.o
 **/*.la
 **/*.lo
+**/*.Po
 **/Makefile*.in
 **/Makefile
 **/.deps
@@ -9,6 +10,7 @@
 /po/POTFILES
 /po/*.gmo
 /po/rawstudio.pot
+/po/carastudio.pot
 /po/Makefile.in.in~
 /po/Makevars.template
 /po/Rules-quot
@@ -34,7 +36,7 @@
 /install-sh
 /libtool
 /ltmain.sh
-/librawstudio/rawstudio-2.1.pc
+/librawstudio/rawstudio-*.pc
 /m4
 /profiles/write-dcp
 /profiles/*simple.dcp

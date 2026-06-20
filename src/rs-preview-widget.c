@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -19,6 +19,7 @@
 
 #include <rawstudio.h>
 #include <math.h>
+#include <gdk/gdkkeysyms.h>
 #include "rs-preview-widget.h"
 #include "application.h"
 #include "gtk-interface.h"
@@ -30,6 +31,7 @@
 #include "rs-toolbox.h"
 #include "rs-loupe.h"
 #include "rs-navigator.h"
+#include "rs-store.h"
 #include <gettext.h>
 
 enum {
@@ -126,6 +128,9 @@ struct _RSPreviewWidget
     GtkWidget *vscrollbar;
     GtkWidget *hscrollbar;
 	GtkDrawingArea *canvas;
+	GtkWidget *canvas_overlay;	/* CaraStudio: overlay au-dessus du canevas (palettes flottantes) */
+
+	guint thumbnail_refresh_timer;	/* CaraStudio: anti-rebond du rafraîchissement live de la vignette */
 
 	RSToolbox *toolbox;
 
@@ -156,6 +161,12 @@ struct _RSPreviewWidget
 	gfloat straighten_angle;
 	RSFilter *filter_input;
 
+	/* Pioche Argentico : échantillonnage du négatif (= filter_cache2, post-DCP) */
+	gboolean argentico_picking;
+	gboolean wb_picking;            /* mode pipette balance des blancs (bouton) */
+	gint argentico_spot_count;
+	gfloat argentico_spots[2][3];
+
 	RSFilter *filter_lensfun[MAX_VIEWS];
 	RSFilter *filter_rotate[MAX_VIEWS];
 	RSFilter *filter_crop[MAX_VIEWS];
@@ -163,6 +174,7 @@ struct _RSPreviewWidget
 	RSFilter *filter_resample[MAX_VIEWS];
 	RSFilter *filter_cache1[MAX_VIEWS];
 	RSFilter *filter_denoise[MAX_VIEWS];
+	RSFilter *filter_effects[MAX_VIEWS];
 	RSFilter *filter_cache2[MAX_VIEWS];
 	RSFilter *filter_transform_input[MAX_VIEWS];
 	RSFilter *filter_dcp[MAX_VIEWS];
@@ -178,7 +190,7 @@ struct _RSPreviewWidget
 	void *transform;
 	gint snapshot[MAX_VIEWS];
 
-	GtkWidget *lightsout_window;
+	gboolean lightsout;	/* Voile noir in-canvas (compatible Wayland) */
 
 	gint last_x;
 	gint last_y;
@@ -210,6 +222,7 @@ struct _RSPreviewWidget
 	RSFilter *navigator_filter_cache3;
 	RSFilter *navigator_filter_scale2;
 	RSFilter *navigator_filter_dcp;
+	RSFilter *navigator_filter_effects;
 	RSFilter *navigator_transform_display;
 	RSFilter *navigator_filter_end;
 	GtkWidget *navigator;
@@ -226,6 +239,7 @@ G_DEFINE_TYPE (RSPreviewWidget, rs_preview_widget, GTK_TYPE_TABLE);
 
 enum {
 	WB_PICKED,
+	ARGENTICO_PICKED,
 	MOTION_SIGNAL,
 	LEAVE_SIGNAL,
 	LAST_SIGNAL
@@ -250,12 +264,14 @@ static gboolean get_image_coord(RSPreviewWidget *preview, gint view, const gint 
 static gint get_view_from_coord(RSPreviewWidget *preview, const gint x, const gint y);
 static void crop_aspect_changed(gpointer active, gpointer user_data);
 static void crop_grid_changed(gpointer active, gpointer user_data);
-static void crop_apply_clicked(GtkButton *button, gpointer user_data);
+static void crop_settings_ok_clicked(GtkButton *button, gpointer user_data);
 static void crop_cancel_clicked(GtkButton *button, gpointer user_data);
+static void crop_ensure_css(void);
 static void crop_end(RSPreviewWidget *preview, gboolean accept);
 static void crop_find_size_from_aspect(RS_RECT *roi, gdouble aspect, CROP_NEAR state);
 static CROP_NEAR crop_near(RS_RECT *roi, gint x, gint y);
 static gboolean make_cbdata(RSPreviewWidget *preview, const gint view, RS_PREVIEW_CALLBACK_DATA *cbdata, gint screen_x, gint screen_y, gint real_x, gint real_y);
+static gboolean sample_argentico_negative(RSPreviewWidget *preview, const gint view, gint sx, gint sy, gfloat out[3]);
 static void canvas_draw(RSPreviewWidget *preview, GdkRectangle *rect, gboolean now);
 static void canvas_draw_handler(GtkWidget *widget, cairo_t *cr, RSPreviewWidget *preview);
 static void photo_spatial_changed(RS_PHOTO *photo, RSPreviewWidget *preview);
@@ -271,6 +287,14 @@ rs_preview_widget_class_init(RSPreviewWidgetClass *klass)
 		0, /* Is this right? */
 		NULL, 
 		NULL,                
+		g_cclosure_marshal_VOID__POINTER,
+		G_TYPE_NONE, 1, G_TYPE_POINTER);
+	signals[ARGENTICO_PICKED] = g_signal_new ("argentico-picked",
+		G_TYPE_FROM_CLASS (klass),
+		G_SIGNAL_RUN_FIRST | G_SIGNAL_ACTION,
+		0,
+		NULL,
+		NULL,
 		g_cclosure_marshal_VOID__POINTER,
 		G_TYPE_NONE, 1, G_TYPE_POINTER);
 	signals[MOTION_SIGNAL] = g_signal_new ("motion",
@@ -381,11 +405,19 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 	g_signal_connect(preview->vscrollbar, "button-release-event", G_CALLBACK(scrollbar_release), preview);
 	g_signal_connect(preview->hscrollbar, "button-release-event", G_CALLBACK(scrollbar_release), preview);
 
-	gtk_table_attach(table, GTK_WIDGET(preview->canvas), 0, 1, 0, 1, GTK_EXPAND|GTK_FILL, GTK_EXPAND|GTK_FILL, 0, 0);
+	/* CaraStudio : le canevas est enveloppe dans un GtkOverlay pour pouvoir
+	 * superposer des palettes flottantes (ex. l'outil de recadrage) sans
+	 * masquer durablement l'image. */
+	preview->canvas_overlay = gtk_overlay_new();
+	gtk_container_add(GTK_CONTAINER(preview->canvas_overlay), GTK_WIDGET(preview->canvas));
+	gtk_table_attach(table, preview->canvas_overlay, 0, 1, 0, 1, GTK_EXPAND|GTK_FILL, GTK_EXPAND|GTK_FILL, 0, 0);
 	gtk_table_attach(table, preview->vscrollbar, 1, 2, 0, 1, GTK_SHRINK, GTK_EXPAND|GTK_FILL, 0, 0);
     gtk_table_attach(table, preview->hscrollbar, 0, 1, 1, 2, GTK_EXPAND|GTK_FILL, GTK_SHRINK, 0, 0);
 
 	preview->filter_input = NULL;
+	preview->argentico_picking = FALSE;
+	preview->wb_picking = FALSE;
+	preview->argentico_spot_count = 0;
 	for(i=0;i<MAX_VIEWS;i++)
 	{
 		preview->filter_lensfun[i] = rs_filter_new("RSLensfun", NULL);
@@ -399,7 +431,8 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 		preview->filter_dcp[i] = rs_filter_new("RSDcp", preview->filter_transform_input[i]);
 		preview->filter_cache2[i] = rs_filter_new("RSCache", preview->filter_dcp[i]);
 		preview->filter_denoise[i] = rs_filter_new("RSDenoise", preview->filter_cache2[i]);
-		preview->filter_transform_display[i] = rs_filter_new("RSColorspaceTransform", preview->filter_denoise[i]);
+		preview->filter_effects[i] = rs_filter_new("RSEffects", preview->filter_denoise[i]);
+		preview->filter_transform_display[i] = rs_filter_new("RSColorspaceTransform", preview->filter_effects[i]);
 		preview->filter_cache3[i] = rs_filter_new("RSCache", preview->filter_transform_display[i]);
 		preview->filter_mask[i] = rs_filter_new("RSExposureMask", preview->filter_cache3[i]);
 		preview->filter_end[i] = preview->filter_mask[i];
@@ -443,7 +476,10 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 	preview->navigator_filter_cache2 = rs_filter_new("RSCache", preview->navigator_filter_scale2);
 	preview->navigator_filter_dcp = rs_filter_new("RSDcp", preview->navigator_filter_cache2);
 	preview->navigator_filter_cache3 = rs_filter_new("RSCache", preview->navigator_filter_dcp);
-	preview->navigator_transform_display = rs_filter_new("RSColorspaceTransform", preview->navigator_filter_cache3);
+	/* Effets (N&B, Voile, Argentico, Tonalité…) après le DCP, comme dans l'aperçu
+	   principal : sans ça les vignettes/navigateur ignorent les effets. */
+	preview->navigator_filter_effects = rs_filter_new("RSEffects", preview->navigator_filter_cache3);
+	preview->navigator_transform_display = rs_filter_new("RSColorspaceTransform", preview->navigator_filter_effects);
 	preview->navigator_filter_end = preview->navigator_transform_display;
 
 	g_object_set(preview->navigator_filter_cache, "ignore-roi", TRUE, NULL);
@@ -455,7 +491,7 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 	g_signal_connect(G_OBJECT(preview->canvas), "scroll_event", G_CALLBACK (scroll), preview);
 	g_signal_connect(preview->canvas, "draw", G_CALLBACK(canvas_draw_handler), preview);
 
-	preview->lightsout_window = NULL;
+	preview->lightsout = FALSE;
 	preview->prev_inside_image = FALSE;
 
 	g_object_ref(preview->display_color_space);
@@ -673,7 +709,7 @@ rs_preview_widget_set_zoom_to_fit(RSPreviewWidget *preview, gboolean zoom_to_fit
 /**
  * CaraStudio: Set a variable zoom factor (1.0 = 100%, 0.5 = 50%, 2.0 = 200%).
  * @param preview A RSPreviewWidget
- * @param zoom_factor The desired zoom factor (clamped to [0.05, 8.0])
+ * @param zoom_factor The desired zoom factor (clamped to [0.05, 2.0])
  */
 void
 rs_preview_widget_set_zoom(RSPreviewWidget *preview, gdouble zoom_factor)
@@ -686,9 +722,14 @@ rs_preview_widget_set_zoom(RSPreviewWidget *preview, gdouble zoom_factor)
 	if (!preview->photo)
 		return;
 
-	/* Clamp dans des limites raisonnables */
+	/* Clamp dans des limites raisonnables. Plafond à 2.0 (200 %) : le resample
+	   matérialise TOUT le cadre à l'échelle du zoom (il n'honore pas le ROI),
+	   donc le coût croît en zoom². À 400 % sur 20 Mpx ≈ 2,5 Go/buffer → aperçu
+	   inexploitable. 200 % garde des buffers raisonnables (~0,4-0,8 Go) tout en
+	   permettant l'inspection. Pour aller plus haut sans ralentir, il faudrait
+	   borner le resample à la zone visible (cf. bug #15, option non faite). */
 	if (zoom_factor < 0.05) zoom_factor = 0.05;
-	if (zoom_factor > 8.0) zoom_factor = 8.0;
+	if (zoom_factor > 2.0) zoom_factor = 2.0;
 
 	preview->zoom_factor = zoom_factor;
 
@@ -808,6 +849,48 @@ rs_preview_widget_set_loupe_enabled(RSPreviewWidget *preview, int view, gboolean
 	}
 }
 
+/* CaraStudio : rafraîchissement live de la vignette du navigateur.
+ * À chaque édition (settings/crop/rotate/profil/objectif), on (re)programme un
+ * timer ; à son échéance on recalcule la vignette de la photo courante depuis sa
+ * chaîne d'aperçu (effets inclus) et on la pousse dans le navigateur, sans avoir
+ * à recharger la photo depuis le disque. L'anti-rebond évite de régénérer à
+ * chaque cran de curseur. */
+#define CS_THUMB_REFRESH_DELAY_MS 600
+
+static gboolean
+thumbnail_refresh_timeout(gpointer data)
+{
+	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(data);
+	preview->thumbnail_refresh_timer = 0;
+
+	if (preview->photo && preview->photo->filename)
+	{
+		GdkPixbuf *thumb = rs_photo_update_thumbnail(preview->photo);
+		if (thumb)
+		{
+			RS_BLOB *rs = rs_get_blob();
+			if (rs && rs->store)
+				rs_store_update_thumbnail(rs->store, preview->photo->filename, thumb);
+			g_object_unref(thumb);
+		}
+	}
+
+	return G_SOURCE_REMOVE;
+}
+
+/* (Re)programme le rafraîchissement différé. Connecté en "swapped" aux signaux
+ * de la photo : le premier argument est donc le preview, les autres ignorés. */
+static void
+schedule_thumbnail_refresh(RSPreviewWidget *preview)
+{
+	if (!RS_IS_PREVIEW_WIDGET(preview))
+		return;
+	if (preview->thumbnail_refresh_timer)
+		g_source_remove(preview->thumbnail_refresh_timer);
+	preview->thumbnail_refresh_timer =
+		g_timeout_add(CS_THUMB_REFRESH_DELAY_MS, thumbnail_refresh_timeout, preview);
+}
+
 /**
  * Sets active photo of a RSPreviewWidget
  * @param preview A RSPreviewWidget
@@ -817,6 +900,14 @@ void
 rs_preview_widget_set_photo(RSPreviewWidget *preview, RS_PHOTO *photo)
 {
 	g_assert(RS_IS_PREVIEW_WIDGET(preview));
+
+	/* CaraStudio : on change de photo → annuler un rafraîchissement vignette en
+	 * attente, il viserait l'ancienne photo. */
+	if (preview->thumbnail_refresh_timer)
+	{
+		g_source_remove(preview->thumbnail_refresh_timer);
+		preview->thumbnail_refresh_timer = 0;
+	}
 
 	preview->photo = photo;
 	if (preview->state & CROP)
@@ -834,6 +925,12 @@ rs_preview_widget_set_photo(RSPreviewWidget *preview, RS_PHOTO *photo)
 		g_signal_connect(G_OBJECT(preview->photo), "lens-changed", G_CALLBACK(lens_changed), preview);
 		g_signal_connect(G_OBJECT(preview->photo), "profile-changed", G_CALLBACK(profile_changed), preview);
 		g_signal_connect(G_OBJECT(preview->photo), "spatial-changed", G_CALLBACK(photo_spatial_changed), preview);
+
+		/* CaraStudio : rafraîchir la vignette du navigateur à chaque édition. */
+		g_signal_connect_swapped(G_OBJECT(preview->photo), "settings-changed", G_CALLBACK(schedule_thumbnail_refresh), preview);
+		g_signal_connect_swapped(G_OBJECT(preview->photo), "spatial-changed", G_CALLBACK(schedule_thumbnail_refresh), preview);
+		g_signal_connect_swapped(G_OBJECT(preview->photo), "profile-changed", G_CALLBACK(schedule_thumbnail_refresh), preview);
+		g_signal_connect_swapped(G_OBJECT(preview->photo), "lens-changed", G_CALLBACK(schedule_thumbnail_refresh), preview);
 	}
 }
 
@@ -1003,57 +1100,6 @@ rs_preview_widget_set_split(RSPreviewWidget *preview, gboolean split_screen)
 	canvas_draw(preview, NULL, FALSE);
 }
 
-static gboolean
-lightsout_window_on_draw(GtkWidget *widget, cairo_t *cairo_context, RSPreviewWidget *preview)
-{
-	gint view;
-	gint x, y;
-	gint origin_x, origin_y;
-	gint root_origin_x, root_origin_y;
-	gint width, height;
-	GdkWindow *window = gtk_widget_get_window(widget);
-
-	gtk_window_get_size(GTK_WINDOW(widget), &width, &height);
-
-	cairo_set_source_rgba (cairo_context, 0.0f, 0.0f, 0.0f, 0.8f);
-	cairo_set_operator (cairo_context, CAIRO_OPERATOR_SOURCE);
-	cairo_paint (cairo_context);
-
-	/* Make sure the window is fullscreen and above everything */
-	gdk_window_raise(window);
-	gdk_window_set_keep_above(window, TRUE);
-	gdk_window_fullscreen(window);
-
-	/* Get position of canvas widget */
-	gdk_window_get_origin(gtk_widget_get_window(GTK_WIDGET(preview->canvas)), &origin_x, &origin_y);
-
-	/* This is nothing but a hack. Since the "lightsout" window is maximized,
-	   we can use the position of this to measure the size of Gnome3 left and
-	   top panels */
-	gdk_window_get_origin(window, &root_origin_x, &root_origin_y);
-
-	/* Paint the images with alpha=0 */
-	for(view=0;view<preview->views;view++)
-	{
-		GdkRectangle rect;
-		if (get_placement(preview, view, &rect))
-		{
-			/* Calculate the position as canvas position - PANEL sizes + canvas
-			   placement of preview */
-			x = origin_x - root_origin_x + rect.x;
-			y = origin_y - root_origin_y + rect.y;
-
-			cairo_set_source_rgba(cairo_context, 0.0, 0.0, 0.0, 0.0);
-			cairo_rectangle (cairo_context, x, y, rect.width, rect.height);
-			cairo_fill (cairo_context);
-		}
-	}
-
-	/* Set opacity to 100% when we're done drawing */
-	gtk_window_set_opacity(GTK_WINDOW(widget), 1.0);
-
-	return FALSE;
-}
 
 /**
  * Enables or disables lights out mode
@@ -1063,68 +1109,16 @@ lightsout_window_on_draw(GtkWidget *widget, cairo_t *cairo_context, RSPreviewWid
 void
 rs_preview_widget_set_lightsout(RSPreviewWidget *preview, gboolean lightsout)
 {
-	/* FIXME: Make this follow the loaded image(s) somehow */
-	if (lightsout && !preview->lightsout_window)
-	{
-		GdkScreen *screen = gtk_widget_get_screen(GTK_WIDGET(preview->canvas));
-		gint width = gdk_screen_get_width(screen);
-		gint height = gdk_screen_get_height(screen);
-		GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-		GdkVisual *visual = gdk_screen_get_rgba_visual(screen);
+	/* Voile noir « in-canvas » : on mémorise simplement l'état et on
+	 * redessine. canvas_draw_handler() peint le canvas en noir (l'image
+	 * reste affichée par-dessus). Contrairement à l'ancienne implémentation
+	 * (fenêtre overlay RGBA + gdk_window_raise/keep_above/fullscreen), cette
+	 * approche est 100% compatible Wayland — aucun compositing externe requis. */
+	if (preview->lightsout == lightsout)
+		return;
 
-		/* Check if the system even supports composite - and bail out if needed */
-		if (!visual || !gdk_display_supports_composite(gdk_display_get_default()))
-		{
-			GtkWidget *dialog = gui_dialog_make_from_text(
-				GTK_STOCK_DIALOG_ERROR,
-				_("Light out mode not available"),
-				_("Your setup doesn't seem to support RGBA visuals and/or compositing. Consult your operating system manual for enabling RGBA visuals and compositing.")
-			);
-			
-			GtkWidget *button = gtk_button_new_from_stock(GTK_STOCK_CLOSE);
-			gtk_dialog_add_action_widget(GTK_DIALOG(dialog), button, GTK_RESPONSE_ACCEPT);
-
-            gtk_widget_show_all(dialog);
-            gtk_dialog_run(GTK_DIALOG(dialog));
-            gtk_widget_destroy(dialog);
-			return;
-		}
-
-		/* Set the visual to RGBA */
-		gtk_widget_set_visual(window, visual);
-
-		/* Cover whole screen */
-		gtk_window_resize(GTK_WINDOW(window), width, height);
-		gtk_window_move(GTK_WINDOW(window), 0, 0);
-
-		/* Set the input shape to an empty cairo region,
-		 * to let everything pass through */
-		cairo_region_t *region = cairo_region_create();
-		gtk_widget_input_shape_combine_region(window, region);
-		cairo_region_destroy(region);
-
-		g_signal_connect(window, "draw", G_CALLBACK(lightsout_window_on_draw), preview);
-
-		gtk_widget_set_app_paintable (window, TRUE);
-		gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_UTILITY);
-		gtk_window_set_decorated (GTK_WINDOW (window), FALSE);
-		gtk_window_set_keep_above(GTK_WINDOW(window), TRUE);
-		gtk_window_set_accept_focus(GTK_WINDOW(window), FALSE);
-		gtk_window_set_deletable(GTK_WINDOW(window), FALSE);
-		gtk_window_set_skip_pager_hint(GTK_WINDOW(window), TRUE);
-		gtk_window_set_skip_taskbar_hint(GTK_WINDOW(window), TRUE);
-		gtk_window_set_title(GTK_WINDOW(window), "Rawstudio lights out helper");
-
-		/* Let the window be completely transparent for now to avoid initial flicker */
-		gtk_window_set_opacity(GTK_WINDOW(window), 0.0);
-		gtk_widget_show_all(window);
-		preview->lightsout_window = window;
-	}
-	else if (!lightsout && preview->lightsout_window)
-	{
-		gtk_widget_destroy(preview->lightsout_window);
-		preview->lightsout_window = NULL;
-	}
+	preview->lightsout = lightsout;
+	gtk_widget_queue_draw(GTK_WIDGET(preview->canvas));
 }
 
 /**
@@ -1195,6 +1189,8 @@ rs_preview_widget_get_show_exposure_mask(RSPreviewWidget *preview, gboolean show
 void
 rs_preview_widget_crop_start(RSPreviewWidget *preview)
 {
+	GtkWidget *frame;
+	GtkWidget *header;
 	GtkWidget *vbox;
 	GtkWidget *roi_size_hbox;
 	GtkWidget *label;
@@ -1204,14 +1200,20 @@ rs_preview_widget_crop_start(RSPreviewWidget *preview)
 	GtkWidget *aspect_hbox;
 	GtkWidget *aspect_label;
 	GtkWidget *button_box;
-	GtkWidget *apply_button;
-	GtkWidget *cancel_button;
+	GtkWidget *ok_button;
+	GtkWidget *uncrop_button;
 	RS_CONFBOX *grid_confbox;
 	RS_CONFBOX *aspect_confbox;
 
 	g_assert(RS_IS_PREVIEW_WIDGET(preview));
 
 	if (!(preview->state & NORMAL))
+		return;
+
+	/* CaraStudio : pas de photo chargée → ne rien faire (le bouton de la barre
+	 * d'outils est toujours cliquable, contrairement au menu/raccourci). Évite
+	 * un déréférencement NULL de preview->photo plus bas. */
+	if (!preview->photo || !preview->photo->input)
 		return;
 
 	/* predefined aspects */
@@ -1236,6 +1238,12 @@ rs_preview_widget_crop_start(RSPreviewWidget *preview)
 	aspect_golden = (1.0f+sqrt(5.0f))/2.0f;
 
 	vbox = gtk_vbox_new(FALSE, 4);
+	gtk_container_set_border_width(GTK_CONTAINER(vbox), 8);
+
+	header = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(header), _("<b>Recadrage</b>"));
+	gtk_misc_set_alignment(GTK_MISC(header), 0.0, 0.5);
+	gtk_box_pack_start (GTK_BOX (vbox), header, FALSE, TRUE, 0);
 
 	label = gtk_label_new(_("Size"));
 	gtk_misc_set_alignment(GTK_MISC(label), 0.0, 0.5);
@@ -1293,20 +1301,37 @@ rs_preview_widget_crop_start(RSPreviewWidget *preview)
 	gtk_box_pack_start (GTK_BOX (aspect_hbox),
 		gui_confbox_get_widget(aspect_confbox), FALSE, TRUE, 4);
 
+	/* CaraStudio : OK = je masque la palette pour dégager l'image, puis je trace
+	 * mon recadrage (validation finale : Entrée / Échap). « Annuler le
+	 * recadrage » retire le recadrage existant et quitte (ancien « Don't crop »). */
 	button_box = gtk_hbox_new(FALSE, 0);
-	apply_button = gtk_button_new_with_label(_("Crop"));
-	g_signal_connect (G_OBJECT(apply_button), "clicked", G_CALLBACK (crop_apply_clicked), preview);
-	cancel_button = gtk_button_new_with_label(_("Don't crop"));
-	g_signal_connect (G_OBJECT(cancel_button), "clicked", G_CALLBACK (crop_cancel_clicked), preview);
-	gtk_box_pack_start (GTK_BOX (button_box), apply_button, TRUE, TRUE, 4);
-	gtk_box_pack_start (GTK_BOX (button_box), cancel_button, TRUE, TRUE, 4);
+	ok_button = gtk_button_new_with_label(_("OK"));
+	g_signal_connect (G_OBJECT(ok_button), "clicked", G_CALLBACK (crop_settings_ok_clicked), preview);
+	uncrop_button = gtk_button_new_with_label(_("Annuler le recadrage"));
+	g_signal_connect (G_OBJECT(uncrop_button), "clicked", G_CALLBACK (crop_cancel_clicked), preview);
+	gtk_box_pack_start (GTK_BOX (button_box), ok_button, TRUE, TRUE, 4);
+	gtk_box_pack_start (GTK_BOX (button_box), uncrop_button, TRUE, TRUE, 4);
 
 	gtk_box_pack_start (GTK_BOX (vbox), roi_grid_hbox, FALSE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (vbox), aspect_hbox, FALSE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (vbox), button_box, FALSE, TRUE, 0);
 
-	preview->tool = rs_toolbox_add_widget(preview->toolbox, vbox, _("Crop"));
-	gtk_widget_show_all(preview->tool);
+	/* CaraStudio : palette flottante en haut à gauche, par-dessus l'aperçu,
+	 * au lieu d'un pavé enfoui en bas du panneau d'outils. */
+	crop_ensure_css();
+	frame = gtk_frame_new(NULL);
+	gtk_widget_set_name(frame, "cs-crop-float");
+	gtk_frame_set_shadow_type(GTK_FRAME(frame), GTK_SHADOW_NONE);
+	gtk_container_add(GTK_CONTAINER(frame), vbox);
+
+	gtk_widget_set_halign(frame, GTK_ALIGN_START);
+	gtk_widget_set_valign(frame, GTK_ALIGN_START);
+	gtk_widget_set_margin_start(frame, 12);
+	gtk_widget_set_margin_top(frame, 12);
+
+	preview->tool = frame;
+	gtk_overlay_add_overlay(GTK_OVERLAY(preview->canvas_overlay), frame);
+	gtk_widget_show_all(frame);
 
 	if (preview->photo->crop)
 	{
@@ -1317,11 +1342,41 @@ rs_preview_widget_crop_start(RSPreviewWidget *preview)
 	else
 		preview->state = CROP_START;
 
-	/* Help text for cropping */
-	preview->status_num = gui_status_push(_("Crop: Drag to select cropped area. Right Mouse Button inside cropped area: Apply Crop; Outside: Cancel crop"));
+	/* CaraStudio : rappel des raccourcis de validation (Entrée/Échap) */
+	preview->status_num = gui_status_push(_("Recadrage : tracez la zone à conserver · Entrée : valider · Échap : annuler · (clic droit : valider/annuler)"));
 
 	if (!preview->zoom_to_fit)
 		rs_preview_widget_set_zoom_to_fit(preview, TRUE);
+}
+
+/**
+ * CaraStudio : gère les touches de validation du recadrage.
+ * Entrée = appliquer, Échap = annuler. Ne fait rien (retourne FALSE) hors mode
+ * recadrage, pour laisser passer ces touches au reste de l'application.
+ * @param preview A RSPreviewWidget
+ * @param keyval La touche (GDK_KEY_*)
+ * @return TRUE si la touche a été consommée
+ */
+gboolean
+rs_preview_widget_crop_key(RSPreviewWidget *preview, guint keyval)
+{
+	g_return_val_if_fail(RS_IS_PREVIEW_WIDGET(preview), FALSE);
+
+	if (!(preview->state & CROP))
+		return FALSE;
+
+	switch (keyval)
+	{
+		case GDK_KEY_Return:
+		case GDK_KEY_KP_Enter:
+			crop_end(preview, TRUE);
+			return TRUE;
+		case GDK_KEY_Escape:
+			crop_end(preview, FALSE);
+			return TRUE;
+		default:
+			return FALSE;
+	}
 }
 
 /**
@@ -1585,8 +1640,11 @@ get_image_coord(RSPreviewWidget *preview, gint view, const gint x, const gint y,
 	{
 		_scaled_x = x + gtk_adjustment_get_value(preview->hadjustment);
 		_scaled_y = y + gtk_adjustment_get_value(preview->vadjustment);
-		_real_x = _scaled_x;
-		_real_y = _scaled_y;
+		/* En zoom manuel, scaled est en pixels zoomés. real est en pixels
+		   image originaux : on divise par le facteur de zoom. */
+		gdouble zf = (preview->zoom_factor > 0.0) ? preview->zoom_factor : 1.0;
+		_real_x = (gint)(_scaled_x / zf);
+		_real_y = (gint)(_scaled_y / zf);
 	}
 
 	if ((_scaled_x < filter_width) && (_scaled_y < filter_height) && (_scaled_x >= 0) && (_scaled_y >= 0))
@@ -1756,6 +1814,56 @@ button(GtkWidget *widget, GdkEventButton *event, RSPreviewWidget *preview)
 	gboolean inside_image = get_image_coord(preview, view, x, y, &scaled_x, &scaled_y, &real_x, &real_y, NULL, NULL);
 
 	g_return_val_if_fail(VIEW_IS_VALID(view), FALSE);
+
+	/* Pioche Argentico : clic gauche simple échantillonne le négatif
+	 * (post-DCP). Deux taches neutres (claire + dense) → "argentico-picked". */
+	if (preview->argentico_picking
+		&& inside_image
+		&& (event->type == GDK_BUTTON_PRESS)
+		&& (event->button == 1))
+	{
+		gfloat spot[3];
+		gboolean ok = sample_argentico_negative(preview, view, scaled_x, scaled_y, spot);
+		{
+			if (ok)
+			{
+				gint n = preview->argentico_spot_count;
+				preview->argentico_spots[n][0] = spot[0];
+				preview->argentico_spots[n][1] = spot[1];
+				preview->argentico_spots[n][2] = spot[2];
+				preview->argentico_spot_count = n + 1;
+
+				if (preview->argentico_spot_count >= 2)
+				{
+					RS_ARGENTICO_PICK_DATA pd;
+					pd.ref1[0] = preview->argentico_spots[0][0];
+					pd.ref1[1] = preview->argentico_spots[0][1];
+					pd.ref1[2] = preview->argentico_spots[0][2];
+					pd.ref2[0] = preview->argentico_spots[1][0];
+					pd.ref2[1] = preview->argentico_spots[1][1];
+					pd.ref2[2] = preview->argentico_spots[1][2];
+					preview->argentico_picking = FALSE;
+					preview->argentico_spot_count = 0;
+					g_signal_emit(G_OBJECT(preview), signals[ARGENTICO_PICKED], 0, &pd);
+				}
+			}
+		}
+		return TRUE;
+	}
+
+	/* Pipette balance des blancs (bouton) : clic gauche simple, sans Ctrl. */
+	if (preview->wb_picking
+		&& inside_image
+		&& (event->type == GDK_BUTTON_PRESS)
+		&& (event->button == 1)
+		&& g_signal_has_handler_pending(preview, signals[WB_PICKED], 0, FALSE))
+	{
+		RS_PREVIEW_CALLBACK_DATA cbdata;
+		make_cbdata(preview, view, &cbdata, scaled_x, scaled_y, real_x, real_y);
+		preview->wb_picking = FALSE;
+		g_signal_emit (G_OBJECT (preview), signals[WB_PICKED], 0, &cbdata);
+		return TRUE;
+	}
 
 	/* White balance picker — Ctrl+clic uniquement */
 	if (inside_image
@@ -2014,7 +2122,7 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 		/* Do aspect restriction */
 		crop_find_size_from_aspect(&preview->roi, preview->crop_aspect, preview->crop_near);
 
-		canvas_draw(preview, NULL, TRUE);
+		canvas_draw(preview, NULL, FALSE);
 	}
 
 	if ((mask & GDK_BUTTON1_MASK) && (preview->state & CROP_MOVE_SIDE))
@@ -2044,7 +2152,7 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 		preview->roi.x2 = MIN(max_w, preview->roi.x2);
 		preview->roi.y2 = MIN(max_h, preview->roi.y2);
 
-		canvas_draw(preview, NULL, TRUE);
+		canvas_draw(preview, NULL, FALSE);
 	}
 
 	if ((mask & GDK_BUTTON1_MASK) && (preview->state & CROP_MOVE_ALL))
@@ -2068,7 +2176,7 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 		preview->roi.x2 = preview->crop_move.x2+dist_x;
 		preview->roi.y2 = preview->crop_move.y2+dist_y;
 
-		canvas_draw(preview, NULL, TRUE);
+		canvas_draw(preview, NULL, FALSE);
 	}
 
 	/* Update crop_near if mouse button 1 is NOT pressed */
@@ -2146,6 +2254,24 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 			gdk_window_set_cursor(window, cur_normal);
 	}
 
+	/* Pioche Argentico : pipette permanente tant que le mode est actif */
+	if (preview->argentico_picking)
+	{
+		if (inside_image)
+			gdk_window_set_cursor(window, cur_color_picker);
+		else
+			gdk_window_set_cursor(window, cur_normal);
+	}
+
+	/* Pipette balance des blancs (bouton) : pipette permanente tant qu'actif */
+	if (preview->wb_picking)
+	{
+		if (inside_image)
+			gdk_window_set_cursor(window, cur_color_picker);
+		else
+			gdk_window_set_cursor(window, cur_normal);
+	}
+
 	if ((mask & GDK_BUTTON1_MASK) && (preview->state & STRAIGHTEN_MOVE))
 	{
 		gdouble degrees;
@@ -2155,7 +2281,7 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 		preview->straighten_end.y = y;
 		vx = preview->straighten_start.x - preview->straighten_end.x;
 		vy = preview->straighten_start.y - preview->straighten_end.y;
-		canvas_draw(preview, NULL, TRUE);
+		canvas_draw(preview, NULL, FALSE);
 		degrees = -atan2(vy,vx)*180/M_PI;
 		if (degrees>=0.0)
 		{
@@ -2334,14 +2460,47 @@ crop_grid_changed(gpointer active, gpointer user_data)
 	canvas_draw(preview, NULL, FALSE);
 }
 
+/* CaraStudio : installe une seule fois le style de la palette flottante de
+ * recadrage (fond sombre translucide, coins arrondis, texte clair) pour
+ * qu'elle reste lisible par-dessus n'importe quelle photo. */
 static void
-crop_apply_clicked(GtkButton *button, gpointer user_data)
+crop_ensure_css(void)
+{
+	static gboolean done = FALSE;
+	if (done)
+		return;
+	done = TRUE;
+
+	GtkCssProvider *provider = gtk_css_provider_new();
+	gtk_css_provider_load_from_data(provider,
+		"#cs-crop-float {"
+		"  background-color: rgba(30, 30, 30, 0.88);"
+		"  border-radius: 8px;"
+		"  border: 1px solid rgba(255, 255, 255, 0.15);"
+		"  color: #ffffff;"
+		"}"
+		"#cs-crop-float label { color: #ffffff; }",
+		-1, NULL);
+	gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
+		GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	g_object_unref(provider);
+}
+
+/* CaraStudio : « OK » dans la palette = réglages choisis, on masque la palette
+ * pour dégager l'image ; le mode recadrage reste actif (validation finale par
+ * Entrée/Échap ou clic droit). */
+static void
+crop_settings_ok_clicked(GtkButton *button, gpointer user_data)
 {
 	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
 
-	crop_end(preview, TRUE);
+	if (preview->tool)
+		gtk_widget_hide(preview->tool);
 }
 
+/* CaraStudio : « Annuler le recadrage » = retire le recadrage existant et quitte
+ * le mode (à l'entrée, un crop déjà appliqué a été mis à NULL ; ne pas le
+ * réappliquer revient à le supprimer). Reprend l'ancien bouton « Don't crop ». */
 static void
 crop_cancel_clicked(GtkButton *button, gpointer user_data)
 {
@@ -2518,6 +2677,18 @@ make_cbdata(RSPreviewWidget *preview, const gint view, RS_PREVIEW_CALLBACK_DATA 
 		rs_filter_request_set_roi(request, NULL);
 	rs_filter_set_recursive(RS_FILTER(preview->filter_input), "demosaic-allow-downscale",  preview->zoom_to_fit, NULL);
 
+	/* En zoom manuel (pas zoom_to_fit), sans ROI, la chaîne produirait l'image
+	   ENTIÈRE au facteur de zoom courant — p.ex. 217 Mpx / 2,7 Go à fort
+	   grossissement (le demosaic ne downscale pas). Ça survient le temps d'une
+	   frame pendant un changement de zoom, avant que le dessin ne fixe le ROI
+	   visible. On saute la lecture du pixel pour cette frame plutôt que
+	   d'allouer/copier une image géante (relevé R/V/B simplement non mis à jour). */
+	if (!preview->zoom_to_fit && rs_filter_request_get_roi(request) == NULL)
+	{
+		g_object_unref(request);
+		return FALSE;
+	}
+
 	RSFilterResponse *response = rs_filter_get_image(preview->filter_cache1[view], request);
 	RS_IMAGE16 *image = rs_filter_response_get_image(response);
 	g_object_unref(response);
@@ -2570,31 +2741,85 @@ make_cbdata(RSPreviewWidget *preview, const gint view, RS_PREVIEW_CALLBACK_DATA 
 	return TRUE;
 }
 
+/* ------------------------------------------------------------------ */
+/* Pioche Argentico : échantillonne le NÉGATIF (avant inversion)       */
+/* ------------------------------------------------------------------ */
+/*
+ * Argentico inverse désormais dans le plugin « effects » (espace de travail,
+ * post-DCP). Le négatif à échantillonner = l'image qui ENTRE dans effects,
+ * c.-à-d. le cache APRÈS le DCP (filter_cache2). On lit aux coordonnées
+ * resamplées (mêmes que le picker WB) → mapping correct y compris avec
+ * recadrage/rotation. Moyenne 3×3, échelle brute 0..65535 (seuls les ratios
+ * comptent ensuite). */
+static gboolean
+sample_argentico_negative(RSPreviewWidget *preview, const gint view, gint sx, gint sy, gfloat out[3])
+{
+	if ((view < 0) || (view > (preview->views - 1)))
+		return FALSE;
+	if (!preview->request[view] || !preview->filter_cache2[view])
+		return FALSE;
+
+	RSFilterRequest *request = rs_filter_request_clone(preview->request[view]);
+	rs_filter_request_set_quick(request, TRUE);
+	if (preview->zoom_to_fit)
+		rs_filter_request_set_roi(request, NULL);
+	rs_filter_set_recursive(RS_FILTER(preview->filter_input), "demosaic-allow-downscale", preview->zoom_to_fit, NULL);
+
+	RSFilterResponse *response = rs_filter_get_image(preview->filter_cache2[view], request);
+	g_object_unref(request);
+	if (!response)
+		return FALSE;
+	RS_IMAGE16 *image = rs_filter_response_get_image(response);
+	g_object_unref(response);
+	if (!image)
+		return FALSE;
+
+	gdouble r = 0.0, g = 0.0, b = 0.0;
+	gint row, col, n = 0;
+	for (row = -1; row <= 1; row++)
+		for (col = -1; col <= 1; col++)
+		{
+			gushort *pixel = rs_image16_get_pixel(image, sx + col, sy + row, TRUE);
+			r += pixel[R];
+			g += pixel[G];
+			b += pixel[B];
+			n++;
+		}
+	out[0] = (gfloat)(r / n);
+	out[1] = (gfloat)(g / n);
+	out[2] = (gfloat)(b / n);
+
+	g_object_unref(image);
+	return TRUE;
+}
+
+void
+rs_preview_widget_set_argentico_pick(RSPreviewWidget *preview, gboolean active)
+{
+	g_return_if_fail(RS_IS_PREVIEW_WIDGET(preview));
+	preview->argentico_picking = active;
+	preview->argentico_spot_count = 0;
+}
+
+void
+rs_preview_widget_set_wb_pick(RSPreviewWidget *preview, gboolean active)
+{
+	g_return_if_fail(RS_IS_PREVIEW_WIDGET(preview));
+	preview->wb_picking = active;
+}
+
 static void
 canvas_draw(RSPreviewWidget *preview, GdkRectangle *rect, gboolean now)
 {
 	GtkWidget *widget = GTK_WIDGET(preview->canvas);
-	GdkWindow *window = gtk_widget_get_window(widget);
 
-	if (now)
-	{
-		cairo_t *cr = gdk_cairo_create(window);
-
-		if (rect)
-		{
-			cairo_new_path(cr);
-			cairo_rectangle(cr, rect->x, rect->y, rect->width, rect->height);
-			cairo_clip(cr);
-		}
-		canvas_draw_handler(widget, cr, preview);
-	}
+	/* Sur Wayland, gdk_cairo_create() hors du signal draw est sans effet.
+	   On passe toujours par gtk_widget_queue_draw pour que GTK fournisse
+	   un cairo_t valide via le callback draw. */
+	if (rect)
+		gtk_widget_queue_draw_area(widget, rect->x, rect->y, rect->width, rect->height);
 	else
-	{
-		if (rect)
-			gtk_widget_queue_draw_area(widget, rect->x, rect->y, rect->width, rect->height);
-		else
-			gtk_widget_queue_draw(widget);
-	}
+		gtk_widget_queue_draw(widget);
 }
 
 static void
@@ -2619,34 +2844,70 @@ canvas_draw_handler(GtkWidget *widget, cairo_t *cr, RSPreviewWidget *preview)
 		dirty_area.height = rect.height;
 	}
 
+	/* Lights Out : voile noir sur tout le canvas ; l'image (et le reste) est
+	 * dessinée par-dessus. En plein écran le canvas occupe l'écran → effet
+	 * « voile noir ». Compatible Wayland (aucune fenêtre overlay). */
+	if (preview->lightsout)
+	{
+		cairo_save(cr);
+		cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+		cairo_rectangle(cr, dirty_area.x, dirty_area.y, dirty_area.width, dirty_area.height);
+		cairo_fill(cr);
+		cairo_restore(cr);
+	}
+
 #define CAIRO_LINE(cr, x1, y1, x2, y2) do { \
 	cairo_move_to((cr), (x1), (y1)); \
 	cairo_line_to((cr), (x2), (y2)); } while (0);
 
 	for(i=0;i<preview->views;i++)
 	{
+		/* Dimensions et offset de cette vue dans le canvas */
+		gint view_w = rect.width;
+		gint view_h = rect.height;
+		gint view_x0 = 0;
+		gint view_y0 = 0;
+
+		if (preview->split == SPLIT_VERTICAL)
+		{
+			view_w = (rect.width - (preview->views-1)*SPLITTER_WIDTH) / preview->views;
+			view_x0 = i * (view_w + SPLITTER_WIDTH);
+		}
+		else if (preview->split == SPLIT_HORIZONTAL)
+		{
+			view_h = (rect.height - (preview->views-1)*SPLITTER_WIDTH) / preview->views;
+			view_y0 = i * (view_h + SPLITTER_WIDTH);
+		}
+
+		/* Zone sale restreinte à cette vue — sans cairo_save/restore
+		   pour éviter les problèmes avec les return prématurés */
+		GdkRectangle view_rect = { view_x0, view_y0, view_w, view_h };
+		GdkRectangle view_dirty;
+		if (!gdk_rectangle_intersect(&dirty_area, &view_rect, &view_dirty))
+			continue;
+
 		rs_filter_get_size_simple(preview->filter_end[i], preview->request[i], &width, &height);
 
 		if (preview->zoom_to_fit)
 			get_placement(preview, i, &placement);
 		else
 		{
-			if (width > rect.width)
-				placement.x = -gtk_adjustment_get_value(preview->hadjustment);
+			if (width > view_w)
+				placement.x = view_x0 - gtk_adjustment_get_value(preview->hadjustment);
 			else
-				placement.x = ((rect.width)-width)/2;
+				placement.x = view_x0 + (view_w - width) / 2;
 
-			if (height > rect.height)
-				placement.y = -gtk_adjustment_get_value(preview->vadjustment);
+			if (height > view_h)
+				placement.y = view_y0 - gtk_adjustment_get_value(preview->vadjustment);
 			else
-				placement.y = ((rect.height)-height)/2;
+				placement.y = view_y0 + (view_h - height) / 2;
 
 			placement.width = width;
 			placement.height = height;
 		}
 
 		/* Render the photo itself */
-		if (preview->photo && gdk_rectangle_intersect(&dirty_area, &placement, &area))
+		if (preview->photo && gdk_rectangle_intersect(&view_dirty, &placement, &area))
 		{
 			GdkRectangle roi = area;
 			roi.x -= placement.x;
@@ -2926,6 +3187,7 @@ canvas_draw_handler(GtkWidget *widget, cairo_t *cr, RSPreviewWidget *preview)
 			cairo_text_path(cr, txt);
 			cairo_stroke(cr);
 		}
+
 	}
 
 	/* Draw straighten-line */

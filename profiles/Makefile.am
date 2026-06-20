@@ -1,4 +1,4 @@
-rawstudiodir = $(datadir)/rawstudio/profiles
+rawstudiodir = $(datadir)/$(PACKAGE)/profiles
 
 RECIPE_FILES := $(wildcard recipes/*.dcpr)
 SIMPLE_SOURCE_FILES := $(wildcard simple-src/*.xml)

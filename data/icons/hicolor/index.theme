@@ -1,0 +1,24 @@
+[Icon Theme]
+Name=hicolor
+Comment=CaraStudio icon theme
+Directories=scalable/actions,scalable/apps,48x48/actions,48x48/apps
+
+[scalable/actions]
+Size=48
+MinSize=16
+MaxSize=512
+Type=Scalable
+
+[scalable/apps]
+Size=48
+MinSize=16
+MaxSize=512
+Type=Scalable
+
+[48x48/actions]
+Size=48
+Type=Fixed
+
+[48x48/apps]
+Size=48
+Type=Fixed

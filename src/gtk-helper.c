@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -345,6 +345,18 @@ window_key_press_event (GtkWidget   *widget,
   GtkWidget *focus   = gtk_window_get_focus (window);
   gboolean   handled = FALSE;
 
+  /* CaraStudio : en mode recadrage, Entrée valide / Échap annule. On intercepte
+   * avant tout le reste, mais seulement si aucun champ texte n'a le focus (sinon
+   * Entrée/Échap dans un champ serait détourné). rs_preview_widget_crop_key
+   * retourne FALSE hors mode recadrage, donc aucun effet le reste du temps. */
+  if (!(GTK_IS_EDITABLE (focus) || GTK_IS_TEXT_VIEW (focus)))
+  {
+    RS_BLOB *rs = rs_get_blob();
+    if (rs && rs->preview &&
+        rs_preview_widget_crop_key(RS_PREVIEW_WIDGET(rs->preview), event->keyval))
+      return TRUE;
+  }
+
   /* we're overriding the GtkWindow implementation here to give
    * the focus widget precedence over unmodified accelerators
    * before the accelerator activation scheme.
@@ -558,7 +570,7 @@ gui_button_new_from_stock_with_label(const gchar *stock_id, const gchar *label)
 	g_assert(stock_id);
 	g_assert(label);
 
-	stock = gtk_image_new_from_stock(stock_id, GTK_ICON_SIZE_BUTTON);
+	stock = gtk_image_new_from_icon_name(stock_id, GTK_ICON_SIZE_BUTTON);
 	button = gtk_button_new_with_label(label);
 	gtk_button_set_image(GTK_BUTTON(button), stock);
 

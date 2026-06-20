@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -63,7 +63,14 @@ queue_worker(gpointer data)
 			/* If we somehow got NULL, continue. I'm not sure this will ever happen, but this is better than random segfaults :) */
 			if (job)
 			{
+				/* Sérialise le décodage (chaîne de filtres DCP) avec la
+				 * régénération de vignettes du thread principal, qui prend
+				 * aussi rs_io_lock → évite la corruption de tas concurrente
+				 * (#19). On NE verrouille PAS le callback : il marshale vers
+				 * le thread principal et provoquerait un interblocage. */
+				rs_io_lock();
 				rs_io_job_execute(job);
+				rs_io_unlock();
 				rs_io_job_do_callback(job);
 				g_mutex_lock(&count_lock);
 				queue_active_count--;
@@ -88,7 +95,13 @@ init(void)
 	if (!queue)
 	{
 		queue = g_async_queue_new();
-		for (i = 0; i < rs_get_number_of_processor_cores(); i++)
+		/* STABILISATION (14/06/2026) : on sérialise les workers IO sur UN SEUL
+		 * thread. En multi-worker, le décodage concurrent des vignettes RAW passe
+		 * par raw_thumbnail_reader → chaîne de filtres DCP, et corrompt une liste
+		 * partagée (rs_filter_changed / g_slist_length → SIGSEGV, famille #8).
+		 * Un seul worker = pas de concurrence sur ces chaînes. À rétablir en
+		 * multicœur une fois la corruption corrigée à la racine (diagnostic ASan). */
+		for (i = 0; i < 1; i++)
 			g_thread_new("io worker", queue_worker, queue);
 
 		io_lock_timer = g_timer_new();

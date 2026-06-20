@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -64,7 +64,57 @@ enum {
 	PROP_CHANNELMIXER_RED,
 	PROP_CHANNELMIXER_GREEN,
 	PROP_CHANNELMIXER_BLUE,
-	PROP_RECALC_TEMP
+	PROP_RECALC_TEMP,
+	/* Effets artistiques CaraStudio */
+	PROP_SOFTLIGHT_STRENGTH,
+	PROP_ART_VIGNETTE_STRENGTH,
+	PROP_ART_VIGNETTE_FEATHER,
+	PROP_ART_VIGNETTE_ROUNDNESS,
+	/* Noir & Blanc */
+	PROP_BW_ENABLED,
+	PROP_BW_FILTER,
+	PROP_BW_RED,
+	PROP_BW_ORANGE,
+	PROP_BW_YELLOW,
+	PROP_BW_GREEN,
+	PROP_BW_CYAN,
+	PROP_BW_BLUE,
+	PROP_BW_VIOLET,
+	PROP_DEHAZE_STRENGTH,
+	PROP_DEHAZE_SATURATION,
+	/* Argentico (négatif argentique) */
+	PROP_ARGENTICO_ENABLED,
+	PROP_ARGENTICO_GREEN_EXP,
+	PROP_ARGENTICO_RED_RATIO,
+	PROP_ARGENTICO_BLUE_RATIO,
+	PROP_ARGENTICO_EXPOSURE,
+	PROP_ARGENTICO_REF_R,
+	PROP_ARGENTICO_REF_G,
+	PROP_ARGENTICO_REF_B,
+	/* Égaliseur de tons par bandes */
+	PROP_TONEEQ_ENABLED,
+	PROP_TONEEQ_BAND0,
+	PROP_TONEEQ_BAND1,
+	PROP_TONEEQ_BAND2,
+	PROP_TONEEQ_BAND3,
+	PROP_TONEEQ_BAND4,
+	PROP_TONEEQ_PIVOT,
+	/* Correction couleur — roues 3 voies */
+	PROP_COLORWHEELS_ENABLED,
+	PROP_CW_SHADOWS_X,
+	PROP_CW_SHADOWS_Y,
+	PROP_CW_SHADOWS_LUM,
+	PROP_CW_MID_X,
+	PROP_CW_MID_Y,
+	PROP_CW_MID_LUM,
+	PROP_CW_HIGH_X,
+	PROP_CW_HIGH_Y,
+	PROP_CW_HIGH_LUM,
+	/* Égaliseur de couleurs (color zones) */
+	PROP_HSL_ENABLED,
+	PROP_HSL_HUE_CURVE,
+	PROP_HSL_SAT_CURVE,
+	PROP_HSL_LUM_CURVE
 };
 
 static void
@@ -187,6 +237,228 @@ rs_settings_class_init (RSSettingsClass *klass)
 			"recalc-temp", "recalc-temp", "Recalculate Temperature",
 			FALSE, G_PARAM_READWRITE)
 	);
+	/* Effets artistiques CaraStudio */
+	g_object_class_install_property(object_class,
+		PROP_SOFTLIGHT_STRENGTH, g_param_spec_float(
+			"softlight-strength", _("Lum. douce"), _("Soft Light Strength"),
+			0.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ART_VIGNETTE_STRENGTH, g_param_spec_float(
+			"art-vignette-strength", _("Vign. force"), _("Artistic Vignette Strength"),
+			-6.0, 6.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ART_VIGNETTE_FEATHER, g_param_spec_float(
+			"art-vignette-feather", _("Vign. plume"), _("Artistic Vignette Feather"),
+			0.0, 100.0, 50.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ART_VIGNETTE_ROUNDNESS, g_param_spec_float(
+			"art-vignette-roundness", _("Vign. rondeur"), _("Artistic Vignette Roundness"),
+			0.0, 100.0, 50.0, G_PARAM_READWRITE)
+	);
+	/* Noir & Blanc */
+	g_object_class_install_property(object_class,
+		PROP_BW_ENABLED, g_param_spec_boolean(
+			"bw-enabled", _("NB"), _("Black and White enabled"),
+			FALSE, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_FILTER, g_param_spec_int(
+			"bw-filter", _("Filtre"), _("N&B filtre coloré (0=aucun)"),
+			0, 8, 0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_RED, g_param_spec_float(
+			"bw-red", _("Rouge"), _("N&B canal Rouge"),
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_ORANGE, g_param_spec_float(
+			"bw-orange", _("Orange"), _("N&B canal Orange"),
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_YELLOW, g_param_spec_float(
+			"bw-yellow", _("Jaune"), _("N&B canal Jaune"),
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_GREEN, g_param_spec_float(
+			"bw-green", _("Vert"), _("N&B canal Vert"),
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_CYAN, g_param_spec_float(
+			"bw-cyan", _("Cyan"), _("N&B canal Cyan"),
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_BLUE, g_param_spec_float(
+			"bw-blue", _("Bleu"), _("N&B canal Bleu"),
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_BW_VIOLET, g_param_spec_float(
+			"bw-violet", _("Violet"), _("N&B canal Violet"),
+			0.0, 200.0, 100.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_DEHAZE_STRENGTH, g_param_spec_float(
+			"dehaze-strength", _("Brume"), _("Dehaze Strength"),
+			0.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_DEHAZE_SATURATION, g_param_spec_float(
+			"dehaze-saturation", _("Saturation"), _("Dehaze Saturation"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_ENABLED, g_param_spec_boolean(
+			"argentico-enabled", _("Argentico"), _("Activer le négatif argentique"),
+			FALSE, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_GREEN_EXP, g_param_spec_float(
+			"argentico-green-exp", _("Pente verte"), _("Film Negative Green Exponent"),
+			0.3, 4.0, 1.5, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_RED_RATIO, g_param_spec_float(
+			"argentico-red-ratio", _("Ratio rouge"), _("Film Negative Red Ratio"),
+			0.3, 5.0, 1.36, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_BLUE_RATIO, g_param_spec_float(
+			"argentico-blue-ratio", _("Ratio bleu"), _("Film Negative Blue Ratio"),
+			0.3, 5.0, 0.86, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_EXPOSURE, g_param_spec_float(
+			"argentico-exposure", _("Exposition"), _("Film Negative Output Exposure (stops)"),
+			-5.0, 5.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_REF_R, g_param_spec_float(
+			"argentico-ref-r", _("Réf R"), _("Film Negative Reference Red (0=auto)"),
+			0.0, 65535.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_REF_G, g_param_spec_float(
+			"argentico-ref-g", _("Réf G"), _("Film Negative Reference Green (0=auto)"),
+			0.0, 65535.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_ARGENTICO_REF_B, g_param_spec_float(
+			"argentico-ref-b", _("Réf B"), _("Film Negative Reference Blue (0=auto)"),
+			0.0, 65535.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_ENABLED, g_param_spec_boolean(
+			"toneeq-enabled", _("Égaliseur de tons"), _("Activer l'égaliseur de tons par bandes"),
+			FALSE, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_BAND0, g_param_spec_float(
+			"toneeq-band0", _("Noirs"), _("Tone Equalizer Blacks"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_BAND1, g_param_spec_float(
+			"toneeq-band1", _("Ombres"), _("Tone Equalizer Shadows"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_BAND2, g_param_spec_float(
+			"toneeq-band2", _("Tons moyens"), _("Tone Equalizer Midtones"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_BAND3, g_param_spec_float(
+			"toneeq-band3", _("Tons clairs"), _("Tone Equalizer Highlights"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_BAND4, g_param_spec_float(
+			"toneeq-band4", _("Blancs"), _("Tone Equalizer Whites"),
+			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_TONEEQ_PIVOT, g_param_spec_float(
+			"toneeq-pivot", _("Pivot"), _("Tone Equalizer Pivot"),
+			-12.0, 12.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_COLORWHEELS_ENABLED, g_param_spec_boolean(
+			"colorwheels-enabled", _("Correction couleur"), _("Activer les roues 3 voies"),
+			FALSE, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_SHADOWS_X, g_param_spec_float(
+			"cw-shadows-x", _("Ombres X"), _("Color Wheel Shadows X"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_SHADOWS_Y, g_param_spec_float(
+			"cw-shadows-y", _("Ombres Y"), _("Color Wheel Shadows Y"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_SHADOWS_LUM, g_param_spec_float(
+			"cw-shadows-lum", _("Ombres luminance"), _("Color Wheel Shadows Luminance (lift)"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_MID_X, g_param_spec_float(
+			"cw-mid-x", _("Médians X"), _("Color Wheel Midtones X"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_MID_Y, g_param_spec_float(
+			"cw-mid-y", _("Médians Y"), _("Color Wheel Midtones Y"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_MID_LUM, g_param_spec_float(
+			"cw-mid-lum", _("Médians luminance"), _("Color Wheel Midtones Luminance (gamma)"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_HIGH_X, g_param_spec_float(
+			"cw-high-x", _("Hautes X"), _("Color Wheel Highlights X"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_HIGH_Y, g_param_spec_float(
+			"cw-high-y", _("Hautes Y"), _("Color Wheel Highlights Y"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_CW_HIGH_LUM, g_param_spec_float(
+			"cw-high-lum", _("Hautes luminance"), _("Color Wheel Highlights Luminance (gain)"),
+			-1.0, 1.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_HSL_ENABLED, g_param_spec_boolean(
+			"hsl-enabled", _("Égaliseur de couleurs"), _("Activer l'égaliseur de couleurs"),
+			FALSE, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_HSL_HUE_CURVE, g_param_spec_string(
+			"hsl-hue-curve", _("Teinte"), _("HSL Hue band values"),
+			NULL, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_HSL_SAT_CURVE, g_param_spec_string(
+			"hsl-sat-curve", _("Saturation"), _("HSL Saturation band values"),
+			NULL, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_HSL_LUM_CURVE, g_param_spec_string(
+			"hsl-lum-curve", _("Luminance"), _("HSL Lightness band values"),
+			NULL, G_PARAM_READWRITE)
+	);
 
 	signals[SETTINGS_CHANGED] = g_signal_new ("settings-changed",
 		G_TYPE_FROM_CLASS (klass),
@@ -213,6 +485,9 @@ rs_settings_init (RSSettings *self)
 	self->commit_todo = 0;
 	self->curve_knots = NULL;
 	self->wb_ascii = NULL;
+	self->hsl_hue_curve = NULL;
+	self->hsl_sat_curve = NULL;
+	self->hsl_lum_curve = NULL;
 	rs_settings_reset(self, MASK_ALL);
 }
 
@@ -253,6 +528,68 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		CASE(CHANNELMIXER_RED, channelmixer_red);
 		CASE(CHANNELMIXER_GREEN, channelmixer_green);
 		CASE(CHANNELMIXER_BLUE, channelmixer_blue);
+		CASE(SOFTLIGHT_STRENGTH, softlight_strength);
+		CASE(ART_VIGNETTE_STRENGTH, art_vignette_strength);
+		CASE(ART_VIGNETTE_FEATHER, art_vignette_feather);
+		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
+		CASE(DEHAZE_STRENGTH, dehaze_strength);
+		CASE(DEHAZE_SATURATION, dehaze_saturation);
+		CASE(ARGENTICO_GREEN_EXP, argentico_green_exp);
+		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
+		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
+		CASE(ARGENTICO_EXPOSURE, argentico_exposure);
+		CASE(ARGENTICO_REF_R, argentico_ref_r);
+		CASE(ARGENTICO_REF_G, argentico_ref_g);
+		CASE(ARGENTICO_REF_B, argentico_ref_b);
+		CASE(TONEEQ_BAND0, toneeq_band0);
+		CASE(TONEEQ_BAND1, toneeq_band1);
+		CASE(TONEEQ_BAND2, toneeq_band2);
+		CASE(TONEEQ_BAND3, toneeq_band3);
+		CASE(TONEEQ_BAND4, toneeq_band4);
+		CASE(TONEEQ_PIVOT, toneeq_pivot);
+		CASE(CW_SHADOWS_X, cw_shadows_x);
+		CASE(CW_SHADOWS_Y, cw_shadows_y);
+		CASE(CW_SHADOWS_LUM, cw_shadows_lum);
+		CASE(CW_MID_X, cw_mid_x);
+		CASE(CW_MID_Y, cw_mid_y);
+		CASE(CW_MID_LUM, cw_mid_lum);
+		CASE(CW_HIGH_X, cw_high_x);
+		CASE(CW_HIGH_Y, cw_high_y);
+		CASE(CW_HIGH_LUM, cw_high_lum);
+	case PROP_ARGENTICO_ENABLED:
+		g_value_set_boolean(value, settings->argentico_enabled);
+		break;
+	case PROP_TONEEQ_ENABLED:
+		g_value_set_boolean(value, settings->toneeq_enabled);
+		break;
+	case PROP_COLORWHEELS_ENABLED:
+		g_value_set_boolean(value, settings->colorwheels_enabled);
+		break;
+	case PROP_HSL_ENABLED:
+		g_value_set_boolean(value, settings->hsl_enabled);
+		break;
+	case PROP_HSL_HUE_CURVE:
+		g_value_set_string(value, settings->hsl_hue_curve);
+		break;
+	case PROP_HSL_SAT_CURVE:
+		g_value_set_string(value, settings->hsl_sat_curve);
+		break;
+	case PROP_HSL_LUM_CURVE:
+		g_value_set_string(value, settings->hsl_lum_curve);
+		break;
+	case PROP_BW_ENABLED:
+		g_value_set_boolean(value, settings->bw_enabled);
+		break;
+	case PROP_BW_FILTER:
+		g_value_set_int(value, settings->bw_filter);
+		break;
+		CASE(BW_RED, bw_red);
+		CASE(BW_ORANGE, bw_orange);
+		CASE(BW_YELLOW, bw_yellow);
+		CASE(BW_GREEN, bw_green);
+		CASE(BW_CYAN, bw_cyan);
+		CASE(BW_BLUE, bw_blue);
+		CASE(BW_VIOLET, bw_violet);
 	case PROP_RECALC_TEMP:
 		g_value_set_boolean(value, settings->recalc_temp);
 		break;
@@ -329,6 +666,98 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		CASE(CHANNELMIXER_RED, channelmixer_red);
 		CASE(CHANNELMIXER_GREEN, channelmixer_green);
 		CASE(CHANNELMIXER_BLUE, channelmixer_blue);
+		CASE(SOFTLIGHT_STRENGTH, softlight_strength);
+		CASE(ART_VIGNETTE_STRENGTH, art_vignette_strength);
+		CASE(ART_VIGNETTE_FEATHER, art_vignette_feather);
+		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
+		CASE(DEHAZE_STRENGTH, dehaze_strength);
+		CASE(DEHAZE_SATURATION, dehaze_saturation);
+		CASE(ARGENTICO_GREEN_EXP, argentico_green_exp);
+		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
+		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
+		CASE(ARGENTICO_EXPOSURE, argentico_exposure);
+		CASE(ARGENTICO_REF_R, argentico_ref_r);
+		CASE(ARGENTICO_REF_G, argentico_ref_g);
+		CASE(ARGENTICO_REF_B, argentico_ref_b);
+		CASE(TONEEQ_BAND0, toneeq_band0);
+		CASE(TONEEQ_BAND1, toneeq_band1);
+		CASE(TONEEQ_BAND2, toneeq_band2);
+		CASE(TONEEQ_BAND3, toneeq_band3);
+		CASE(TONEEQ_BAND4, toneeq_band4);
+		CASE(TONEEQ_PIVOT, toneeq_pivot);
+		CASE(CW_SHADOWS_X, cw_shadows_x);
+		CASE(CW_SHADOWS_Y, cw_shadows_y);
+		CASE(CW_SHADOWS_LUM, cw_shadows_lum);
+		CASE(CW_MID_X, cw_mid_x);
+		CASE(CW_MID_Y, cw_mid_y);
+		CASE(CW_MID_LUM, cw_mid_lum);
+		CASE(CW_HIGH_X, cw_high_x);
+		CASE(CW_HIGH_Y, cw_high_y);
+		CASE(CW_HIGH_LUM, cw_high_lum);
+	case PROP_ARGENTICO_ENABLED:
+		if (settings->argentico_enabled != g_value_get_boolean(value))
+		{
+			settings->argentico_enabled = g_value_get_boolean(value);
+			changed_mask |= MASK_ARGENTICO_ENABLED;
+		}
+		break;
+	case PROP_TONEEQ_ENABLED:
+		if (settings->toneeq_enabled != g_value_get_boolean(value))
+		{
+			settings->toneeq_enabled = g_value_get_boolean(value);
+			changed_mask |= MASK_TONEEQ_ENABLED;
+		}
+		break;
+	case PROP_COLORWHEELS_ENABLED:
+		if (settings->colorwheels_enabled != g_value_get_boolean(value))
+		{
+			settings->colorwheels_enabled = g_value_get_boolean(value);
+			changed_mask |= MASK_COLORWHEELS_ENABLED;
+		}
+		break;
+	case PROP_HSL_ENABLED:
+		if (settings->hsl_enabled != g_value_get_boolean(value))
+		{
+			settings->hsl_enabled = g_value_get_boolean(value);
+			changed_mask |= MASK_HSL_ENABLED;
+		}
+		break;
+	case PROP_HSL_HUE_CURVE:
+		g_free(settings->hsl_hue_curve);
+		settings->hsl_hue_curve = g_strdup(g_value_get_string(value));
+		changed_mask |= MASK_HSL_HUE;
+		break;
+	case PROP_HSL_SAT_CURVE:
+		g_free(settings->hsl_sat_curve);
+		settings->hsl_sat_curve = g_strdup(g_value_get_string(value));
+		changed_mask |= MASK_HSL_SAT;
+		break;
+	case PROP_HSL_LUM_CURVE:
+		g_free(settings->hsl_lum_curve);
+		settings->hsl_lum_curve = g_strdup(g_value_get_string(value));
+		changed_mask |= MASK_HSL_LUM;
+		break;
+	case PROP_BW_ENABLED:
+		if (settings->bw_enabled != g_value_get_boolean(value))
+		{
+			settings->bw_enabled = g_value_get_boolean(value);
+			changed_mask |= MASK_BW_ENABLED;
+		}
+		break;
+	case PROP_BW_FILTER:
+		if (settings->bw_filter != g_value_get_int(value))
+		{
+			settings->bw_filter = g_value_get_int(value);
+			changed_mask |= MASK_BW_FILTER;
+		}
+		break;
+		CASE(BW_RED, bw_red);
+		CASE(BW_ORANGE, bw_orange);
+		CASE(BW_YELLOW, bw_yellow);
+		CASE(BW_GREEN, bw_green);
+		CASE(BW_CYAN, bw_cyan);
+		CASE(BW_BLUE, bw_blue);
+		CASE(BW_VIOLET, bw_violet);
 		case PROP_RECALC_TEMP:
 			settings->recalc_temp = g_value_get_boolean(value);
 			if (settings->recalc_temp)
@@ -470,6 +899,51 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	if (mask & MASK_CHANNELMIXER_BLUE)
 		rs_object_class_property_reset(object, "channelmixer_blue");
 
+	rs_object_class_property_reset(object, "softlight-strength");
+	rs_object_class_property_reset(object, "art-vignette-strength");
+	rs_object_class_property_reset(object, "art-vignette-feather");
+	rs_object_class_property_reset(object, "art-vignette-roundness");
+	rs_object_class_property_reset(object, "bw-enabled");
+	rs_object_class_property_reset(object, "bw-filter");
+	rs_object_class_property_reset(object, "bw-red");
+	rs_object_class_property_reset(object, "bw-orange");
+	rs_object_class_property_reset(object, "bw-yellow");
+	rs_object_class_property_reset(object, "bw-green");
+	rs_object_class_property_reset(object, "bw-cyan");
+	rs_object_class_property_reset(object, "bw-blue");
+	rs_object_class_property_reset(object, "bw-violet");
+	rs_object_class_property_reset(object, "dehaze-strength");
+	rs_object_class_property_reset(object, "dehaze-saturation");
+	rs_object_class_property_reset(object, "argentico-enabled");
+	rs_object_class_property_reset(object, "argentico-green-exp");
+	rs_object_class_property_reset(object, "argentico-red-ratio");
+	rs_object_class_property_reset(object, "argentico-blue-ratio");
+	rs_object_class_property_reset(object, "argentico-exposure");
+	rs_object_class_property_reset(object, "argentico-ref-r");
+	rs_object_class_property_reset(object, "argentico-ref-g");
+	rs_object_class_property_reset(object, "argentico-ref-b");
+	rs_object_class_property_reset(object, "toneeq-enabled");
+	rs_object_class_property_reset(object, "toneeq-band0");
+	rs_object_class_property_reset(object, "toneeq-band1");
+	rs_object_class_property_reset(object, "toneeq-band2");
+	rs_object_class_property_reset(object, "toneeq-band3");
+	rs_object_class_property_reset(object, "toneeq-band4");
+	rs_object_class_property_reset(object, "toneeq-pivot");
+	rs_object_class_property_reset(object, "colorwheels-enabled");
+	rs_object_class_property_reset(object, "cw-shadows-x");
+	rs_object_class_property_reset(object, "cw-shadows-y");
+	rs_object_class_property_reset(object, "cw-shadows-lum");
+	rs_object_class_property_reset(object, "cw-mid-x");
+	rs_object_class_property_reset(object, "cw-mid-y");
+	rs_object_class_property_reset(object, "cw-mid-lum");
+	rs_object_class_property_reset(object, "cw-high-x");
+	rs_object_class_property_reset(object, "cw-high-y");
+	rs_object_class_property_reset(object, "cw-high-lum");
+	rs_object_class_property_reset(object, "hsl-enabled");
+	rs_object_class_property_reset(object, "hsl-hue-curve");
+	rs_object_class_property_reset(object, "hsl-sat-curve");
+	rs_object_class_property_reset(object, "hsl-lum-curve");
+
 	if (mask & MASK_CURVE)
 	{
 		if (settings->curve_knots)
@@ -575,6 +1049,71 @@ do { \
 	SETTINGS_COPY(CHANNELMIXER_RED, channelmixer_red);
 	SETTINGS_COPY(CHANNELMIXER_GREEN, channelmixer_green);
 	SETTINGS_COPY(CHANNELMIXER_BLUE, channelmixer_blue);
+	SETTINGS_COPY(SOFTLIGHT_STRENGTH, softlight_strength);
+	SETTINGS_COPY(ART_VIGNETTE_STRENGTH, art_vignette_strength);
+	SETTINGS_COPY(ART_VIGNETTE_FEATHER, art_vignette_feather);
+	SETTINGS_COPY(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
+	if (mask & MASK_BW_ENABLED)
+		target->bw_enabled = source->bw_enabled;
+	if (mask & MASK_BW_FILTER)
+		target->bw_filter = source->bw_filter;
+	SETTINGS_COPY(BW_RED, bw_red);
+	SETTINGS_COPY(BW_ORANGE, bw_orange);
+	SETTINGS_COPY(BW_YELLOW, bw_yellow);
+	SETTINGS_COPY(BW_GREEN, bw_green);
+	SETTINGS_COPY(BW_CYAN, bw_cyan);
+	SETTINGS_COPY(BW_BLUE, bw_blue);
+	SETTINGS_COPY(BW_VIOLET, bw_violet);
+	SETTINGS_COPY(DEHAZE_STRENGTH, dehaze_strength);
+	SETTINGS_COPY(DEHAZE_SATURATION, dehaze_saturation);
+	if (mask & MASK_ARGENTICO_ENABLED)
+		target->argentico_enabled = source->argentico_enabled;
+	SETTINGS_COPY(ARGENTICO_GREEN_EXP, argentico_green_exp);
+	SETTINGS_COPY(ARGENTICO_RED_RATIO, argentico_red_ratio);
+	SETTINGS_COPY(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
+	SETTINGS_COPY(ARGENTICO_EXPOSURE, argentico_exposure);
+	SETTINGS_COPY(ARGENTICO_REF_R, argentico_ref_r);
+	SETTINGS_COPY(ARGENTICO_REF_G, argentico_ref_g);
+	SETTINGS_COPY(ARGENTICO_REF_B, argentico_ref_b);
+	if (mask & MASK_TONEEQ_ENABLED)
+		target->toneeq_enabled = source->toneeq_enabled;
+	SETTINGS_COPY(TONEEQ_BAND0, toneeq_band0);
+	SETTINGS_COPY(TONEEQ_BAND1, toneeq_band1);
+	SETTINGS_COPY(TONEEQ_BAND2, toneeq_band2);
+	SETTINGS_COPY(TONEEQ_BAND3, toneeq_band3);
+	SETTINGS_COPY(TONEEQ_BAND4, toneeq_band4);
+	SETTINGS_COPY(TONEEQ_PIVOT, toneeq_pivot);
+	if (mask & MASK_COLORWHEELS_ENABLED)
+		target->colorwheels_enabled = source->colorwheels_enabled;
+	SETTINGS_COPY(CW_SHADOWS_X, cw_shadows_x);
+	SETTINGS_COPY(CW_SHADOWS_Y, cw_shadows_y);
+	SETTINGS_COPY(CW_SHADOWS_LUM, cw_shadows_lum);
+	SETTINGS_COPY(CW_MID_X, cw_mid_x);
+	SETTINGS_COPY(CW_MID_Y, cw_mid_y);
+	SETTINGS_COPY(CW_MID_LUM, cw_mid_lum);
+	SETTINGS_COPY(CW_HIGH_X, cw_high_x);
+	SETTINGS_COPY(CW_HIGH_Y, cw_high_y);
+	SETTINGS_COPY(CW_HIGH_LUM, cw_high_lum);
+	if (mask & MASK_HSL_ENABLED)
+		target->hsl_enabled = source->hsl_enabled;
+	if ((mask & MASK_HSL_HUE) && (g_strcmp0(target->hsl_hue_curve, source->hsl_hue_curve) != 0))
+	{
+		g_free(target->hsl_hue_curve);
+		changed_mask |= MASK_HSL_HUE;
+		target->hsl_hue_curve = g_strdup(source->hsl_hue_curve);
+	}
+	if ((mask & MASK_HSL_SAT) && (g_strcmp0(target->hsl_sat_curve, source->hsl_sat_curve) != 0))
+	{
+		g_free(target->hsl_sat_curve);
+		changed_mask |= MASK_HSL_SAT;
+		target->hsl_sat_curve = g_strdup(source->hsl_sat_curve);
+	}
+	if ((mask & MASK_HSL_LUM) && (g_strcmp0(target->hsl_lum_curve, source->hsl_lum_curve) != 0))
+	{
+		g_free(target->hsl_lum_curve);
+		changed_mask |= MASK_HSL_LUM;
+		target->hsl_lum_curve = g_strdup(source->hsl_lum_curve);
+	}
 #undef SETTINGS_COPY
 
 	if (mask & MASK_WB)

@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -109,6 +109,7 @@ rs_metadata_init (RSMetadata *metadata)
 	for(i=0;i<4;i++)
 		metadata->cam_mul[i] = 1.0f;
 	metadata->thumbnail = NULL;
+	metadata->thumbnail_rendered = FALSE;
 
 	/* Lens info */
 	metadata->lens_id = -1;
@@ -164,6 +165,8 @@ rs_metadata_cache_save(RSMetadata *metadata, const gchar *filename)
 			xmlTextWriterWriteFormatElement(writer, BAD_CAST "timestamp", "%d", metadata->timestamp);
 		/* Can we make orientation conditional? */
 		xmlTextWriterWriteFormatElement(writer, BAD_CAST "orientation", "%u", metadata->orientation);
+		if (metadata->thumbnail_rendered)
+			xmlTextWriterWriteFormatElement(writer, BAD_CAST "thumbnail_rendered", "%d", 1);
 		if (metadata->aperture > -1.0)
 			RS_XML_WRITE_FLOAT(writer, "aperture", metadata->aperture);
 		if (metadata->exposurebias != -999.0)
@@ -295,6 +298,11 @@ rs_metadata_cache_load(RSMetadata *metadata, const gchar *filename)
 				val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
 				metadata->orientation = atoi((gchar *) val);
 				xmlFree(val);
+			}
+			else if ((!xmlStrcmp(cur->name, BAD_CAST "thumbnail_rendered")))
+			{
+				val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+				if (val) { metadata->thumbnail_rendered = (atoi((gchar *) val) != 0); xmlFree(val); }
 			}
 			else if ((!xmlStrcmp(cur->name, BAD_CAST "aperture")))
 			{

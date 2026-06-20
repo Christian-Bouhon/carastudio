@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CaraStudio User Guide</title>
+<style>
+  :root {
+    --bg: #1e2024; --panel: #2a2d33; --panel2: #32363d;
+    --text: #e6e8ea; --muted: #a9adb4; --accent: #4a9eff; --accent2: #7ec8a0;
+    --border: #3a3e45; --kbd-bg: #3c4047; --warn: #e6b860;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Cantarell", "Noto Sans", sans-serif;
+    line-height: 1.65; font-size: 16px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; display: flex; gap: 0; }
+  nav {
+    position: sticky; top: 0; align-self: flex-start; height: 100vh;
+    overflow-y: auto; width: 260px; flex: 0 0 260px;
+    background: var(--panel); border-right: 1px solid var(--border);
+    padding: 24px 18px;
+  }
+  nav h2 { font-size: 0.95rem; color: var(--accent2); margin: 18px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  nav a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; font-size: 0.92rem; }
+  nav a:hover { color: var(--text); background: var(--panel2); }
+  main { flex: 1; padding: 36px 44px; min-width: 0; }
+  header.hero { border-bottom: 1px solid var(--border); margin-bottom: 28px; padding-bottom: 20px; }
+  header.hero h1 { font-size: 2.1rem; margin: 0 0 6px; }
+  header.hero .sub { color: var(--muted); font-size: 1.05rem; }
+  h2.sec { font-size: 1.5rem; margin: 40px 0 12px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--accent); }
+  h3 { font-size: 1.15rem; margin: 24px 0 6px; color: var(--accent2); }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  code, kbd { font-family: "JetBrains Mono", "Consolas", monospace; font-size: 0.88em; }
+  kbd {
+    background: var(--kbd-bg); border: 1px solid var(--border); border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 7px; color: var(--text); white-space: nowrap;
+  }
+  .tip, .note, .warn {
+    border-left: 3px solid var(--accent); background: var(--panel);
+    padding: 10px 16px; margin: 14px 0; border-radius: 0 8px 8px 0;
+  }
+  .tip { border-color: var(--accent2); }
+  .warn { border-color: var(--warn); }
+  .tip b, .note b, .warn b { color: var(--text); }
+  table { border-collapse: collapse; margin: 14px 0; width: 100%; }
+  th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--accent2); font-weight: 600; }
+  td:first-child { white-space: nowrap; }
+  .lang { float: right; font-size: 0.85rem; color: var(--muted); }
+  .lang a { color: var(--accent); text-decoration: none; }
+  footer { margin-top: 50px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+  @media (max-width: 800px) {
+    .wrap { flex-direction: column; }
+    nav { position: static; width: auto; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <strong style="font-size:1.1rem;">CaraStudio</strong>
+  <div style="color:var(--muted);font-size:0.85rem;margin-bottom:10px;">User Guide</div>
+  <h2>Getting started</h2>
+  <a href="#intro">Welcome</a>
+  <a href="#import">Import &amp; browse</a>
+  <a href="#sort">Sorting photos</a>
+  <a href="#workspace">The workspace</a>
+  <h2>Develop</h2>
+  <a href="#wb">White balance</a>
+  <a href="#basic">Basic adjustments</a>
+  <a href="#lens">Lens &amp; curve</a>
+  <a href="#crop">Cropping</a>
+  <h2>Create</h2>
+  <a href="#effects">Effects</a>
+  <a href="#tone">Tone</a>
+  <h2>Manage</h2>
+  <a href="#info">Info &amp; keywords</a>
+  <a href="#enfuse">Exposure blending</a>
+  <a href="#export">Exporting</a>
+  <h2>Other</h2>
+  <a href="#language">Interface language</a>
+  <a href="#shortcuts">Keyboard shortcuts</a>
+</nav>
+
+<main>
+<header class="hero">
+  <span class="lang"><a href="index.fr.html">Français ›</a></span>
+  <h1>CaraStudio User Guide</h1>
+  <div class="sub">A simple raw photo developer, designed to take you from beginner toward more advanced tools.</div>
+</header>
+
+<section id="intro">
+<h2 class="sec">Welcome</h2>
+<p>CaraStudio is a raw photo developer (the unprocessed files from your camera) that also handles JPEG and TIFF. It lets you adjust exposure, colour, contrast, apply creative effects, then export your images.</p>
+<p>The guiding idea: offer <b>a few</b> well-chosen, powerful tools without overwhelming the beginner. Editing is <b>non-destructive</b> — your original file is never altered; all your settings are stored separately and re-applied when you reopen the photo.</p>
+<div class="tip"><b>Tip:</b> hover over most sliders and buttons to see a help bubble describing their role. Clicking a slider's name resets it to its default value.</div>
+</section>
+
+<section id="import">
+<h2 class="sec">Import &amp; browse</h2>
+<h3>Open a folder</h3>
+<p>In the <b>tool panel</b> (on the right), open the <b>Open</b> tab: the <b>Directory</b> section provides a folder selector to browse your disk. Click a folder: its photos appear in the <b>film strip</b> at the top. CaraStudio remembers the last folder you opened.</p>
+<h3>Non-RAW photos (JPEG, TIFF, PNG)</h3>
+<p>By default, 8-bit images (JPEG, TIFF, PNG) are shown alongside RAW files. If you only see RAW files, enable <i>Photo → Load non-RAW images</i>.</p>
+<h3>The film strip and the navigator</h3>
+<ul>
+  <li>The <b>film strip</b> (top) shows the folder's thumbnails. Click one to edit it.</li>
+  <li>The <b>navigator</b> (a small overview) helps you find your way when zoomed into the image.</li>
+</ul>
+<div class="note"><b>Good to know:</b> thumbnails of already-edited photos regenerate with your effects. Depending on the folder size, this may take a moment in the background.</div>
+</section>
+
+<section id="sort">
+<h2 class="sec">Sorting photos</h2>
+<p>Before developing, sort your shots. CaraStudio uses a <b>priority</b> system shown in the left column of the film strip:</p>
+<table>
+  <tr><th>Key</th><th>Effect</th></tr>
+  <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Assigns a priority (a star-like rating) to the selected photo.</td></tr>
+  <tr><td><kbd>D</kbd></td><td>Marks the photo as discarded (Deleted).</td></tr>
+  <tr><td><kbd>U</kbd></td><td>Removes the priority (Unsorted).</td></tr>
+</table>
+<p>The priority tabs (<b>* 1 2 3 U D</b>) on the left filter the view: click <b>*</b> to see everything, or a number to show only those photos. On startup, CaraStudio shows "All photos".</p>
+<div class="tip"><b>Tip:</b> a photo blended with Enfuse automatically gets priority 1, so you can find it easily.</div>
+</section>
+
+<section id="workspace">
+<h2 class="sec">The workspace</h2>
+<h3>The top bar</h3>
+<p>Below the menus, a button bar gives access to display functions:</p>
+<ul>
+  <li><b>Film strip</b> / <b>Tool panel</b>: show or hide these areas (<kbd>Ctrl</kbd>+<kbd>I</kbd> / <kbd>Ctrl</kbd>+<kbd>T</kbd>).</li>
+  <li><b>Fullscreen</b> (<kbd>F11</kbd>), <b>zoom</b> buttons, <b>Crop</b>, <b>Split views</b>.</li>
+  <li>The <b>FR / EN</b> button (on the right) changes the interface language (see <a href="#language">Language</a>).</li>
+</ul>
+<h3>Compare before/after: the A / B / C snapshots</h3>
+<p>At the top of the tool panel, three buttons <b>A</b>, <b>B</b>, <b>C</b> are independent <b>snapshots</b> of your settings. Adjust the photo in A, switch to B to try another version: you can compare two developments of the same image. The <b>Split views</b> button (<kbd>Ctrl</kbd>+<kbd>D</kbd>) shows two versions side by side.</p>
+<h3>Lights Out</h3>
+<p><kbd>F12</kbd> toggles "Lights Out" mode: the interface fades to a black background so you can judge the image without distraction.</p>
+</section>
+
+<section id="wb">
+<h2 class="sec">White balance</h2>
+<p>The first module in the <b>Tools</b> panel, white balance corrects a colour cast (too warm/orange, too cold/blue). Three ways to do it:</p>
+<table>
+  <tr><th>Tool</th><th>Use</th></tr>
+  <tr><td>Eyedropper</td><td>Click the eyedropper icon, then click a <b>neutral</b> area of the image (a grey, a non-blown white): CaraStudio neutralises the colour from that point.</td></tr>
+  <tr><td>Auto (AWB)</td><td>Computes an automatic average balance.</td></tr>
+  <tr><td>Camera</td><td>Uses the balance recorded by the camera at capture time.</td></tr>
+</table>
+<p>You can also adjust <b>Temperature</b> (warm ↔ cool) and <b>Tint</b> (green ↔ magenta) manually.</p>
+<div class="note"><b>RAW vs JPEG:</b> white balance is most flexible on RAW files. On a JPEG (already developed by the camera), adjustments are still possible but more limited.</div>
+</section>
+
+<section id="basic">
+<h2 class="sec">Basic adjustments</h2>
+<p>Still in the <b>Tools</b> tab, the <b>Basic</b> block gathers the essential adjustments:</p>
+<table>
+  <tr><th>Setting</th><th>Role</th></tr>
+  <tr><td>Exposure</td><td>Brightens or darkens the whole image.</td></tr>
+  <tr><td>Saturation</td><td>Colour intensity (0 = black and white).</td></tr>
+  <tr><td>Hue</td><td>Shifts the overall colour.</td></tr>
+  <tr><td>Contrast</td><td>The gap between light and dark tones.</td></tr>
+  <tr><td>Sharpness</td><td>Accentuates detail.</td></tr>
+  <tr><td>Denoise / Color denoise</td><td>Reduces digital noise (luminance and colour).</td></tr>
+</table>
+<h3>Channel mixer</h3>
+<p>The <b>Red / Green / Blue</b> sliders dose each channel's contribution. Very useful in black and white to lighten or darken specific colours (a blue sky, skin tones…).</p>
+<div class="tip"><b>Tip:</b> each slider's value is shown on the right. Click a slider's name to reset it; click its value to type one; the scroll wheel fine-tunes.</div>
+</section>
+
+<section id="lens">
+<h2 class="sec">Lens &amp; curve</h2>
+<h3>Lens correction</h3>
+<p>Corrects optical flaws: chromatic aberration (<b>CA R</b>, <b>CA B</b>) and vignetting (<b>Vign</b>). For recognised lenses, geometric corrections are handled automatically.</p>
+<h3>Curve</h3>
+<p>The tonal <b>curve</b> gives precise control over brightness by ranges:</p>
+<ul>
+  <li><b>Left click</b>: add a point.</li>
+  <li><b>Shift + left click</b>: delete a point.</li>
+  <li><b>Right click</b>: load / save / reset the curve.</li>
+</ul>
+<p>Raise the curve to brighten, lower it to darken; an "S" shape strengthens contrast.</p>
+</section>
+
+<section id="crop">
+<h2 class="sec">Cropping</h2>
+<p>The <b>Crop</b> button (or <kbd>Shift</kbd>+<kbd>C</kbd>) opens the cropping tool. A small floating palette appears over the image:</p>
+<ul>
+  <li>Choose a fixed <b>ratio</b> (1:1, 3:2, 16:9…) or a free crop.</li>
+  <li>A <b>grid</b> (rule of thirds…) helps you compose.</li>
+  <li><kbd>Enter</kbd> confirms, <kbd>Esc</kbd> cancels.</li>
+</ul>
+<p>Cropping is non-destructive: you can reopen and change it at any time.</p>
+</section>
+
+<section id="effects">
+<h2 class="sec">Effects</h2>
+<p>The <b>Effects</b> tab gathers the creative treatments.</p>
+<h3>Dehaze</h3>
+<p>Clears mist and atmospheric haze for more clarity and local contrast. The <b>Dehaze</b> slider doses the effect, <b>Saturation</b> compensates the colour.</p>
+<h3>Soft light</h3>
+<p>A "soft light" effect that softens the image and gives a luminous, velvety look.</p>
+<h3>Artistic vignette</h3>
+<p>Darkens (or lightens) the edges to draw the eye to the subject. Adjust the <b>strength</b>, the <b>roundness</b> and the <b>feather</b> (smoothness of the gradient).</p>
+<h3>Black &amp; White</h3>
+<p>Converts to black and white with a <b>channel mixer</b> (Red, Orange, Yellow, Green, Cyan, Blue, Violet): push a colour to lighten the matching areas. <b>Colour filters</b> and film looks (Panchromatic, Orthochromatic…) are available.</p>
+<h3>Argentico (film negative)</h3>
+<p>Simulates the development of a film negative: layer ratios and development exposure, for a film-like rendering.</p>
+</section>
+
+<section id="tone">
+<h2 class="sec">Tone</h2>
+<p>The <b>Tone</b> tab offers three advanced tools ported from the ART software.</p>
+<h3>Tone doctor (tone equalizer)</h3>
+<p>An <b>equalizer</b> that works by brightness ranges: <b>Blacks</b>, <b>Shadows</b>, <b>Midtones</b>, <b>Highlights</b>, <b>Whites</b>, around an adjustable <b>pivot</b>. Ideal for rebalancing an over-contrasted image or recovering detail in shadows/highlights.</p>
+<h3>Color balance (3-way wheels)</h3>
+<p>Three <b>colour wheels</b> — <b>Shadows</b>, <b>Midtones</b>, <b>Highlights</b> — to tint each tonal range (cinema-style colour grading). Each wheel sets the colour (X/Y) and luminance (lift / gamma / gain).</p>
+<h3>Color scalpel (per-hue curves)</h3>
+<p>Finely adjusts each <b>colour family</b> independently (hue, saturation, lightness by HSL bands). Perfect to, for instance, revive a sky without touching skin tones.</p>
+</section>
+
+<section id="info">
+<h2 class="sec">Info &amp; keywords</h2>
+<h3>Info tab (EXIF)</h3>
+<p>The <b>Info</b> tab shows the photo's metadata: camera, lens, aperture, shutter speed, ISO, plus an <b>extended list</b> of EXIF fields (exposure program, metering mode, GPS, author…). A <b>search</b> field at the top filters the rows (case- and accent-insensitive).</p>
+<h3>Keywords (Open tab)</h3>
+<p>Keyword management lives in the <b>Open</b> tab, under <b>Tag Search</b> (not in the Info tab). There you can <b>add</b> and <b>remove</b> keywords on the selected photo(s), with autocompletion. Keywords make later sorting and searching easier.</p>
+</section>
+
+<section id="enfuse">
+<h2 class="sec">Exposure blending (Enfuse)</h2>
+<p>Via <i>Photos → Enfuse</i>, CaraStudio blends several photos of the same scene shot at different exposures (bracketing) into a single, balanced image — useful for very contrasted scenes (interior + window, backlit landscape).</p>
+<ul>
+  <li>Select the photos to blend.</li>
+  <li>The <b>Extend</b> option widens the range by generating darker/lighter variants.</li>
+  <li>The blended photo is created automatically in the source folder and receives priority 1.</li>
+</ul>
+</section>
+
+<section id="export">
+<h2 class="sec">Exporting</h2>
+<p>When you are happy with your settings, export the developed image. Your original files are never overwritten: exporting creates new files.</p>
+<h3>The two modes</h3>
+<ul>
+  <li><b>Quick export</b>: saves the current photo with the current output settings.</li>
+  <li><b>Batch processing</b> (<b>Batch</b> tab): add several photos to the queue and export them all at once.</li>
+</ul>
+<h3>Output settings</h3>
+<p>The <b>Edit Output Settings</b> button (<b>Batch</b> tab) opens the window that controls <i>how</i> your images are saved:</p>
+<table>
+  <tr><th>Setting</th><th>Role</th></tr>
+  <tr><td>File Type</td><td>Output format: <b>JPEG</b> (compressed, ideal for sharing), <b>PNG</b> or <b>TIFF</b> (lossless, heavier files).</td></tr>
+  <tr><td>JPEG Quality</td><td>From 1 to 100%. The higher the value, the better the image but the larger the file. <b>85–95%</b> is a good compromise (default ~90). Not applicable to PNG/TIFF, which are lossless.</td></tr>
+  <tr><td>Output Directory</td><td>The folder where the exported files are written.</td></tr>
+</table>
+<h3>Export dimensions</h3>
+<p>The <b>Export Dimensions</b> frame sets the size of the produced images. Choose a mode:</p>
+<table>
+  <tr><th>Mode</th><th>Effect</th></tr>
+  <tr><td>Constant Scale</td><td>Resizes by a <b>percentage</b> of the original: 100% = full size, 50% = half size.</td></tr>
+  <tr><td>Constant Width</td><td>Sets a fixed <b>width in pixels</b>; the height follows to keep the proportions.</td></tr>
+  <tr><td>Constant Height</td><td>Sets a fixed <b>height in pixels</b>; the width follows.</td></tr>
+  <tr><td>Maximum Size</td><td>The image fits inside a <b>box</b> (max width × height) without distortion — handy for "no more than 2000 px on a side".</td></tr>
+</table>
+<div class="tip"><b>Tip:</b> to share on the web, export as JPEG at 85–90% with a constant width of 1600–2048 px: light and sharp files.</div>
+<h3>Filename template</h3>
+<p>The <b>Filename Template</b> names your exports automatically from codes; a live <b>example</b> shows the result. Useful codes:</p>
+<table>
+  <tr><th>Code</th><th>Yields</th></tr>
+  <tr><td><code>%f</code></td><td>Original filename</td></tr>
+  <tr><td><code>%2c</code></td><td>Incremental counter (here 2 digits)</td></tr>
+  <tr><td><code>%d</code></td><td>Capture date (YYYY-MM-DD)</td></tr>
+  <tr><td><code>%Ma</code> <code>%Ms</code> <code>%Mi</code></td><td>Aperture, shutter speed, ISO (from EXIF)</td></tr>
+  <tr><td><code>%Mf</code></td><td>Focal length in mm</td></tr>
+  <tr><td><code>%s</code></td><td>Snapshot used (A, B or C)</td></tr>
+  <tr><td><code>%p</code></td><td>Path of the original file</td></tr>
+</table>
+<p>Example: <code>%f_%2c</code> produces <code>IMG1234_01</code>, <code>IMG1234_02</code>…</p>
+</section>
+
+<section id="language">
+<h2 class="sec">Interface language</h2>
+<p>The <b>FR / EN</b> button on the right of the top bar switches the interface between French and English. The label shows the language you will switch to. CaraStudio will offer to <b>restart</b> to apply the change (your settings are saved before relaunching).</p>
+</section>
+
+<section id="shortcuts">
+<h2 class="sec">Keyboard shortcuts</h2>
+<table>
+  <tr><th>Shortcut</th><th>Action</th></tr>
+  <tr><td><kbd>F1</kbd></td><td>Open this help</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>I</kbd></td><td>Show / hide the film strip</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>T</kbd></td><td>Show / hide the tool panel</td></tr>
+  <tr><td><kbd>F11</kbd></td><td>Fullscreen</td></tr>
+  <tr><td><kbd>F12</kbd></td><td>Lights Out (black background)</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Split views (before / after)</td></tr>
+  <tr><td><kbd>Shift</kbd>+<kbd>C</kbd></td><td>Crop</td></tr>
+  <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Assign a priority</td></tr>
+  <tr><td><kbd>U</kbd> / <kbd>D</kbd></td><td>Remove priority / discard</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>Q</kbd></td><td>Quit</td></tr>
+</table>
+</section>
+
+<footer>
+  CaraStudio — user guide. Non-destructive editing: your original files stay intact.
+</footer>
+</main>
+</div>
+</body>
+</html>

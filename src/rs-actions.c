@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -105,6 +105,7 @@ rs_core_actions_update_menu_items(RS_BLOB *rs)
 	rs_core_action_group_set_sensivity("Straighten", RS_IS_PHOTO(rs->photo));
 	rs_core_action_group_set_sensivity("Unstraighten", (RS_IS_PHOTO(rs->photo) && (rs->photo->angle != 0.0)));
 	rs_core_action_group_set_sensivity("TagPhoto", RS_IS_PHOTO(rs->photo));
+	rs_core_action_group_set_sensivity("RemoveTagPhoto", (num_selected > 0));
 	rs_core_action_group_set_sensivity("Group", (num_selected > 1));
 	rs_core_action_group_set_sensivity("Ungroup", (selected_groups > 0));
 	rs_core_action_group_set_sensivity("PackSelected", (num_selected > 0));
@@ -121,7 +122,7 @@ rs_core_actions_update_menu_items(RS_BLOB *rs)
 #endif
 
 	/* View Menu */
-	rs_core_action_group_set_sensivity("Lightsout", !rs->window_fullscreen);
+	rs_core_action_group_set_sensivity("Lightsout", TRUE);
 
 	/* Batch Menu */
 	rs_core_action_group_set_sensivity("AddToBatch", (num_selected >= 1) || (rs->photo && !rs_batch_exists_in_queue(rs->queue, rs->photo->filename, rs->current_setting)));
@@ -1041,6 +1042,110 @@ ACTION(tag_photo)
 	g_signal_connect(apply_button, "clicked", G_CALLBACK(tag_photo_input_changed), info);
 }
 
+ACTION(remove_tag_photo)
+{
+	RSLibrary *library = rs_library_get_singleton();
+	GList *selected = rs_store_get_selected_names(rs->store);
+	GList *s;
+
+	if (!selected)
+		return;
+
+	/* Union de TOUS les mots-clés (auto + manuels) des photos sélectionnées */
+	GHashTable *tagset = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+	for (s = selected; s != NULL; s = s->next)
+	{
+		GList *tags = rs_library_photo_tags(library, (gchar *) s->data, TRUE);
+		GList *t;
+		for (t = tags; t != NULL; t = t->next)
+			if (!g_hash_table_contains(tagset, t->data))
+				g_hash_table_insert(tagset, g_strdup((gchar *) t->data), GINT_TO_POINTER(1));
+		g_list_free_full(tags, g_free);
+	}
+
+	GtkWidget *dialog = gtk_dialog_new_with_buttons(_("Supprimer un mot-clé"),
+		GTK_WINDOW(rs->window),
+		GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+		_("Retirer"), GTK_RESPONSE_APPLY,
+		_("Fermer"), GTK_RESPONSE_CLOSE,
+		NULL);
+	gtk_window_set_default_size(GTK_WINDOW(dialog), 300, 340);
+	GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+	gtk_container_set_border_width(GTK_CONTAINER(content), 10);
+	gtk_box_set_spacing(GTK_BOX(content), 6);
+
+	GtkWidget *label = gtk_label_new(_("Sélectionnez le mot-clé à retirer de la sélection :"));
+	gtk_label_set_xalign(GTK_LABEL(label), 0.0);
+	gtk_label_set_line_wrap(GTK_LABEL(label), TRUE);
+	gtk_box_pack_start(GTK_BOX(content), label, FALSE, FALSE, 0);
+
+	GtkWidget *scroller = gtk_scrolled_window_new(NULL, NULL);
+	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroller),
+		GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+	GtkWidget *listbox = gtk_list_box_new();
+	gtk_list_box_set_selection_mode(GTK_LIST_BOX(listbox), GTK_SELECTION_SINGLE);
+	gtk_container_add(GTK_CONTAINER(scroller), listbox);
+	gtk_box_pack_start(GTK_BOX(content), scroller, TRUE, TRUE, 0);
+
+	GtkWidget *status = gtk_label_new("");
+	gtk_label_set_xalign(GTK_LABEL(status), 0.0);
+	gtk_label_set_line_wrap(GTK_LABEL(status), TRUE);
+	gtk_box_pack_start(GTK_BOX(content), status, FALSE, FALSE, 0);
+
+	/* Remplit la liste (triée), le tag étant stocké sur chaque ligne */
+	GList *keys = g_hash_table_get_keys(tagset);
+	keys = g_list_sort(keys, (GCompareFunc) g_strcmp0);
+	GList *k;
+	for (k = keys; k != NULL; k = k->next)
+	{
+		GtkWidget *row = gtk_list_box_row_new();
+		GtkWidget *rlabel = gtk_label_new((gchar *) k->data);
+		gtk_label_set_xalign(GTK_LABEL(rlabel), 0.0);
+		gtk_widget_set_margin_start(rlabel, 6);
+		gtk_widget_set_margin_top(rlabel, 3);
+		gtk_widget_set_margin_bottom(rlabel, 3);
+		gtk_container_add(GTK_CONTAINER(row), rlabel);
+		g_object_set_data_full(G_OBJECT(row), "tag", g_strdup((gchar *) k->data), g_free);
+		gtk_list_box_insert(GTK_LIST_BOX(listbox), row, -1);
+	}
+	g_list_free(keys); /* clés possédées par la table */
+
+	if (g_hash_table_size(tagset) == 0)
+	{
+		gtk_label_set_text(GTK_LABEL(status), _("La sélection ne porte aucun mot-clé."));
+		gtk_dialog_set_response_sensitive(GTK_DIALOG(dialog), GTK_RESPONSE_APPLY, FALSE);
+	}
+
+	gtk_widget_show_all(dialog);
+
+	while (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_APPLY)
+	{
+		GtkListBoxRow *row = gtk_list_box_get_selected_row(GTK_LIST_BOX(listbox));
+		if (!row)
+		{
+			gtk_label_set_text(GTK_LABEL(status), _("Choisissez d'abord un mot-clé dans la liste."));
+			continue;
+		}
+		const gchar *tag = g_object_get_data(G_OBJECT(row), "tag");
+		for (s = selected; s != NULL; s = s->next)
+			rs_library_photo_remove_tag(library, (gchar *) s->data, tag);
+
+		gchar *msg = g_strdup_printf(_("« %s » retiré de la sélection. ✓"), tag);
+		gtk_label_set_text(GTK_LABEL(status), msg);
+		g_free(msg);
+
+		gtk_widget_destroy(GTK_WIDGET(row)); /* retire la ligne de la liste */
+
+		/* Plus aucun mot-clé restant ? */
+		if (gtk_list_box_get_row_at_index(GTK_LIST_BOX(listbox), 0) == NULL)
+			gtk_dialog_set_response_sensitive(GTK_DIALOG(dialog), GTK_RESPONSE_APPLY, FALSE);
+	}
+
+	gtk_widget_destroy(dialog);
+	g_hash_table_destroy(tagset);
+	g_list_free(selected);
+}
+
 ACTION(previous_photo)
 {
 	gchar *current_filename = NULL;
@@ -1172,7 +1277,7 @@ TOGGLEACTION(fullscreen)
 	gui_fullscreen_changed(rs->toolbox, rs->window_fullscreen, "Toolbox",
 												 DEFAULT_CONF_SHOW_TOOLBOX_FULLSCREEN, DEFAULT_CONF_SHOW_TOOLBOX,
 												 CONF_SHOW_TOOLBOX_FULLSCREEN, CONF_SHOW_TOOLBOX);
-	rs_core_action_group_set_sensivity("Lightsout", !rs->window_fullscreen);
+	rs_core_action_group_set_sensivity("Lightsout", TRUE);
 }
 
 TOGGLEACTION(fullscreen_preview)
@@ -1185,7 +1290,7 @@ TOGGLEACTION(fullscreen_preview)
 	else
 	{
 		gui_disable_preview_screen(rs);
-		rs_core_action_group_set_sensivity("Lightsout", !rs->window_fullscreen);
+		rs_core_action_group_set_sensivity("Lightsout", TRUE);
 	}
 }
 
@@ -1204,12 +1309,54 @@ TOGGLEACTION(load_selected)
 }
 TOGGLEACTION(split)
 {
-	rs_preview_widget_set_split(RS_PREVIEW_WIDGET(rs->preview), gtk_toggle_action_get_active(toggleaction));
+	gboolean active = gtk_toggle_action_get_active(toggleaction);
+	rs_preview_widget_set_split(RS_PREVIEW_WIDGET(rs->preview), active);
+
+	/* À l'activation du split, éviter que les deux panneaux montrent le même
+	   instantané (sinon « deux fois la même image »). Le panneau gauche suit
+	   l'onglet courant (rs->current_setting) ; si le sélecteur du panneau droit
+	   (RightA/B/C) pointe sur le même, on le décale vers un instantané différent
+	   pour offrir une comparaison utile d'emblée. Régler la radio-action met à
+	   jour à la fois la coche du menu et l'affichage (via right_popup). */
+	if (active)
+	{
+		GtkAction *ra = gtk_action_group_get_action(core_action_group, "RightA");
+		if (ra && GTK_IS_RADIO_ACTION(ra))
+		{
+			gint right = gtk_radio_action_get_current_value(GTK_RADIO_ACTION(ra));
+			if (right == rs->current_setting)
+				gtk_radio_action_set_current_value(GTK_RADIO_ACTION(ra),
+					(rs->current_setting + 1) % 3);
+		}
+	}
 }
 
 TOGGLEACTION(lightsout)
 {
-	rs_preview_widget_set_lightsout(RS_PREVIEW_WIDGET(rs->preview), gtk_toggle_action_get_active(toggleaction));
+	static gboolean saved_iconbox = TRUE;
+	static gboolean saved_toolbox = TRUE;
+	gboolean active = gtk_toggle_action_get_active(toggleaction);
+
+	rs_preview_widget_set_lightsout(RS_PREVIEW_WIDGET(rs->preview), active);
+
+	if (active)
+	{
+		GtkToggleAction *ia = GTK_TOGGLE_ACTION(rs_core_action_group_get_action("Iconbox"));
+		GtkToggleAction *ta = GTK_TOGGLE_ACTION(rs_core_action_group_get_action("Toolbox"));
+		saved_iconbox = gtk_toggle_action_get_active(ia);
+		saved_toolbox = gtk_toggle_action_get_active(ta);
+		if (saved_iconbox)
+			gtk_toggle_action_set_active(ia, FALSE);
+		if (saved_toolbox)
+			gtk_toggle_action_set_active(ta, FALSE);
+	}
+	else
+	{
+		if (saved_iconbox)
+			gtk_toggle_action_set_active(GTK_TOGGLE_ACTION(rs_core_action_group_get_action("Iconbox")), TRUE);
+		if (saved_toolbox)
+			gtk_toggle_action_set_active(GTK_TOGGLE_ACTION(rs_core_action_group_get_action("Toolbox")), TRUE);
+	}
 }
 
 ACTION(add_to_batch)
@@ -1466,40 +1613,43 @@ ACTION(add_profile)
 
 ACTION(online_documentation)
 {
-	const gchar *link = "https://github.com/rawstudio/rawstudio";
-
-	gchar *argv[]= {
-		"gnome-open", /* this feels like cheating! */
-		(gchar *) link,
-		NULL
-		};
-
 	GError *error = NULL;
-	gint status = 0;
-	gboolean res;
 
-	res = g_spawn_sync(
-		NULL /*PWD*/,
-		argv,
-		NULL /*envp*/,
-		G_SPAWN_SEARCH_PATH, /*flags*/
-		NULL, /*setup_func*/
-		NULL, /*user data for setup*/
-		NULL,
-		NULL, /* stdin/out/error */
-		&status,
-		&error);
+	/* Langue de l'aide : suit le choix « ui-language » (sinon LANGUAGE, sinon
+	   français par défaut). On ouvre le manuel HTML LOCAL installé avec le
+	   programme, dans le navigateur de l'utilisateur. */
+	const gchar *lang = "fr";
+	gchar *conf_lang = rs_conf_get_string("ui-language");
+	const gchar *env_lang = g_getenv("LANGUAGE");
+	if (conf_lang && g_str_has_prefix(conf_lang, "en"))
+		lang = "en";
+	else if ((!conf_lang || !conf_lang[0]) && env_lang && g_str_has_prefix(env_lang, "en"))
+		lang = "en";
 
-	if(!res)
+	gchar *fname = g_strdup_printf("index.%s.html", lang);
+	gchar *path = g_build_filename(PACKAGE_DATA_DIR, PACKAGE, "help", fname, NULL);
+	gchar *uri = g_filename_to_uri(path, NULL, NULL);
+
+	if (!uri || !gtk_show_uri_on_window(GTK_WINDOW(rawstudio_window), uri, GDK_CURRENT_TIME, &error))
 	{
-		gui_status_error(_("Could not open browser, please go to http://rawstudio.org/documentation"));
-		return ;
+		gui_status_error(_("Could not open the help file in your browser."));
+		if (error)
+			g_error_free(error);
 	}
+
+	g_free(conf_lang);
+	g_free(fname);
+	g_free(path);
+	g_free(uri);
 }
 
 ACTION(about)
 {
 	const static gchar *authors[] = {
+		"CaraStudio — Carafife",
+		"https://github.com/carafife/CaraStudio",
+		"",
+		"D'après / based on RawStudio (rawstudio.org) :",
 		"Anders Brander <anders@brander.dk>",
 		"Anders Kvist <anders@kvistmail.dk>",
 		"Klaus Post <klauspost@gmail.com>",
@@ -1548,9 +1698,11 @@ ACTION(about)
 		"authors", authors,
 		"artists", artists,
 		"translator-credits", translators,
-		"comments", _("A raw image converter for GTK+/GNOME"),
+		"comments", _("Développeur de photos RAW, convivial et accessible — un fork de RawStudio par Carafife."),
 		"version", RAWSTUDIO_VERSION,
+		"copyright", "© 2026 Carafife (CaraStudio)\n© RawStudio team",
 		"website", "https://github.com/carafife/CaraStudio",
+		"website-label", "github.com/carafife/CaraStudio",
 		"name", "CaraStudio",
 		NULL
 	);
@@ -1676,7 +1828,7 @@ ACTION(enfuse)
   dialog = gui_dialog_make_from_text(GTK_STOCK_DIALOG_QUESTION, _("Enfuse"), _("This might take quite some time and will lock up UI until finished..."));
   gtk_dialog_add_button (GTK_DIALOG (dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
   gtk_dialog_add_button (GTK_DIALOG (dialog), GTK_STOCK_EXECUTE, GTK_RESPONSE_ACCEPT);
-  gtk_window_set_title(GTK_WINDOW(dialog), _("Rawstudio Enfuse"));
+  gtk_window_set_title(GTK_WINDOW(dialog), _("CaraStudio Enfuse"));
 
   GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
   GtkWidget *image = gtk_image_new_from_file(thumb);
@@ -1739,7 +1891,7 @@ ACTION(enfuse)
   GtkWidget *size_scale = gtk_hscale_new_with_range(300, maxsize, 1.0);
   gtk_range_set_value(GTK_RANGE(size_scale), size_value);
   g_signal_connect(size_scale, "value-changed", G_CALLBACK(enfuse_size_changed), &maxsize);
-  GtkWidget *size_label = gtk_label_new("Size:");
+  GtkWidget *size_label = gtk_label_new(_("Size:"));
   GtkWidget *size_box = gtk_hbox_new(FALSE, 5);
   gtk_box_pack_start(GTK_BOX(size_box), size_label, FALSE, TRUE, 5);
   gtk_box_pack_start(GTK_BOX(size_box), size_scale, TRUE, TRUE, 5);
@@ -1767,6 +1919,10 @@ ACTION(enfuse)
   cache_cleanup(rs->enfuse_cache);
 
   g_list_free(selected_names);
+  /* Tag la photo fusionnée en priorité 1 : sinon elle hérite du filtre actif
+     (0 = aucune) et se noie dans la masse. Ainsi on la retrouve via le filtre
+     de priorité « 1 » du sélecteur de gauche. */
+  priority = 1;
   rs_cache_save_flags(filename, &priority, NULL, &enfuse);
 
   /* reload store - grabbed from reload function */
@@ -1856,7 +2012,7 @@ rs_get_core_action_group(RS_BLOB *rs)
 	gboolean load_8bit = FALSE;
 
 	rs_conf_get_boolean_with_default(CONF_SHOW_FILENAMES, &show_filenames, DEFAULT_CONF_SHOW_FILENAMES);
-	rs_conf_get_boolean_with_default(CONF_LOAD_GDK, &load_8bit, FALSE);
+	rs_conf_get_boolean_with_default(CONF_LOAD_GDK, &load_8bit, TRUE);
 
 	/* FIXME: This should be static */
 	GtkActionEntry actionentries[] = {
@@ -1873,27 +2029,27 @@ rs_get_core_action_group(RS_BLOB *rs)
 	{ "SnapshotMenu", NULL, _("_Snapshot") },
 
 	/* File menu */
-	{ "Open", GTK_STOCK_OPEN, _("_Open Directory"), "<control>O", NULL, ACTION_CB(open) },
-	{ "QuickExport", GTK_STOCK_SAVE, _("_Quick Export"), "<control>S", NULL, ACTION_CB(quick_export) },
-	{ "ExportAs", GTK_STOCK_SAVE_AS, _("_Export As"), "<control><shift>S", NULL, ACTION_CB(export_as) },
-	{ "ExportToGimp", GTK_STOCK_EXECUTE, _("_Export to Gimp"), "<control>G", NULL, ACTION_CB(export_to_gimp) },
-	{ "CopyImage", GTK_STOCK_COPY, _("_Copy Image to Clipboard"), "<control><shift>C", NULL, ACTION_CB(copy_image) },
-	{ "Reload", GTK_STOCK_REFRESH, _("_Reload directory"), "<control>R", NULL, ACTION_CB(reload) },
-	{ "DeleteFlagged", GTK_STOCK_DELETE, _("_Delete Flagged Photos"), "<control><shift>D", NULL, ACTION_CB(delete_flagged) },
-	{ "Quit", GTK_STOCK_QUIT, _("_Quit"), "<control>Q", NULL, ACTION_CB(quit) },
+	{ "Open", "document-open", _("_Open Directory"), "<control>O", NULL, ACTION_CB(open) },
+	{ "QuickExport", "document-save", _("_Quick Export"), "<control>S", NULL, ACTION_CB(quick_export) },
+	{ "ExportAs", "document-save-as", _("_Export As"), "<control><shift>S", NULL, ACTION_CB(export_as) },
+	{ "ExportToGimp", "system-run", _("_Export to Gimp"), "<control>G", NULL, ACTION_CB(export_to_gimp) },
+	{ "CopyImage", "edit-copy", _("_Copy Image to Clipboard"), "<control><shift>C", NULL, ACTION_CB(copy_image) },
+	{ "Reload", "view-refresh", _("_Reload directory"), "<control>R", NULL, ACTION_CB(reload) },
+	{ "DeleteFlagged", "edit-delete", _("_Delete Flagged Photos"), "<control><shift>D", NULL, ACTION_CB(delete_flagged) },
+	{ "Quit", "application-exit", _("_Quit"), "<control>Q", NULL, ACTION_CB(quit) },
 	{ "CancelAndQuit", NULL, _("_Just Quit"), NULL, NULL, ACTION_CB(quit) },
-	{ "SaveAndQuit", GTK_STOCK_SAVE, _("Save & _Quit"), "<control>Q", NULL, ACTION_CB(client_mode_quit) },
+	{ "SaveAndQuit", "document-save", _("Save & _Quit"), "<control>Q", NULL, ACTION_CB(client_mode_quit) },
 
 	/* Edit menu */
-	{ "RevertSettings", GTK_STOCK_UNDO, _("_Revert Settings"), "<control>Z", NULL, ACTION_CB(revert_settings) },
-	{ "CopySettings", GTK_STOCK_COPY, _("_Copy Settings"), "<control>C", NULL, ACTION_CB(copy_settings) },
-	{ "PasteSettings", GTK_STOCK_PASTE, _("_Paste Settings"), "<control>V", NULL, ACTION_CB(paste_settings) },
-	{ "ResetSettings", GTK_STOCK_REFRESH, _("_Reset Settings"), NULL, NULL, ACTION_CB(reset_settings) },
+	{ "RevertSettings", "edit-undo", _("_Revert Settings"), "<control>Z", NULL, ACTION_CB(revert_settings) },
+	{ "CopySettings", "edit-copy", _("_Copy Settings"), "<control>C", NULL, ACTION_CB(copy_settings) },
+	{ "PasteSettings", "edit-paste", _("_Paste Settings"), "<control>V", NULL, ACTION_CB(paste_settings) },
+	{ "ResetSettings", "view-refresh", _("_Reset Settings"), NULL, NULL, ACTION_CB(reset_settings) },
 	{ "SaveDefaultSettings", NULL, _("_Save Camera Default Settings"), NULL, NULL, ACTION_CB(save_default_settings) },
-	{ "Preferences", GTK_STOCK_PREFERENCES, _("_Preferences"), NULL, NULL, ACTION_CB(preferences) },
+	{ "Preferences", "preferences-system", _("_Preferences"), NULL, NULL, ACTION_CB(preferences) },
 
 	/* Photo menu */
-	{ "FlagPhoto", GTK_STOCK_DELETE, _("_Flag Photo for Deletion"), "Delete", NULL, ACTION_CB(flag_for_deletion) },
+	{ "FlagPhoto", "edit-delete", _("_Flag Photo for Deletion"), "Delete", NULL, ACTION_CB(flag_for_deletion) },
 	{ "Priority1", NULL, _("_1"), "1", NULL, ACTION_CB(priority_1) },
 	{ "Priority2", NULL, _("_2"), "2", NULL, ACTION_CB(priority_2) },
 	{ "Priority3", NULL, _("_3"), "3", NULL, ACTION_CB(priority_3) },
@@ -1908,6 +2064,7 @@ rs_get_core_action_group(RS_BLOB *rs)
 	{ "Ungroup", NULL, _("_Ungroup"), NULL, NULL, ACTION_CB(ungroup_photos) },
 	{ "AutoGroup", NULL, _("_Auto Group"), NULL, NULL, ACTION_CB(auto_group_photos) },
 	{ "TagPhoto", NULL, _("_Tag Photo..."), "<alt>T", NULL, ACTION_CB(tag_photo) },
+	{ "RemoveTagPhoto", NULL, _("_Retirer un mot-clé..."), NULL, NULL, ACTION_CB(remove_tag_photo) },
 	{ "RotateClockwise", RS_STOCK_ROTATE_CLOCKWISE, _("Rotate Clockwise"), "<alt>Right", NULL, ACTION_CB(rotate_clockwise) },
 	{ "RotateCounterClockwise", RS_STOCK_ROTATE_COUNTER_CLOCKWISE, _("Rotate Counterclockwise"), "<alt>Left", NULL, ACTION_CB(rotate_counter_clockwise) },
 	{ "Flip", RS_STOCK_FLIP, _("Flip"), NULL, NULL, ACTION_CB(flip) },
@@ -1916,22 +2073,22 @@ rs_get_core_action_group(RS_BLOB *rs)
 	{ "AutoAdjustCurveEnds", NULL, _("Auto adjust curve ends"), "<control><shift>L", NULL, ACTION_CB(auto_adjust_curve_ends) },
 
 	/* View menu */
-	{ "PreviousPhoto", GTK_STOCK_GO_BACK, _("_Previous Photo"), "<control>Left", NULL, ACTION_CB(previous_photo) },
-	{ "NextPhoto", GTK_STOCK_GO_FORWARD, _("_Next Photo"), "<control>Right", NULL, ACTION_CB(next_photo) },
-	{ "Play", GTK_STOCK_MEDIA_PLAY, _("_Play/Stop"), "<control>P", NULL, ACTION_CB(play) },
+	{ "PreviousPhoto", "go-previous", _("_Previous Photo"), "<control>Left", NULL, ACTION_CB(previous_photo) },
+	{ "NextPhoto", "go-next", _("_Next Photo"), "<control>Right", NULL, ACTION_CB(next_photo) },
+	{ "Play", "media-playback-start", _("_Play/Stop"), "<control>P", NULL, ACTION_CB(play) },
 	{ "LensDbEditor", NULL, _("_Lens Library"), "<control>L", NULL, ACTION_CB(lens_db_editor) },
 	{ "TetheredShooting", NULL, _("_Tethered Shooting"), "F9", NULL, ACTION_CB(tethered_shooting) },
 	
 	/* Batch menu */
-	{ "AddToBatch", GTK_STOCK_ADD, _("_Add to Batch Queue"), "Insert", NULL, ACTION_CB(add_to_batch) },
+	{ "AddToBatch", "list-add", _("_Add to Batch Queue"), "Insert", NULL, ACTION_CB(add_to_batch) },
 	{ "AddViewToBatch", NULL, _("_Add View to Queue..."), "<control>Insert", NULL, ACTION_CB(add_view_to_batch) },
-	{ "RemoveFromBatch", GTK_STOCK_REMOVE, _("_Remove from Batch Queue"), "<control>Delete", NULL, ACTION_CB(remove_from_batch) },
-	{ "ProcessBatch", GTK_STOCK_EXECUTE, _("_Start"), NULL, NULL, ACTION_CB(ProcessBatch) },
-	{ "PackSelected", GTK_STOCK_HARDDISK, _("_Pack selected"), NULL, NULL, ACTION_CB(PackSelected) },
+	{ "RemoveFromBatch", "list-remove", _("_Remove from Batch Queue"), "<control>Delete", NULL, ACTION_CB(remove_from_batch) },
+	{ "ProcessBatch", "system-run", _("_Start"), NULL, NULL, ACTION_CB(ProcessBatch) },
+	{ "PackSelected", "drive-harddisk", _("_Pack selected"), NULL, NULL, ACTION_CB(PackSelected) },
 
 	/* help menu */
-	{ "OnlineDocumentation", GTK_STOCK_HELP, _("_Online Documentation"), NULL, NULL, ACTION_CB(online_documentation) },
-	{ "About", GTK_STOCK_ABOUT, _("_About"), NULL, NULL, ACTION_CB(about) },
+	{ "OnlineDocumentation", "help-browser", _("CaraStudio _Help"), "F1", NULL, ACTION_CB(online_documentation) },
+	{ "About", "help-about", _("_About"), NULL, NULL, ACTION_CB(about) },
 	{ "FilterGraph", NULL, "_Filter Graph", NULL, NULL, ACTION_CB(filter_graph) },
 
 	/* Not in any menu (yet) */
@@ -1940,11 +2097,11 @@ rs_get_core_action_group(RS_BLOB *rs)
 	static guint n_actionentries = G_N_ELEMENTS (actionentries);
 
 	GtkToggleActionEntry toggleentries[] = {
-	{ "ZommToFit", GTK_STOCK_ZOOM_FIT, _("_Zoom to Fit"), "asterisk", NULL, ACTION_CB(zoom_to_fit), TRUE },
+	{ "ZommToFit", "zoom-fit-best", _("_Zoom to Fit"), "asterisk", NULL, ACTION_CB(zoom_to_fit), TRUE },
 	{ "Iconbox", NULL, _("_Iconbox"), "<control>I", NULL, ACTION_CB(iconbox), TRUE },
 	{ "Toolbox", NULL, _("_Toolbox"), "<control>T", NULL, ACTION_CB(toolbox), TRUE },
-	{ "Fullscreen", GTK_STOCK_FULLSCREEN, _("_Fullscreen"), "F11", NULL, ACTION_CB(fullscreen), FALSE },
-	{ "FullscreenPreview", GTK_STOCK_FULLSCREEN, _("_Show Photo on Secondary Monitor"), "F10", NULL, ACTION_CB(fullscreen_preview), FALSE },
+	{ "Fullscreen", "view-fullscreen", _("_Fullscreen"), "F11", NULL, ACTION_CB(fullscreen), FALSE },
+	{ "FullscreenPreview", "view-fullscreen", _("_Show Photo on Secondary Monitor"), "F10", NULL, ACTION_CB(fullscreen_preview), FALSE },
 	{ "ShowFilenames", NULL, _("Show Filenames in Iconbox"), NULL, NULL, ACTION_CB(show_filenames), show_filenames },
 	{ "Load8Bit", NULL, _("Load non-RAW images"), NULL, NULL, ACTION_CB(load_8bit), load_8bit },
 	{ "LoadSelected", NULL, _("Do not Load Selected Images"), "Pause", NULL, ACTION_CB(load_selected), FALSE },

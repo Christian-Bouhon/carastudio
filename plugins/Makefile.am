@@ -1,5 +1,6 @@
 SUBDIRS = \
 	cache \
+	effects \
 	colorspace-adobergb \
 	colorspace-prophoto \
 	colorspace-srgb \

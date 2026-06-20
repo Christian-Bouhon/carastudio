@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -400,41 +400,47 @@ thread_func(gpointer _thread_info)
 			target = GET_PIXEL(t->output, t->roi->x, y);
 			gfloat* l_pos = pos;
 
+			/* Les fonctions SIMD (AVX/SSE4/SSE2) lisent 8 floats dans pos
+			   (l_pos[0..7]) alors que le buffer n'en a que 6 par pixel.
+			   Le dernier pixel déborderait : on le traite en scalaire. */
+			gint simd_width = (t->roi->width > 0) ? t->roi->width - 1 : 0;
+
 			if (avx_available)
 			{
-				for(x = 0; x < t->roi->width ; x++)
+				for(x = 0; x < simd_width ; x++)
 				{
 					rs_image16_bilinear_nomeasure_avx(t->input, target, l_pos);
 					target += 4;
 					l_pos += 6;
 				}
-			} 
+			}
 			else if (sse4_available)
 			{
-				for(x = 0; x < t->roi->width ; x++)
+				for(x = 0; x < simd_width ; x++)
 				{
 					rs_image16_bilinear_nomeasure_sse4(t->input, target, l_pos);
 					target += 4;
 					l_pos += 6;
 				}
-			} 
+			}
 			else if (sse2_available)
 			{
-				for(x = 0; x < t->roi->width ; x++)
+				for(x = 0; x < simd_width ; x++)
 				{
 					rs_image16_bilinear_nomeasure_sse2(t->input, target, l_pos);
 					target += 4;
 					l_pos += 6;
 				}
-			} 
-			else 
+			}
+			else
+				simd_width = 0; /* tout en scalaire */
+
+			/* Pixels restants (dernier pixel SIMD + éventuel scalaire pur) */
+			for(x = simd_width; x < t->roi->width ; x++)
 			{
-				for(x = 0; x < t->roi->width ; x++)
-				{
-					rs_image16_bilinear_full(t->input, target, l_pos);
-					target += pixelsize;
-					l_pos += 6;
-				}
+				rs_image16_bilinear_full(t->input, target, l_pos);
+				target += pixelsize;
+				l_pos += 6;
 			}
 		}
 		g_free(pos);

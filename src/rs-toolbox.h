@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -70,6 +70,29 @@ rs_toolbox_hover_value_updated(RSToolbox *toolbox, const guchar *rgb_value);
 
 extern GtkWidget *
 rs_toolbox_get_curve(RSToolbox *toolbox, gint setting);
+
+GtkWidget *
+rs_toolbox_get_histogram_widget(RSToolbox *toolbox);
+
+extern GtkWidget *
+rs_toolbox_get_effects_widget(RSToolbox *toolbox);
+
+extern GtkWidget *
+rs_toolbox_get_tones_widget(RSToolbox *toolbox);
+
+/**
+ * Construit l'onglet « Infos » : un panneau EXIF (clé/valeur) mis à jour
+ * automatiquement à chaque changement de photo via rs_toolbox_set_photo.
+ */
+extern GtkWidget *
+rs_toolbox_get_metadata_widget(RSToolbox *toolbox);
+
+/**
+ * Donne au toolbox un pointeur vers l'aperçu (pour piloter la pioche Argentico)
+ * et connecte le signal "argentico-picked".
+ */
+extern void
+rs_toolbox_set_preview(RSToolbox *toolbox, GtkWidget *preview);
 
 G_END_DECLS
 

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guide de CaraStudio</title>
+<style>
+  :root {
+    --bg: #1e2024; --panel: #2a2d33; --panel2: #32363d;
+    --text: #e6e8ea; --muted: #a9adb4; --accent: #4a9eff; --accent2: #7ec8a0;
+    --border: #3a3e45; --kbd-bg: #3c4047; --warn: #e6b860;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Cantarell", "Noto Sans", sans-serif;
+    line-height: 1.65; font-size: 16px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; display: flex; gap: 0; }
+  nav {
+    position: sticky; top: 0; align-self: flex-start; height: 100vh;
+    overflow-y: auto; width: 260px; flex: 0 0 260px;
+    background: var(--panel); border-right: 1px solid var(--border);
+    padding: 24px 18px;
+  }
+  nav h2 { font-size: 0.95rem; color: var(--accent2); margin: 18px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  nav a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; font-size: 0.92rem; }
+  nav a:hover { color: var(--text); background: var(--panel2); }
+  main { flex: 1; padding: 36px 44px; min-width: 0; }
+  header.hero { border-bottom: 1px solid var(--border); margin-bottom: 28px; padding-bottom: 20px; }
+  header.hero h1 { font-size: 2.1rem; margin: 0 0 6px; }
+  header.hero .sub { color: var(--muted); font-size: 1.05rem; }
+  h2.sec { font-size: 1.5rem; margin: 40px 0 12px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--accent); }
+  h3 { font-size: 1.15rem; margin: 24px 0 6px; color: var(--accent2); }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  code, kbd { font-family: "JetBrains Mono", "Consolas", monospace; font-size: 0.88em; }
+  kbd {
+    background: var(--kbd-bg); border: 1px solid var(--border); border-bottom-width: 2px;
+    border-radius: 5px; padding: 1px 7px; color: var(--text); white-space: nowrap;
+  }
+  .tip, .note, .warn {
+    border-left: 3px solid var(--accent); background: var(--panel);
+    padding: 10px 16px; margin: 14px 0; border-radius: 0 8px 8px 0;
+  }
+  .tip { border-color: var(--accent2); }
+  .warn { border-color: var(--warn); }
+  .tip b, .note b, .warn b { color: var(--text); }
+  table { border-collapse: collapse; margin: 14px 0; width: 100%; }
+  th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--accent2); font-weight: 600; }
+  td:first-child { white-space: nowrap; }
+  .lang { float: right; font-size: 0.85rem; color: var(--muted); }
+  .lang a { color: var(--accent); text-decoration: none; }
+  footer { margin-top: 50px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+  @media (max-width: 800px) {
+    .wrap { flex-direction: column; }
+    nav { position: static; width: auto; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <strong style="font-size:1.1rem;">CaraStudio</strong>
+  <div style="color:var(--muted);font-size:0.85rem;margin-bottom:10px;">Guide d'utilisation</div>
+  <h2>Démarrer</h2>
+  <a href="#intro">Bienvenue</a>
+  <a href="#importer">Importer &amp; naviguer</a>
+  <a href="#trier">Trier ses photos</a>
+  <a href="#espace">L'espace de travail</a>
+  <h2>Développer</h2>
+  <a href="#wb">Balance des blancs</a>
+  <a href="#basique">Réglages de base</a>
+  <a href="#objectif">Objectif &amp; courbe</a>
+  <a href="#recadrage">Recadrage</a>
+  <h2>Créer</h2>
+  <a href="#effets">Effets</a>
+  <a href="#tonalite">Tonalité</a>
+  <h2>Gérer</h2>
+  <a href="#infos">Infos &amp; mots-clés</a>
+  <a href="#enfuse">Fusion d'expositions</a>
+  <a href="#exporter">Exporter</a>
+  <h2>Divers</h2>
+  <a href="#langue">Langue de l'interface</a>
+  <a href="#raccourcis">Raccourcis clavier</a>
+</nav>
+
+<main>
+<header class="hero">
+  <span class="lang"><a href="index.en.html">English ›</a></span>
+  <h1>Guide de CaraStudio</h1>
+  <div class="sub">Un développeur de photos brutes (RAW) simple, pensé pour progresser du débutant vers des outils plus avancés.</div>
+</header>
+
+<section id="intro">
+<h2 class="sec">Bienvenue</h2>
+<p>CaraStudio est un logiciel de développement de photos RAW (les fichiers bruts de votre appareil) qui prend aussi en charge les JPEG et TIFF. Il vous permet d'ajuster l'exposition, les couleurs, le contraste, d'appliquer des effets créatifs, puis d'exporter vos images.</p>
+<p>L'idée directrice : offrir <b>quelques</b> outils puissants bien choisis sans noyer le débutant. Vous éditez de façon <b>non destructive</b> — votre fichier d'origine n'est jamais modifié, tous vos réglages sont enregistrés à part et réappliqués à l'ouverture.</p>
+<div class="tip"><b>Astuce :</b> survolez la plupart des curseurs et boutons : une bulle d'aide décrit leur rôle. Un clic sur le nom d'un curseur le remet à sa valeur par défaut.</div>
+</section>
+
+<section id="importer">
+<h2 class="sec">Importer &amp; naviguer</h2>
+<h3>Ouvrir un dossier</h3>
+<p>Dans le <b>panneau d'outils</b> (à droite), ouvrez l'onglet <b>Ouvrir</b> : la section <b>Répertoire</b> propose un sélecteur de dossiers pour parcourir votre disque. Cliquez un dossier : ses photos apparaissent dans la <b>bande d'images</b> en haut. CaraStudio mémorise le dernier dossier ouvert.</p>
+<h3>Photos non-RAW (JPEG, TIFF, PNG)</h3>
+<p>Par défaut, les images 8 bits (JPEG, TIFF, PNG) sont affichées en plus des RAW. Si vous ne voyez que les RAW, activez <i>Photo → Charger les images dans un format non-RAW</i>.</p>
+<h3>La bande d'images et le navigateur</h3>
+<ul>
+  <li>La <b>bande d'images</b> (en haut) montre les vignettes du dossier. Cliquez-en une pour l'éditer.</li>
+  <li>Le <b>navigateur</b> (petite vue d'ensemble) aide à se repérer quand vous êtes zoomé dans l'image.</li>
+</ul>
+<div class="note"><b>Bon à savoir :</b> les vignettes des photos déjà retouchées se régénèrent avec vos effets. Selon la taille du dossier, cela peut prendre un instant en arrière-plan.</div>
+</section>
+
+<section id="trier">
+<h2 class="sec">Trier ses photos</h2>
+<p>Avant de développer, faites le tri. CaraStudio utilise un système de <b>priorités</b> visible dans la colonne de gauche de la bande d'images :</p>
+<table>
+  <tr><th>Touche</th><th>Effet</th></tr>
+  <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Affecte une priorité (un « tri » par étoiles) à la photo sélectionnée.</td></tr>
+  <tr><td><kbd>D</kbd></td><td>Marque la photo comme « écartée » (Deleted/rebut).</td></tr>
+  <tr><td><kbd>U</kbd></td><td>Retire la priorité (Unsorted, non triée).</td></tr>
+</table>
+<p>Les onglets de priorités (<b>* 1 2 3 U D</b>) à gauche filtrent l'affichage : cliquez <b>*</b> pour tout voir, ou un chiffre pour ne montrer que ces photos. Au démarrage, CaraStudio affiche « Toutes les photos ».</p>
+<div class="tip"><b>Astuce :</b> une photo fusionnée par Enfuse reçoit automatiquement la priorité 1, pour la retrouver facilement.</div>
+</section>
+
+<section id="espace">
+<h2 class="sec">L'espace de travail</h2>
+<h3>La barre du haut</h3>
+<p>Sous les menus, une barre de boutons donne accès aux fonctions d'affichage :</p>
+<ul>
+  <li><b>Bande d'images</b> / <b>Panneau d'outils</b> : affichent ou masquent ces zones (<kbd>Ctrl</kbd>+<kbd>I</kbd> / <kbd>Ctrl</kbd>+<kbd>T</kbd>).</li>
+  <li><b>Plein écran</b> (<kbd>F11</kbd>), boutons de <b>zoom</b>, <b>Recadrer</b>, <b>Séparer les vues</b>.</li>
+  <li>Le bouton <b>FR / EN</b> (à droite) change la langue de l'interface (voir <a href="#langue">Langue</a>).</li>
+</ul>
+<h3>Comparer avant/après : les instantanés A / B / C</h3>
+<p>En haut du panneau d'outils, trois boutons <b>A</b>, <b>B</b>, <b>C</b> sont des <b>instantanés</b> de réglages indépendants. Réglez la photo en A, basculez en B pour essayer une autre version : vous comparez deux développements de la même image. Le bouton <b>Séparer les vues</b> (<kbd>Ctrl</kbd>+<kbd>D</kbd>) affiche deux versions côte à côte.</p>
+<h3>Lights Out</h3>
+<p><kbd>F12</kbd> bascule en mode « Lights Out » : l'interface s'efface sur un fond noir pour juger l'image sans distraction.</p>
+</section>
+
+<section id="wb">
+<h2 class="sec">Balance des blancs</h2>
+<p>Premier module du panneau <b>Outils</b>, la balance des blancs corrige la dominante de couleur (trop chaude/orangée, trop froide/bleue). Trois façons de faire :</p>
+<table>
+  <tr><th>Outil</th><th>Usage</th></tr>
+  <tr><td>Pipette</td><td>Cliquez l'icône pipette puis cliquez une zone <b>neutre</b> de l'image (un gris, un blanc non cramé) : CaraStudio neutralise la couleur à partir de ce point.</td></tr>
+  <tr><td>Auto (AWB)</td><td>Calcule automatiquement une balance moyenne.</td></tr>
+  <tr><td>Boîtier</td><td>Reprend la balance enregistrée par l'appareil au moment de la prise de vue.</td></tr>
+</table>
+<p>Vous pouvez aussi ajuster manuellement <b>Température</b> (chaud ↔ froid) et <b>Teinte</b> (vert ↔ magenta).</p>
+<div class="note"><b>RAW vs JPEG :</b> la balance des blancs est la plus souple sur les RAW. Sur un JPEG (déjà développé par l'appareil), les réglages restent possibles mais plus limités.</div>
+</section>
+
+<section id="basique">
+<h2 class="sec">Réglages de base</h2>
+<p>Toujours dans l'onglet <b>Outils</b>, le bloc <b>Basique</b> regroupe les réglages essentiels :</p>
+<table>
+  <tr><th>Réglage</th><th>Rôle</th></tr>
+  <tr><td>Exposition</td><td>Éclaircit ou assombrit l'ensemble de l'image.</td></tr>
+  <tr><td>Saturation</td><td>Intensité des couleurs (0 = noir et blanc).</td></tr>
+  <tr><td>Couleur (Hue)</td><td>Décale la teinte générale.</td></tr>
+  <tr><td>Contraste</td><td>Écart entre tons clairs et tons sombres.</td></tr>
+  <tr><td>Netteté</td><td>Accentue les détails.</td></tr>
+  <tr><td>Anti-bruit / Anti-bruit coul.</td><td>Réduit le grain numérique (luminance et couleur).</td></tr>
+</table>
+<h3>Mixeur de canaux</h3>
+<p>Les curseurs <b>Rouge / Vert / Bleu</b> dosent la contribution de chaque canal. Très utile en noir et blanc pour éclaircir ou assombrir certaines couleurs (un ciel bleu, une peau…).</p>
+<div class="tip"><b>Astuce :</b> la valeur de chaque curseur s'affiche à droite. Cliquez le nom d'un curseur pour le réinitialiser ; cliquez sa valeur pour la saisir au clavier ; la molette ajuste finement.</div>
+</section>
+
+<section id="objectif">
+<h2 class="sec">Objectif &amp; courbe</h2>
+<h3>Correction d'objectif</h3>
+<p>Corrige les défauts optiques : aberration chromatique (<b>CA R</b>, <b>CA B</b>) et vignetage (<b>Vign</b>). Pour les objectifs reconnus, les corrections géométriques sont gérées automatiquement.</p>
+<h3>Courbe</h3>
+<p>La <b>courbe</b> tonale donne un contrôle précis de la luminosité par plages :</p>
+<ul>
+  <li><b>Clic gauche</b> : ajoute un point.</li>
+  <li><b>Maj + clic gauche</b> : supprime un point.</li>
+  <li><b>Clic droit</b> : charger / enregistrer / réinitialiser la courbe.</li>
+</ul>
+<p>Montez la courbe pour éclaircir, descendez-la pour assombrir ; une forme en « S » renforce le contraste.</p>
+</section>
+
+<section id="recadrage">
+<h2 class="sec">Recadrage</h2>
+<p>Le bouton <b>Recadrer</b> (ou <kbd>Maj</kbd>+<kbd>C</kbd>) ouvre l'outil de recadrage. Une petite palette flottante apparaît sur l'image :</p>
+<ul>
+  <li>Choisissez un <b>ratio</b> fixe (1:1, 3:2, 16:9…) ou un recadrage libre.</li>
+  <li>Une <b>grille</b> (règle des tiers…) aide à composer.</li>
+  <li><kbd>Entrée</kbd> valide, <kbd>Échap</kbd> annule.</li>
+</ul>
+<p>Le recadrage est non destructif : vous pouvez le rouvrir et le modifier à tout moment.</p>
+</section>
+
+<section id="effets">
+<h2 class="sec">Effets</h2>
+<p>L'onglet <b>Effets</b> rassemble les traitements créatifs.</p>
+<h3>Voile (anti-brume)</h3>
+<p>Dissipe la brume et le voile atmosphérique pour gagner en clarté et en contraste local. Le curseur <b>Voile</b> dose l'effet, <b>Saturation</b> compense la couleur.</p>
+<h3>Lumière douce</h3>
+<p>Effet « soft light » qui adoucit l'image et apporte un rendu lumineux et velouté.</p>
+<h3>Vignettage artistique</h3>
+<p>Assombrit (ou éclaircit) les bords pour concentrer le regard sur le sujet. Réglez la <b>force</b>, la <b>rondeur</b> et la <b>plume</b> (douceur du dégradé).</p>
+<h3>Noir &amp; Blanc</h3>
+<p>Convertit en noir et blanc avec un <b>mélangeur de canaux</b> (Rouge, Orange, Jaune, Vert, Cyan, Bleu, Violet) : poussez une couleur pour éclaircir les zones correspondantes. Des <b>filtres colorés</b> et des rendus de films (Panchromatique, Orthochromatique…) sont proposés.</p>
+<h3>Argentico (négatif argentique)</h3>
+<p>Simule le développement d'un film négatif argentique : ratios de couches et exposition de développement, pour un rendu pellicule.</p>
+</section>
+
+<section id="tonalite">
+<h2 class="sec">Tonalité</h2>
+<p>L'onglet <b>Tonalité</b> propose trois outils avancés portés du logiciel ART.</p>
+<h3>Tone doctor (égaliseur de tons)</h3>
+<p>Un <b>égaliseur</b> qui agit par plages de luminosité : <b>Noirs</b>, <b>Ombres</b>, <b>Tons moyens</b>, <b>Hautes lumières</b>, <b>Blancs</b>, autour d'un <b>pivot</b> réglable. Idéal pour rééquilibrer une image trop contrastée ou récupérer des détails dans les ombres/lumières.</p>
+<h3>Color balance (roues 3 voies)</h3>
+<p>Trois <b>roues chromatiques</b> — <b>Ombres</b>, <b>Tons moyens</b>, <b>Hautes lumières</b> — pour donner une teinte à chaque plage tonale (étalonnage couleur cinéma). Chaque roue règle la couleur (X/Y) et la luminance (lift / gamma / gain).</p>
+<h3>Color scalpel (courbes par teinte)</h3>
+<p>Ajuste finement chaque <b>famille de couleurs</b> indépendamment (teinte, saturation, luminosité par bandes TSL). Parfait pour, par exemple, raviver un ciel sans toucher aux peaux.</p>
+</section>
+
+<section id="infos">
+<h2 class="sec">Infos &amp; mots-clés</h2>
+<h3>Onglet Infos (EXIF)</h3>
+<p>L'onglet <b>Infos</b> affiche les métadonnées de la photo : appareil, objectif, ouverture, vitesse, ISO, mais aussi une <b>liste étendue</b> de champs EXIF (programme d'exposition, mode de mesure, GPS, auteur…). Un champ de <b>recherche</b> en tête filtre les lignes (insensible à la casse et aux accents).</p>
+<h3>Mots-clés (onglet Ouvrir)</h3>
+<p>La gestion des mots-clés se trouve dans l'onglet <b>Ouvrir</b>, sous la <b>Recherche de tags</b> (et non dans l'onglet Infos). Vous pouvez y <b>ajouter</b> et <b>retirer</b> des mots-clés sur la ou les photos sélectionnées, avec autocomplétion. Les mots-clés facilitent le classement et la recherche ultérieure.</p>
+</section>
+
+<section id="enfuse">
+<h2 class="sec">Fusion d'expositions (Enfuse)</h2>
+<p>Via <i>Photos → Enfuse</i>, CaraStudio fusionne plusieurs photos d'une même scène prises à des expositions différentes (bracketing) en une seule image au rendu équilibré — utile pour les scènes très contrastées (intérieur + fenêtre, paysage à contre-jour).</p>
+<ul>
+  <li>Sélectionnez les photos à fusionner.</li>
+  <li>L'option <b>Extend</b> élargit la plage en générant des variantes plus sombres/claires.</li>
+  <li>La photo fusionnée est créée automatiquement dans le dossier des sources et reçoit la priorité 1.</li>
+</ul>
+</section>
+
+<section id="exporter">
+<h2 class="sec">Exporter</h2>
+<p>Quand vos réglages vous conviennent, exportez l'image développée. Vos fichiers d'origine ne sont jamais écrasés : l'export crée de nouveaux fichiers.</p>
+<h3>Les deux modes</h3>
+<ul>
+  <li><b>Export rapide</b> : enregistre la photo courante avec les paramètres de sortie en cours.</li>
+  <li><b>Traitement par lot</b> (onglet <b>Lot</b>) : ajoutez plusieurs photos à la file et exportez-les toutes d'un coup.</li>
+</ul>
+<h3>Les paramètres de sortie</h3>
+<p>Le bouton <b>Éditer les paramètres de sortie</b> (onglet <b>Lot</b>) ouvre la fenêtre qui contrôle <i>comment</i> vos images sont enregistrées :</p>
+<table>
+  <tr><th>Réglage</th><th>Rôle</th></tr>
+  <tr><td>Type de fichier</td><td>Format de sortie : <b>JPEG</b> (compressé, idéal pour partager), <b>PNG</b> ou <b>TIFF</b> (sans perte, fichiers plus lourds).</td></tr>
+  <tr><td>Qualité JPEG</td><td>De 1 à 100 %. Plus la valeur est haute, meilleure est l'image mais plus le fichier est lourd. <b>85–95 %</b> est un bon compromis (défaut ~90). Sans objet pour PNG/TIFF, qui sont sans perte.</td></tr>
+  <tr><td>Répertoire d'enregistrement</td><td>Le dossier où seront écrits les fichiers exportés.</td></tr>
+</table>
+<h3>Dimensions d'export</h3>
+<p>Le cadre <b>Exporter les dimensions</b> fixe la taille des images produites. Choisissez un mode :</p>
+<table>
+  <tr><th>Mode</th><th>Effet</th></tr>
+  <tr><td>Rapport constant</td><td>Redimensionne en <b>pourcentage</b> de l'original : 100 % = taille réelle, 50 % = deux fois plus petit.</td></tr>
+  <tr><td>Largeur constante</td><td>Fixe la <b>largeur en pixels</b> ; la hauteur suit pour garder les proportions.</td></tr>
+  <tr><td>Hauteur constante</td><td>Fixe la <b>hauteur en pixels</b> ; la largeur suit.</td></tr>
+  <tr><td>Taille maximum</td><td>L'image tient dans une <b>boîte</b> (largeur × hauteur maxi) sans déformation — pratique pour « pas plus de 2000 px de côté ».</td></tr>
+</table>
+<div class="tip"><b>Astuce :</b> pour partager sur le web, exportez en JPEG à 85–90 % avec une largeur constante de 1600–2048 px : fichiers légers et nets.</div>
+<h3>Motif de nom de fichier</h3>
+<p>Le <b>Motif de nom de fichier</b> nomme automatiquement vos exports à partir de codes ; un aperçu (« exemple ») montre le résultat en direct. Codes utiles :</p>
+<table>
+  <tr><th>Code</th><th>Donne</th></tr>
+  <tr><td><code>%f</code></td><td>Nom du fichier d'origine</td></tr>
+  <tr><td><code>%2c</code></td><td>Compteur incrémental (ici sur 2 chiffres)</td></tr>
+  <tr><td><code>%d</code></td><td>Date de prise de vue (AAAA-MM-JJ)</td></tr>
+  <tr><td><code>%Ma</code> <code>%Ms</code> <code>%Mi</code></td><td>Ouverture, vitesse, ISO (depuis l'EXIF)</td></tr>
+  <tr><td><code>%Mf</code></td><td>Focale en mm</td></tr>
+  <tr><td><code>%s</code></td><td>Instantané utilisé (A, B ou C)</td></tr>
+  <tr><td><code>%p</code></td><td>Chemin du fichier d'origine</td></tr>
+</table>
+<p>Exemple : <code>%f_%2c</code> produit <code>IMG1234_01</code>, <code>IMG1234_02</code>…</p>
+</section>
+
+<section id="langue">
+<h2 class="sec">Langue de l'interface</h2>
+<p>Le bouton <b>FR / EN</b> à droite de la barre du haut bascule l'interface entre le français et l'anglais. Le libellé indique la langue vers laquelle vous allez basculer. CaraStudio vous proposera de <b>redémarrer</b> pour appliquer le changement (vos réglages sont sauvegardés avant la relance).</p>
+</section>
+
+<section id="raccourcis">
+<h2 class="sec">Raccourcis clavier</h2>
+<table>
+  <tr><th>Raccourci</th><th>Action</th></tr>
+  <tr><td><kbd>F1</kbd></td><td>Ouvrir cette aide</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>I</kbd></td><td>Afficher / masquer la bande d'images</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>T</kbd></td><td>Afficher / masquer le panneau d'outils</td></tr>
+  <tr><td><kbd>F11</kbd></td><td>Plein écran</td></tr>
+  <tr><td><kbd>F12</kbd></td><td>Lights Out (fond noir)</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Séparer les vues (avant / après)</td></tr>
+  <tr><td><kbd>Maj</kbd>+<kbd>C</kbd></td><td>Recadrer</td></tr>
+  <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>Affecter une priorité</td></tr>
+  <tr><td><kbd>U</kbd> / <kbd>D</kbd></td><td>Retirer la priorité / écarter</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>Q</kbd></td><td>Quitter</td></tr>
+</table>
+</section>
+
+<footer>
+  CaraStudio — guide d'utilisation. Édition non destructive : vos fichiers d'origine restent intacts.
+</footer>
+</main>
+</div>
+</body>
+</html>

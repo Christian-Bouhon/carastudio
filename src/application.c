@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -57,6 +57,7 @@
 #include "lensfun.h"
 #include "rs-profile-factory-model.h"
 #include "rs-profile-camera.h"
+#include "rs-splash.h"
 
 static void photo_profile_changed(RS_PHOTO *photo, gpointer profile, RS_BLOB *rs);
 
@@ -129,7 +130,8 @@ rs_photo_save(RS_PHOTO *photo, RSFilter *prior_to_resample, RSOutput *output, gi
 	RSFilter *fcrop = rs_filter_new("RSCrop", fdcp);
 	RSFilter *fresample= rs_filter_new("RSResample", fcrop);
 	RSFilter *fdenoise= rs_filter_new("RSDenoise", fresample);
-	RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", fdenoise);
+	RSFilter *feffects = rs_filter_new("RSEffects", fdenoise);
+	RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", feffects);
 	RSFilter *fend = ftransform_display;
 
 	gint input_width;
@@ -154,6 +156,7 @@ rs_photo_save(RS_PHOTO *photo, RSFilter *prior_to_resample, RSOutput *output, gi
 	g_object_unref(ftransform_display);
 	g_object_unref(fresample);
 	g_object_unref(fdenoise);
+	g_object_unref(feffects);
 	g_object_unref(fdcp);
 
 	return exported;
@@ -169,7 +172,8 @@ rs_photo_copy_to_clipboard(RS_PHOTO *photo, RSFilter *prior_to_resample, gint wi
 	RSFilter *fdcp = rs_filter_new("RSDcp", ftransform_input);
 	RSFilter *fresample= rs_filter_new("RSResample", fdcp);
 	RSFilter *fdenoise= rs_filter_new("RSDenoise", fresample);
-	RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", fdenoise);
+	RSFilter *feffects = rs_filter_new("RSEffects", fdenoise);
+	RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", feffects);
 	RSFilter *fend = ftransform_display;
 
 	gint input_width;
@@ -220,6 +224,10 @@ rs_new(void)
 	rs->filter_input = rs_filter_new("RSInputImage16", NULL);
 	rs->filter_demosaic = rs_filter_new("RSDemosaic", rs->filter_input);
 	rs->filter_fuji_rotate = rs_filter_new("RSFujiRotate", rs->filter_demosaic);
+	/* Argentico (négatif argentique) a été déplacé dans le plugin « effects »
+	 * (espace de travail, après le DCP) : c'est le seul espace où « canaux
+	 * égaux = neutre », indispensable pour que l'inversion ne crée pas de
+	 * couleur (cf. négatif N&B → gris). */
 	rs->filter_demosaic_cache = rs_filter_new("RSCache", rs->filter_fuji_rotate);
 
 	/* We need this for 100% zoom */
@@ -624,6 +632,16 @@ main(int argc, char **argv)
 	dbus_threads_init_default();
 
 #ifdef ENABLE_NLS
+	/* Langue de l'interface. Si l'utilisateur a choisi une langue dans
+	   CaraStudio (conf « ui-language » : "fr" ou "en"), on force le catalogue
+	   gettext correspondant via la variable LANGUAGE, AVANT le chargement des
+	   textes. Sans réglage, on suit la locale système (comportement d'origine). */
+	{
+		gchar *ui_lang = rs_conf_get_string("ui-language");
+		if (ui_lang && ui_lang[0])
+			g_setenv("LANGUAGE", ui_lang, TRUE);
+		g_free(ui_lang);
+	}
 	bindtextdomain(GETTEXT_PACKAGE, PACKAGE_LOCALE_DIR);
 	bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");
 	textdomain(GETTEXT_PACKAGE);
@@ -635,6 +653,8 @@ main(int argc, char **argv)
 #endif
 
 	gtk_init(&argc, &argv);
+
+	rs_splash_show();
 
 	/* Demande la variante sombre du thème GTK (Adwaita-dark sur GNOME).
 	   Cela couvre les widgets internes (GtkFileChooserButton, popups…)

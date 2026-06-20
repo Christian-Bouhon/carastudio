@@ -16,5 +16,17 @@ EXTRA_DIST = \
 	carastudio.desktop \
 	gettext.h
 
+# Hicolor icon theme — installed to $(datadir)/$(PACKAGE)/icons/hicolor/
+pkgiconhicolordir = $(datadir)/$(PACKAGE)/icons/hicolor
+
+install-data-local:
+	$(MKDIR_P) $(DESTDIR)$(pkgiconhicolordir)/scalable/actions
+	$(MKDIR_P) $(DESTDIR)$(pkgiconhicolordir)/48x48/actions
+	$(MKDIR_P) $(DESTDIR)$(pkgiconhicolordir)/48x48/apps
+	cp data/icons/hicolor/index.theme $(DESTDIR)$(pkgiconhicolordir)/
+	cp data/icons/hicolor/scalable/actions/*.svg $(DESTDIR)$(pkgiconhicolordir)/scalable/actions/
+	cp data/icons/hicolor/48x48/actions/*.png    $(DESTDIR)$(pkgiconhicolordir)/48x48/actions/
+	cp data/icons/hicolor/48x48/apps/*.png       $(DESTDIR)$(pkgiconhicolordir)/48x48/apps/ 2>/dev/null || true
+
 ChangeLog:
 	git log >$@

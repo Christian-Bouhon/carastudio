@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -21,6 +21,7 @@
 #include "rs-library.h"
 #include "rs-tag-gui.h"
 #include "rs-store.h"
+#include "rs-actions.h"
 #include "gtk-interface.h"
 #include "conf_interface.h"
 #include "config.h"
@@ -50,6 +51,17 @@ search_changed(GtkEntry *entry, gpointer user_data)
 	cb_carrier *carrier = user_data;
 	const gchar *text = gtk_entry_get_text(entry);
 
+	/* Champ vidé → on QUITTE le mode recherche et on recharge le dossier
+	   courant. Sans ça, une recherche vide laissait le navigateur vide
+	   (« bloqué sur la procédure mot-clé »). */
+	if (text == NULL || text[0] == '\0')
+	{
+		rs_store_remove(carrier->store, NULL, NULL);
+		rs_store_load_directory(carrier->store, NULL); /* recharge store->last_path */
+		rs_conf_set_string(CONF_LIBRARY_TAG_SEARCH, "");
+		return;
+	}
+
 	GList *photos = rs_library_search(carrier->library, text);
 
 	/* FIXME: deselect all photos in store */
@@ -63,9 +75,11 @@ search_changed(GtkEntry *entry, gpointer user_data)
 	g_string_printf(window_title, _("Tag search [%s]"), text);
 	rs_window_set_title(window_title->str);
 	g_string_free(window_title, TRUE);
-	
+
 	rs_conf_set_string(CONF_LIBRARY_TAG_SEARCH, text);
-	rs_conf_unset(CONF_LWD);
+	/* On NE fait PLUS rs_conf_unset(CONF_LWD) : sinon au prochain démarrage
+	   l'appli rebootait en mode recherche (branche « tags && !lwd ») au lieu
+	   d'ouvrir le dossier de travail. */
 
 	g_list_free(photos);
 }
@@ -87,7 +101,49 @@ rs_tag_gui_toolbox_new(RSLibrary *library, RSStore *store)
 	gtk_box_pack_start (GTK_BOX(box), tag_search_entry, FALSE, TRUE, 0);
 	/* FIXME: Make sure to free carrier at some point */
 
+	/* Bloc cohérent : recherche (au-dessus) + ajout + suppression de mots-clés */
+	GtkWidget *button_box = gtk_hbox_new(TRUE, 4);
+	GtkWidget *add_button = gtk_button_new_with_label(_("Ajouter un mot-clé"));
+	GtkWidget *remove_button = gtk_button_new_with_label(_("Supprimer un mot-clé"));
+	g_signal_connect_swapped(add_button, "clicked",
+				 G_CALLBACK(rs_core_action_group_activate), "TagPhoto");
+	g_signal_connect_swapped(remove_button, "clicked",
+				 G_CALLBACK(rs_core_action_group_activate), "RemoveTagPhoto");
+	gtk_box_pack_start(GTK_BOX(button_box), add_button, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(button_box), remove_button, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(box), button_box, FALSE, TRUE, 4);
+
 	return box;
+}
+
+/* Recharge la liste d'autocomplétion depuis la base à chaque prise de focus :
+   sinon elle reste figée à l'état du démarrage (les tags ajoutés pendant la
+   session n'apparaîtraient jamais). */
+static gboolean
+tag_entry_refresh_completion(GtkWidget *entry, GdkEventFocus *event, gpointer user_data)
+{
+	RSLibrary *library = g_object_get_data(G_OBJECT(entry), "rs-library");
+	GtkEntryCompletion *completion = gtk_entry_get_completion(GTK_ENTRY(entry));
+	GtkListStore *store;
+	GtkTreeIter iter;
+	GList *all_tags, *node;
+
+	if (!library || !completion)
+		return FALSE;
+
+	store = GTK_LIST_STORE(gtk_entry_completion_get_model(completion));
+	gtk_list_store_clear(store);
+
+	all_tags = rs_library_find_tag(library, "");
+	for (node = all_tags; node != NULL; node = g_list_next(node))
+	{
+		gtk_list_store_append(store, &iter);
+		gtk_list_store_set(store, &iter, 0, (gchar *) node->data, -1);
+		g_free(node->data);
+	}
+	g_list_free(all_tags);
+
+	return FALSE; /* laisse l'événement se propager */
 }
 
 GtkWidget *
@@ -198,6 +254,11 @@ rs_library_tag_entry_new(RSLibrary *library)
 	gtk_entry_completion_set_match_func(completion, match, NULL, NULL);
 	g_signal_connect(completion, "match-selected", G_CALLBACK(selected), NULL);
 	gtk_entry_set_completion (GTK_ENTRY(entry), completion);
+
+	/* Rafraîchit l'autocomplétion à chaque prise de focus (tags ajoutés en
+	   cours de session). On mémorise la bibliothèque sur le widget. */
+	g_object_set_data(G_OBJECT(entry), "rs-library", library);
+	g_signal_connect(entry, "focus-in-event", G_CALLBACK(tag_entry_refresh_completion), NULL);
 
 	g_list_free(all_tags);
 

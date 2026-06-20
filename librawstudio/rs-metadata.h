@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -85,6 +85,10 @@ struct _RSMetadata {
 	gdouble color_tone;
 	gshort focallength;
 	GdkPixbuf *thumbnail;
+	/* TRUE si la vignette en cache a été rendue via le pipeline complet (effets
+	   inclus), FALSE si c'est l'aperçu embarqué/import initial. Sert à régénérer
+	   en fond les vignettes des photos éditées dont le rendu ignore les effets. */
+	gboolean thumbnail_rendered;
 
 	/* Lens info */
 	gint lens_id;

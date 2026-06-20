@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -52,6 +52,8 @@ gint rs_library_add_tag(RSLibrary *library, const gchar *tagname);
 /* You must have created the tag on beforehand using rs_library_add_tag */
 /* Pass the returned value as tag_id */
 void rs_library_photo_add_tag(RSLibrary *library, const gchar *filename, gint tag_id, const gboolean autotag);
+/* Retire un mot-clé précis d'une photo (les autres tags/photos sont intacts) */
+void rs_library_photo_remove_tag(RSLibrary *library, const gchar *filename, const gchar *tagname);
 void rs_library_delete_photo(RSLibrary *library, const gchar *photo);
 gboolean rs_library_delete_tag(RSLibrary *library, const gchar *tag, const gboolean force);
 GList *rs_library_search(RSLibrary *library, const gchar *needle);

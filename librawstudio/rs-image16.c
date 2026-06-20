@@ -4,7 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
+ * as published by the Free Software Foundation; either version 3
  * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -234,9 +234,12 @@ rs_image16_new_subframe(RS_IMAGE16 *input, GdkRectangle *rectangle)
 static inline void 
 bit_blt(char* dstp, int dst_pitch, const char* srcp, int src_pitch, int row_size, int height) 
 {
-	if (height == 1 || (dst_pitch == src_pitch && src_pitch == row_size)) 
+	if (height == 1 || (dst_pitch == src_pitch && src_pitch == row_size))
 	{
-		memcpy(dstp, srcp, row_size*height);
+		/* row_size et height sont des int ; pour une grande image leur produit
+		   déborde l'int 32 bits (taille de memcpy négative → crash). On calcule
+		   la taille en size_t. */
+		memcpy(dstp, srcp, (size_t)row_size * (size_t)height);
 		return;
 	}
 
@@ -259,7 +262,7 @@ rs_image16_copy(RS_IMAGE16 *in, gboolean copy_pixels)
 	out = rs_image16_new(in->w, in->h, in->channels, in->pixelsize);
 	if (copy_pixels)
 	{
-		bit_blt((char*)GET_PIXEL(out,0,0), out->rowstride * 2, 
+		bit_blt((char*)GET_PIXEL(out,0,0), out->rowstride * 2,
 			(const char*)GET_PIXEL(in,0,0), in->rowstride * 2, out->rowstride * 2, in->h);
 	}
 	return(out);
