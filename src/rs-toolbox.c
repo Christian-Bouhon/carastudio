@@ -18,6 +18,7 @@
  */
 
 #include <rawstudio.h>
+#include <rs-exif-extended.h>
 #include <gtk/gtk.h>
 #include <config.h>
 #include "gettext.h"
@@ -38,6 +39,7 @@
 #include "rs-camera-db.h"
 #include "rs-preview-widget.h"
 #include <math.h>
+#include <string.h>
 
 /* Some helpers for creating the basic sliders */
 typedef struct {
@@ -174,7 +176,18 @@ struct _RSToolbox {
 	gboolean mute_from_photo;
 
 	GtkWidget *exif_value[N_EXIF]; /* étiquettes de valeurs du panneau « Infos » */
+	GtkWidget *exif_grid;          /* grille des lignes clé/valeur (base + étendu) */
+	GtkWidget *exif_search;        /* champ de recherche en tête de l'onglet « Infos » */
+	GList *exif_rows;              /* RSExifRow* : toutes les lignes, pour le filtrage */
 };
+
+/* Une ligne du panneau « Infos » (couple libellé/valeur), conservée pour le
+   filtrage par la recherche et pour la régénération des lignes étendues. */
+typedef struct {
+	GtkWidget *key;
+	GtkWidget *val;
+	gboolean extended; /* TRUE = ligne EXIF étendue (recréée à chaque photo) */
+} RSExifRow;
 
 G_DEFINE_TYPE (RSToolbox, rs_toolbox, GTK_TYPE_SCROLLED_WINDOW)
 
@@ -1716,6 +1729,128 @@ rs_toolbox_get_effects_widget(RSToolbox *toolbox)
 	return notebook;
 }
 
+/* Normalise une chaîne pour une comparaison insensible à la casse ET aux
+   accents (casefold + décomposition Unicode + suppression des diacritiques).
+   À libérer par l'appelant. */
+static gchar *
+exif_fold(const gchar *s)
+{
+	if (!s)
+		return g_strdup("");
+	gchar *cf = g_utf8_casefold(s, -1);
+	gchar *norm = g_utf8_normalize(cf, -1, G_NORMALIZE_ALL);
+	g_free(cf);
+
+	GString *out = g_string_new(NULL);
+	const gchar *p = norm;
+	while (p && *p)
+	{
+		gunichar c = g_utf8_get_char(p);
+		/* saute les marques diacritiques combinantes (U+0300..U+036F) */
+		if (c < 0x300 || c > 0x36F)
+			g_string_append_unichar(out, c);
+		p = g_utf8_next_char(p);
+	}
+	g_free(norm);
+	return g_string_free(out, FALSE);
+}
+
+/* Crée une ligne libellé/valeur dans la grille « Infos » à la position row,
+   l'enregistre pour le filtrage, et renvoie l'étiquette de valeur. */
+static GtkWidget *
+exif_add_row(RSToolbox *toolbox, gint row, const gchar *label, gboolean extended)
+{
+	gchar *markup = g_markup_printf_escaped("<b>%s</b>", label);
+	GtkWidget *key = gtk_label_new(NULL);
+	GtkWidget *val = gtk_label_new("—");
+	RSExifRow *r;
+
+	gtk_label_set_markup(GTK_LABEL(key), markup);
+	g_free(markup);
+	gtk_label_set_xalign(GTK_LABEL(key), 0.0);
+	gtk_widget_set_valign(key, GTK_ALIGN_START);
+
+	gtk_label_set_xalign(GTK_LABEL(val), 0.0);
+	gtk_label_set_line_wrap(GTK_LABEL(val), TRUE);
+	gtk_label_set_selectable(GTK_LABEL(val), TRUE);
+	gtk_widget_set_hexpand(val, TRUE);
+
+	gtk_grid_attach(GTK_GRID(toolbox->exif_grid), key, 0, row, 1, 1);
+	gtk_grid_attach(GTK_GRID(toolbox->exif_grid), val, 1, row, 1, 1);
+
+	r = g_new0(RSExifRow, 1);
+	r->key = key;
+	r->val = val;
+	r->extended = extended;
+	toolbox->exif_rows = g_list_append(toolbox->exif_rows, r);
+
+	return val;
+}
+
+/* Détruit les lignes EXIF étendues (recréées à chaque changement de photo) ;
+   les 9 lignes de base sont conservées. */
+static void
+toolbox_clear_extended_rows(RSToolbox *toolbox)
+{
+	GList *l = toolbox->exif_rows;
+	while (l)
+	{
+		GList *next = l->next;
+		RSExifRow *r = l->data;
+		if (r->extended)
+		{
+			gtk_widget_destroy(r->key);
+			gtk_widget_destroy(r->val);
+			toolbox->exif_rows = g_list_delete_link(toolbox->exif_rows, l);
+			g_free(r);
+		}
+		l = next;
+	}
+}
+
+/* Applique le filtre de recherche : n'affiche que les lignes dont le libellé
+   ou la valeur contient le texte saisi (insensible casse/accents). */
+static void
+exif_filter_apply(RSToolbox *toolbox)
+{
+	const gchar *q;
+	gchar *qf;
+	gboolean show_all;
+	GList *l;
+
+	if (!toolbox->exif_search)
+		return;
+
+	q = gtk_entry_get_text(GTK_ENTRY(toolbox->exif_search));
+	qf = exif_fold(q);
+	show_all = (qf[0] == '\0');
+
+	for (l = toolbox->exif_rows; l != NULL; l = l->next)
+	{
+		RSExifRow *r = l->data;
+		gboolean show = show_all;
+		if (!show_all)
+		{
+			const gchar *kt = gtk_label_get_text(GTK_LABEL(r->key));
+			const gchar *vt = gtk_label_get_text(GTK_LABEL(r->val));
+			gchar *hay = g_strconcat(kt ? kt : "", " ", vt ? vt : "", NULL);
+			gchar *hayf = exif_fold(hay);
+			show = (strstr(hayf, qf) != NULL);
+			g_free(hay);
+			g_free(hayf);
+		}
+		gtk_widget_set_visible(r->key, show);
+		gtk_widget_set_visible(r->val, show);
+	}
+	g_free(qf);
+}
+
+static void
+exif_search_changed(GtkSearchEntry *entry, RSToolbox *toolbox)
+{
+	exif_filter_apply(toolbox);
+}
+
 /* Remplit le panneau « Infos » depuis les métadonnées de la photo (ou met
    des tirets si aucune photo). Appelé depuis rs_toolbox_set_photo. */
 static void
@@ -1728,10 +1863,14 @@ toolbox_update_metadata(RSToolbox *toolbox, RS_PHOTO *photo)
 	if (!toolbox->exif_value[0])
 		return;
 
+	/* Les lignes étendues dépendent de la photo : on repart à zéro. */
+	toolbox_clear_extended_rows(toolbox);
+
 	if (!m)
 	{
 		for (i = 0; i < N_EXIF; i++)
 			gtk_label_set_text(GTK_LABEL(toolbox->exif_value[i]), "—");
+		exif_filter_apply(toolbox);
 		return;
 	}
 
@@ -1794,6 +1933,26 @@ toolbox_update_metadata(RSToolbox *toolbox, RS_PHOTO *photo)
 		gtk_label_set_text(GTK_LABEL(toolbox->exif_value[EXIF_WB]), "—");
 
 #undef EXIF_SET
+
+	/* Set EXIF étendu (jusqu'à ~50 champs, photo d'abord), relu à la volée
+	   avec exiv2 depuis le fichier — fonctionne pour RAW comme JPEG. */
+	if (photo->filename)
+	{
+		GList *ext = rs_exif_read_extended(photo->filename);
+		GList *l;
+		gint row = N_EXIF;
+		for (l = ext; l != NULL; l = l->next)
+		{
+			RSExifPair *p = l->data;
+			GtkWidget *val = exif_add_row(toolbox, row++, p->label, TRUE);
+			gtk_label_set_text(GTK_LABEL(val), p->value);
+		}
+		gtk_widget_show_all(toolbox->exif_grid);
+		rs_exif_extended_free(ext);
+	}
+
+	/* Réapplique le filtre courant aux lignes (anciennes + nouvelles). */
+	exif_filter_apply(toolbox);
 }
 
 GtkWidget *
@@ -1804,44 +1963,43 @@ rs_toolbox_get_metadata_widget(RSToolbox *toolbox)
 		N_("Ouverture"), N_("Vitesse"), N_("ISO"),
 		N_("Correction expo"), N_("Balance des blancs")
 	};
+	GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+	GtkWidget *search = gtk_search_entry_new();
 	GtkWidget *scroller = gtk_scrolled_window_new(NULL, NULL);
 	GtkWidget *grid = gtk_grid_new();
 	gint i;
+
+	/* Champ de recherche en tête (façon mots-clés) */
+	gtk_entry_set_placeholder_text(GTK_ENTRY(search),
+		_("Rechercher dans les EXIF…"));
+	gtk_widget_set_margin_start(search, 6);
+	gtk_widget_set_margin_end(search, 6);
+	gtk_widget_set_margin_top(search, 6);
+	gtk_widget_set_margin_bottom(search, 4);
+	toolbox->exif_search = search;
+	g_signal_connect(search, "search-changed",
+		G_CALLBACK(exif_search_changed), toolbox);
+	gtk_box_pack_start(GTK_BOX(box), search, FALSE, FALSE, 0);
 
 	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroller),
 		GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
 	gtk_grid_set_row_spacing(GTK_GRID(grid), 5);
 	gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
 	gtk_container_set_border_width(GTK_CONTAINER(grid), 10);
+	toolbox->exif_grid = grid;
 
+	/* 9 lignes de base (depuis la struct RSMetadata, RAW + JPEG) */
 	for (i = 0; i < N_EXIF; i++)
-	{
-		gchar *markup = g_markup_printf_escaped("<b>%s</b>", _(labels[i]));
-		GtkWidget *key = gtk_label_new(NULL);
-		GtkWidget *val = gtk_label_new("—");
-
-		gtk_label_set_markup(GTK_LABEL(key), markup);
-		g_free(markup);
-		gtk_label_set_xalign(GTK_LABEL(key), 0.0);
-		gtk_widget_set_valign(key, GTK_ALIGN_START);
-
-		gtk_label_set_xalign(GTK_LABEL(val), 0.0);
-		gtk_label_set_line_wrap(GTK_LABEL(val), TRUE);
-		gtk_label_set_selectable(GTK_LABEL(val), TRUE);
-		gtk_widget_set_hexpand(val, TRUE);
-		toolbox->exif_value[i] = val;
-
-		gtk_grid_attach(GTK_GRID(grid), key, 0, i, 1, 1);
-		gtk_grid_attach(GTK_GRID(grid), val, 1, i, 1, 1);
-	}
+		toolbox->exif_value[i] = exif_add_row(toolbox, i, _(labels[i]), FALSE);
 
 	gtk_container_add(GTK_CONTAINER(scroller), grid);
-	gtk_widget_show_all(scroller);
+	gtk_box_pack_start(GTK_BOX(box), scroller, TRUE, TRUE, 0);
+	gtk_widget_show_all(box);
 
 	/* Renseigne immédiatement si une photo est déjà ouverte */
 	toolbox_update_metadata(toolbox, toolbox->photo);
 
-	return scroller;
+	return box;
 }
 
 static void
