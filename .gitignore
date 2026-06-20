@@ -1,4 +1,5 @@
 **/*.o
+**/*.so
 **/*.la
 **/*.lo
 **/*.Po
@@ -51,6 +52,7 @@
 /profiles/NIKON_D4.dcp
 /profiles/PENTAX_K-30-camera.dcp
 /src/rawstudio
+/src/carastudio
 /missing
 /prefix
 /stamp-h1
