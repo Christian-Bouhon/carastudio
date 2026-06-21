@@ -1,11 +1,8 @@
 msgid ""
-msgstr "Content-Type: text/plain; charset=UTF-8\n"
-
-msgid "CaraStudio _Help"
-msgstr "_Aide CaraStudio"
-
-msgid "Could not open the help file in your browser."
-msgstr "Impossible d'ouvrir l'aide dans votre navigateur."
+msgstr ""
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-21 07:22+0200\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 
 #. — Prise de vue —
 #: librawstudio/rs-exif-extended.cpp:37
@@ -175,7 +172,7 @@ msgid "Focal"
 msgstr "Focale"
 
 #: librawstudio/rs-lens-db-editor.c:642 librawstudio/rs-lens-db-editor.c:907
-#: src/rs-actions.c:2112
+#: src/rs-actions.c:2118
 msgid "Aperture"
 msgstr "Ouverture"
 
@@ -1478,7 +1475,7 @@ msgid "%d photos removed from batch queue"
 msgstr "%d photos ajoutées au traitement par lot"
 
 #. Not in any menu (yet)
-#: src/rs-actions.c:1556 src/rs-actions.c:2089
+#: src/rs-actions.c:1556 src/rs-actions.c:2095
 msgid "Add Profile ..."
 msgstr "Ajouter profile..."
 
@@ -1498,358 +1495,369 @@ msgstr "Profils de colorimétrie (ICC et ICM)"
 msgid "All files"
 msgstr "Tous les fichiers"
 
-#: src/rs-actions.c:1697
-msgid "A raw image converter for GTK+/GNOME"
-msgstr "Un convertisseur de fichier RAW pour GTK+/GNOME"
+#: src/rs-actions.c:1635
+msgid "Could not open the help file in your browser."
+msgstr "Impossible d'ouvrir l'aide dans votre navigateur."
 
-#: src/rs-actions.c:1822 src/rs-actions.c:2066
+#: src/rs-actions.c:1701
+msgid ""
+"Développeur de photos RAW, convivial et accessible — un fork bodybuildé de "
+"RawStudio par Carafife."
+msgstr ""
+
+#: src/rs-actions.c:1828 src/rs-actions.c:2072
 msgid "Enfuse"
 msgstr "Enfuse"
 
-#: src/rs-actions.c:1822
+#: src/rs-actions.c:1828
 msgid "This might take quite some time and will lock up UI until finished..."
 msgstr ""
 "Cela peut prendre un certain temps et bloquera l'interface jusqu'à la fin…"
 
-#: src/rs-actions.c:1825
+#: src/rs-actions.c:1831
 msgid "CaraStudio Enfuse"
 msgstr "CaraStudio Enfuse"
 
-#: src/rs-actions.c:1848
+#: src/rs-actions.c:1854
 msgid "Enfuse method"
 msgstr "Méthode Enfuse"
 
-#: src/rs-actions.c:1851
+#: src/rs-actions.c:1857
 msgid "Align images (may take a long time)"
 msgstr "Aligner les images (peut être long)"
 
-#: src/rs-actions.c:1854 src/rs-actions.c:1871
+#: src/rs-actions.c:1860 src/rs-actions.c:1877
 msgid "Extend exposure"
 msgstr "Étendre l'exposition"
 
-#: src/rs-actions.c:1863
+#: src/rs-actions.c:1869
 msgid "Extend negative steps"
 msgstr "Pas négatifs supplémentaires"
 
-#: src/rs-actions.c:1867
+#: src/rs-actions.c:1873
 msgid "Extend positive steps"
 msgstr "Pas positifs supplémentaires"
 
-#: src/rs-actions.c:1888
+#: src/rs-actions.c:1894
 msgid "Size:"
 msgstr "Taille :"
 
-#: src/rs-actions.c:2013
+#: src/rs-actions.c:2019
 msgid "_File"
 msgstr "_Fichier"
 
-#: src/rs-actions.c:2014
+#: src/rs-actions.c:2020
 msgid "_Edit"
 msgstr "_Édition"
 
-#: src/rs-actions.c:2015
+#: src/rs-actions.c:2021
 msgid "_Photo"
 msgstr "_Photo"
 
-#: src/rs-actions.c:2016
+#: src/rs-actions.c:2022
 msgid "_Set Priority"
 msgstr "Choisir la _priorité"
 
-#: src/rs-actions.c:2017
+#: src/rs-actions.c:2023
 msgid "_White Balance"
 msgstr "_Balance des blancs"
 
-#: src/rs-actions.c:2018
+#: src/rs-actions.c:2024
 msgid "_View"
 msgstr "_Vue"
 
-#: src/rs-actions.c:2019
+#: src/rs-actions.c:2025
 msgid "_Sort by"
 msgstr "_Trier par"
 
-#: src/rs-actions.c:2020
+#: src/rs-actions.c:2026
 msgid "_Batch"
 msgstr "_Traitement par lot"
 
-#: src/rs-actions.c:2021
+#: src/rs-actions.c:2027
 msgid "_Help"
 msgstr "_Aide"
 
-#: src/rs-actions.c:2023
+#: src/rs-actions.c:2029
 msgid "_Snapshot"
 msgstr "_Instantané"
 
 #. File menu
-#: src/rs-actions.c:2026
+#: src/rs-actions.c:2032
 msgid "_Open Directory"
 msgstr "Ouvrir un répertoire"
 
-#: src/rs-actions.c:2027
+#: src/rs-actions.c:2033
 msgid "_Quick Export"
 msgstr "_Export rapide"
 
-#: src/rs-actions.c:2028
+#: src/rs-actions.c:2034
 msgid "_Export As"
 msgstr "Exporter _sous"
 
-#: src/rs-actions.c:2029
+#: src/rs-actions.c:2035
 msgid "_Export to Gimp"
 msgstr "Exporter vers _GIMP"
 
-#: src/rs-actions.c:2030
+#: src/rs-actions.c:2036
 msgid "_Copy Image to Clipboard"
 msgstr "_Copier l'image vers le presse papier"
 
-#: src/rs-actions.c:2031
+#: src/rs-actions.c:2037
 msgid "_Reload directory"
 msgstr "_Recharger le répertoire"
 
-#: src/rs-actions.c:2032
+#: src/rs-actions.c:2038
 msgid "_Delete Flagged Photos"
 msgstr "_Supprimer les photos marquées"
 
-#: src/rs-actions.c:2033
+#: src/rs-actions.c:2039
 msgid "_Quit"
 msgstr "_Quitter"
 
-#: src/rs-actions.c:2034
+#: src/rs-actions.c:2040
 msgid "_Just Quit"
 msgstr "_Quitter sans enregistrer"
 
-#: src/rs-actions.c:2035
+#: src/rs-actions.c:2041
 msgid "Save & _Quit"
 msgstr "Enregistrer et _quitter"
 
 #. Edit menu
-#: src/rs-actions.c:2038
+#: src/rs-actions.c:2044
 msgid "_Revert Settings"
 msgstr "Revenir aux _anciens paramètres"
 
-#: src/rs-actions.c:2039
+#: src/rs-actions.c:2045
 msgid "_Copy Settings"
 msgstr "Copier les paramètres"
 
-#: src/rs-actions.c:2040
+#: src/rs-actions.c:2046
 msgid "_Paste Settings"
 msgstr "Coller les paramètres"
 
-#: src/rs-actions.c:2041
+#: src/rs-actions.c:2047
 msgid "_Reset Settings"
 msgstr "Réinitialiser les paramètres"
 
-#: src/rs-actions.c:2042
+#: src/rs-actions.c:2048
 msgid "_Save Camera Default Settings"
 msgstr "_Sauvegarder les paramètres par défaut de l'appareil"
 
-#: src/rs-actions.c:2043
+#: src/rs-actions.c:2049
 msgid "_Preferences"
 msgstr "_Préférences"
 
 #. Photo menu
-#: src/rs-actions.c:2046
+#: src/rs-actions.c:2052
 msgid "_Flag Photo for Deletion"
 msgstr "Marquer la photo pour _suppression"
 
-#: src/rs-actions.c:2047
+#: src/rs-actions.c:2053
 msgid "_1"
 msgstr "_1"
 
-#: src/rs-actions.c:2048
+#: src/rs-actions.c:2054
 msgid "_2"
 msgstr "_2"
 
-#: src/rs-actions.c:2049
+#: src/rs-actions.c:2055
 msgid "_3"
 msgstr "_3"
 
-#: src/rs-actions.c:2050
+#: src/rs-actions.c:2056
 msgid "_Remove Priority"
 msgstr "_Supprimer la priorité"
 
-#: src/rs-actions.c:2051
+#: src/rs-actions.c:2057
 msgid "_Auto"
 msgstr "_Auto"
 
-#: src/rs-actions.c:2052
+#: src/rs-actions.c:2058
 msgid "_Camera"
 msgstr "_Appareil"
 
-#: src/rs-actions.c:2053
+#: src/rs-actions.c:2059
 msgid "_Crop"
 msgstr "_Cadrer"
 
-#: src/rs-actions.c:2054
+#: src/rs-actions.c:2060
 msgid "_Uncrop"
 msgstr "Annuler le _cadrage"
 
-#: src/rs-actions.c:2055
+#: src/rs-actions.c:2061
 msgid "_Straighten"
 msgstr "_Redresser"
 
-#: src/rs-actions.c:2056
+#: src/rs-actions.c:2062
 msgid "_Unstraighten"
 msgstr "Annuler le _redressement"
 
-#: src/rs-actions.c:2057
+#: src/rs-actions.c:2063
 msgid "_Group"
 msgstr "_Grouper"
 
-#: src/rs-actions.c:2058
+#: src/rs-actions.c:2064
 msgid "_Ungroup"
 msgstr "_Dégrouper"
 
-#: src/rs-actions.c:2059
+#: src/rs-actions.c:2065
 msgid "_Auto Group"
 msgstr "Groupement automatique"
 
-#: src/rs-actions.c:2060
+#: src/rs-actions.c:2066
 msgid "_Tag Photo..."
 msgstr "_Tag photo..."
 
-#: src/rs-actions.c:2061
+#: src/rs-actions.c:2067
 msgid "_Retirer un mot-clé..."
 msgstr ""
 
-#: src/rs-actions.c:2062
+#: src/rs-actions.c:2068
 msgid "Rotate Clockwise"
 msgstr "_Tourner dans le sens horaire"
 
-#: src/rs-actions.c:2063
+#: src/rs-actions.c:2069
 msgid "Rotate Counterclockwise"
 msgstr "Tourner dans le sens antihoraire"
 
-#: src/rs-actions.c:2064
+#: src/rs-actions.c:2070
 msgid "Flip"
 msgstr "Retourner"
 
-#: src/rs-actions.c:2065
+#: src/rs-actions.c:2071
 msgid "Mirror"
 msgstr "Mirroir"
 
-#: src/rs-actions.c:2067 src/rs-toolbox.c:767
+#: src/rs-actions.c:2073 src/rs-toolbox.c:767
 msgid "Auto adjust curve ends"
 msgstr "Ajustement automatique des extrémités de courbe"
 
 #. View menu
-#: src/rs-actions.c:2070
+#: src/rs-actions.c:2076
 msgid "_Previous Photo"
 msgstr "Photo _précédente"
 
-#: src/rs-actions.c:2071
+#: src/rs-actions.c:2077
 msgid "_Next Photo"
 msgstr "Photo _suivante"
 
-#: src/rs-actions.c:2072
+#: src/rs-actions.c:2078
 msgid "_Play/Stop"
 msgstr "_Lecture/Arrêt"
 
-#: src/rs-actions.c:2073
+#: src/rs-actions.c:2079
 msgid "_Lens Library"
 msgstr "Base de donnée d'objectifs"
 
-#: src/rs-actions.c:2074
+#: src/rs-actions.c:2080
 msgid "_Tethered Shooting"
 msgstr "_Prise de vue pilotée"
 
 #. Batch menu
-#: src/rs-actions.c:2077
+#: src/rs-actions.c:2083
 msgid "_Add to Batch Queue"
 msgstr "Ajouter au traitement par lot"
 
-#: src/rs-actions.c:2078
+#: src/rs-actions.c:2084
 msgid "_Add View to Queue..."
 msgstr "Ajouter la _vue courante au traitement par lot"
 
-#: src/rs-actions.c:2079
+#: src/rs-actions.c:2085
 msgid "_Remove from Batch Queue"
 msgstr "Supprimer du traitement par lot"
 
-#: src/rs-actions.c:2080
+#: src/rs-actions.c:2086
 msgid "_Start"
 msgstr "_Démarrer"
 
-#: src/rs-actions.c:2081
+#: src/rs-actions.c:2087
 msgid "_Pack selected"
 msgstr "_Grouper la sélection"
 
-#: src/rs-actions.c:2085
+#. help menu
+#: src/rs-actions.c:2090
+msgid "CaraStudio _Help"
+msgstr "_Aide CaraStudio"
+
+#: src/rs-actions.c:2091
 msgid "_About"
 msgstr "À _propos"
 
-#: src/rs-actions.c:2094
+#: src/rs-actions.c:2100
 msgid "_Zoom to Fit"
 msgstr "Zoom à la taille de la _fenêtre"
 
-#: src/rs-actions.c:2095
+#: src/rs-actions.c:2101
 msgid "_Iconbox"
 msgstr "_Icônes"
 
-#: src/rs-actions.c:2096
+#: src/rs-actions.c:2102
 msgid "_Toolbox"
 msgstr "_Outils"
 
-#: src/rs-actions.c:2097
+#: src/rs-actions.c:2103
 msgid "_Fullscreen"
 msgstr "Plein _écran"
 
-#: src/rs-actions.c:2098
+#: src/rs-actions.c:2104
 msgid "_Show Photo on Secondary Monitor"
 msgstr "_Montrer la photo sur le moniteur secondaire"
 
-#: src/rs-actions.c:2099
+#: src/rs-actions.c:2105
 msgid "Show Filenames in Iconbox"
 msgstr "Montrer le nom de fichier dans la vue en icônes"
 
-#: src/rs-actions.c:2100
+#: src/rs-actions.c:2106
 msgid "Load non-RAW images"
 msgstr "Charger les images dans un format non-RAW"
 
-#: src/rs-actions.c:2101
+#: src/rs-actions.c:2107
 msgid "Do not Load Selected Images"
 msgstr "Ne pas charger les images sélectionnées"
 
-#: src/rs-actions.c:2102
+#: src/rs-actions.c:2108
 msgid "_Exposure Mask"
 msgstr "_Masque d'exposition"
 
-#: src/rs-actions.c:2103
+#: src/rs-actions.c:2109
 msgid "_Split"
 msgstr "_Séparer"
 
-#: src/rs-actions.c:2104
+#: src/rs-actions.c:2110
 msgid "_Lights Out"
 msgstr "_Voile noir"
 
-#: src/rs-actions.c:2109
+#: src/rs-actions.c:2115
 msgid "Name"
 msgstr "Nom"
 
-#: src/rs-actions.c:2110
+#: src/rs-actions.c:2116
 msgid "Timestamp"
 msgstr "Timestamp"
 
-#: src/rs-actions.c:2111 src/rs-toolbox.c:1963
+#: src/rs-actions.c:2117 src/rs-toolbox.c:1963
 msgid "ISO"
 msgstr "ISO"
 
-#: src/rs-actions.c:2113
+#: src/rs-actions.c:2119
 msgid "Focallength"
 msgstr "Focale"
 
-#: src/rs-actions.c:2114
+#: src/rs-actions.c:2120
 msgid "Shutterspeed"
 msgstr "Vitesse d'obturation"
 
 #. Snapshot labels
-#: src/rs-actions.c:2119 src/rs-toolbox.c:277 src/rs-toolbox.c:2634
+#: src/rs-actions.c:2125 src/rs-toolbox.c:277 src/rs-toolbox.c:2634
 msgid " A "
 msgstr " A "
 
-#: src/rs-actions.c:2120 src/rs-toolbox.c:278 src/rs-toolbox.c:2635
+#: src/rs-actions.c:2126 src/rs-toolbox.c:278 src/rs-toolbox.c:2635
 msgid " B "
 msgstr " B "
 
-#: src/rs-actions.c:2121 src/rs-toolbox.c:279 src/rs-toolbox.c:2636
+#: src/rs-actions.c:2127 src/rs-toolbox.c:279 src/rs-toolbox.c:2636
 msgid " C "
 msgstr " C "
 
@@ -2903,6 +2911,9 @@ msgstr "Photo _précédente"
 #: src/rs-toolbox.c:2642
 msgid "_Next"
 msgstr "Photo _suivante"
+
+#~ msgid "A raw image converter for GTK+/GNOME"
+#~ msgstr "Un convertisseur de fichier RAW pour GTK+/GNOME"
 
 #~ msgid ""
 #~ "Could not open browser, please go to http://rawstudio.org/documentation"

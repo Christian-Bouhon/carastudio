@@ -1698,7 +1698,7 @@ ACTION(about)
 		"authors", authors,
 		"artists", artists,
 		"translator-credits", translators,
-		"comments", _("Développeur de photos RAW, convivial et accessible — un fork de RawStudio par Carafife."),
+		"comments", _("Développeur de photos RAW, convivial et accessible — un fork bodybuildé de RawStudio par Carafife."),
 		"version", RAWSTUDIO_VERSION,
 		"copyright", "© 2026 Carafife (CaraStudio)\n© RawStudio team",
 		"website", "https://github.com/carafife/CaraStudio",
