@@ -89,9 +89,26 @@ carastudio
 
 CaraStudio est un fork de RawStudio (© Anders Brander, Anders Kvist, Klaus Post), distribué sous licence **GNU GPL v3 ou ultérieure**.
 
-Les modifications apportées par Carafife incluent notamment :
-- Portage et corrections pour Fedora 44 / Wayland / GTK3
-- Thème sombre professionnel
-- Corrections de crashes (use-after-free DCP, ROI hors limites)
-- Amélioration du navigateur et du zoom
-- Renommage et rebranding CaraStudio
+Les apports de CaraStudio par rapport à RawStudio :
+
+- **Outils créatifs** portés d'ART : Balance des blancs (pipette / auto / boîtier), Tonalité (*Tone doctor*), *Color balance* (roues chromatiques 3 voies), *Color scalpel* (courbes par teinte)
+- **Effets** : Voile (anti-brume), Lumière douce, Vignettage artistique, Noir &amp; Blanc, Argentico (négatif argentique)
+- **Recadrage** à ratios fixes, **fusion d'expositions** (Enfuse)
+- Onglet **Infos EXIF étendu** + gestion de **mots-clés**
+- **Interface bilingue FR/EN** (bascule en un clic) et **manuel d'aide intégré** (F1)
+- Portage **Fedora 44 / Wayland / GTK3**, thème sombre, écran de démarrage
+- Nombreuses **corrections de stabilité** (use-after-free DCP, dépassements mémoire, gels au chargement…)
+
+## Le projet en chiffres
+
+CaraStudio a été développé à partir d'un fork de RawStudio, du **3 au 20 juin 2026** (~3 semaines de travail intensif) :
+
+| | |
+|---|---|
+| Commits | **58** |
+| Lignes de code et de contenu ajoutées ou retravaillées | **~16 000** *(hors catalogues de traduction)* |
+| Nouveaux fichiers créés | **53** |
+| Modules et fonctions ajoutés | une douzaine |
+| Interface et manuel | **bilingues** (français / anglais) |
+
+Principaux foyers de développement : le moteur d'outils (`rs-toolbox.c`), les modules d'effets (`plugins/effects`), les profils colorimétriques, le moteur d'aperçu, la lecture EXIF étendue et le manuel intégré.
