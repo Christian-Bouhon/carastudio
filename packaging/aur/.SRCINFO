@@ -20,6 +20,6 @@ pkgbase = carastudio
 	depends = libx11
 	optdepends = enblend-enfuse: exposure blending (Enfuse)
 	source = https://github.com/carafife/carastudio/releases/download/carastudio-1.0/carastudio-1.0.tar.gz
-	sha256sums = aa817c60f7c6ae4df211e4ffa168a8ff2a787fcc52e12e8052e0dfef325023d7
+	sha256sums = beb03edc0207bd6735fd9f9e7ae375b798ec41d5fca53923a27e37da332fb5dc
 
 pkgname = carastudio

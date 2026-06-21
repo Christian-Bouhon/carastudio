@@ -51,5 +51,5 @@ carastudio_SOURCES = \
 	rs-enfuse.c rs-enfuse.h \
 	rs-splash.c rs-splash.h
 
-carastudio_LDADD = ../librawstudio/librawstudio.la @PACKAGE_LIBS@ @LENSFUN_LIBS@ @LIBGPHOTO2_LIBS@ @DBUS_LIBS@ @SQLITE3_LIBS@ $(INTLLIBS)
+carastudio_LDADD = ../librawstudio/librawstudio.la @PACKAGE_LIBS@ @LENSFUN_LIBS@ @LIBGPHOTO2_LIBS@ @DBUS_LIBS@ @SQLITE3_LIBS@ $(INTLLIBS) -lm
 
