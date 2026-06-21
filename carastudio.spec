@@ -1,6 +1,6 @@
 
 Name:           carastudio
-Version:        1.0
+Version:        1.0.1
 Release:        1%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
@@ -92,5 +92,10 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Sun Jun 21 2026 Carafife <carafife@users.noreply.github.com> - 1.0.1-1
+- Correctif : le Noir & Blanc (et les autres effets) restaient figés entre les
+  instantanés A/B/C et ne se désactivaient pas (sélection A/B/C rendue globale).
+- Portabilité : liaison explicite de libm au binaire.
+
 * Sun Jun 21 2026 Carafife <carafife@users.noreply.github.com> - 1.0-1
 - Première version stable de CaraStudio (fork bodybuildé de RawStudio).

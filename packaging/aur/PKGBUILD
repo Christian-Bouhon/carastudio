@@ -1,6 +1,6 @@
 # Maintainer: Carafife <carafife@users.noreply.github.com>
 pkgname=carastudio
-pkgver=1.0
+pkgver=1.0.1
 pkgrel=1
 pkgdesc="Convivial raw photo developer — a beefed-up fork of RawStudio"
 arch=('x86_64')
@@ -10,7 +10,7 @@ depends=('gtk3' 'lensfun' 'lcms2' 'libgphoto2' 'exiv2' 'libraw' 'fftw'
          'sqlite' 'libtiff' 'libjpeg-turbo' 'dbus' 'libxml2' 'libx11')
 optdepends=('enblend-enfuse: exposure blending (Enfuse)')
 source=("https://github.com/carafife/carastudio/releases/download/${pkgname}-${pkgver}/${pkgname}-${pkgver}.tar.gz")
-sha256sums=('beb03edc0207bd6735fd9f9e7ae375b798ec41d5fca53923a27e37da332fb5dc')
+sha256sums=('362ea44ee1719545775dcec4c9d019b8c5f62bddf76b2eeea4a36e2652b1cdc8')
 
 build() {
 	cd "${pkgname}-${pkgver}"

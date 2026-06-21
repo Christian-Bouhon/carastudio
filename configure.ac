@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([carastudio],[1.0])
+AC_INIT([carastudio],[1.0.1])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_HEADERS(config.h)
 AM_MAINTAINER_MODE
