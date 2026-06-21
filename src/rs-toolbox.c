@@ -133,7 +133,10 @@ struct _RSToolbox {
 
 	RSProfileSelector *selector;
 
-	GtkWidget *notebook;
+	GtkWidget *notebook;          /* notebook A/B/C de l'onglet Outils */
+	GtkWidget *effects_notebook;  /* notebook A/B/C de l'onglet Effets */
+	GtkWidget *tones_notebook;    /* notebook A/B/C de l'onglet Tonalité */
+	gboolean snapshot_sync_in_progress; /* garde anti-récursion pour la synchro A/B/C */
 	GtkBox *toolbox;
 	GtkRange *ranges[3][NBASICS];
 	GtkRange *channelmixer[3][NCHANNELMIXER];
@@ -333,7 +336,25 @@ add_profile_selected(RSProfileSelector *selector, RSToolbox *toolbox)
 static void
 notebook_switch_page(GtkNotebook *notebook, gpointer page, guint page_num, RSToolbox *toolbox)
 {
+	/* Ré-entrance (déclenchée par la synchro des autres notebooks) : on sort. */
+	if (toolbox->snapshot_sync_in_progress)
+		return;
+
 	toolbox->selected_snapshot = page_num;
+
+	/* Sélection A/B/C GLOBALE : les notebooks d'instantanés des onglets
+	   Outils / Effets / Tonalité sont tenus sur le même instantané. Sans ça,
+	   l'onglet Effets pouvait pointer un instantané différent de selected_snapshot,
+	   et les toggles d'effets (N&B…) écrivaient dans le mauvais settings[]. */
+	toolbox->snapshot_sync_in_progress = TRUE;
+	{
+		GtkWidget *nbs[3] = { toolbox->notebook, toolbox->effects_notebook, toolbox->tones_notebook };
+		gint k;
+		for (k = 0; k < 3; k++)
+			if (nbs[k] && GTK_NOTEBOOK(nbs[k]) != notebook)
+				gtk_notebook_set_current_page(GTK_NOTEBOOK(nbs[k]), page_num);
+	}
+	toolbox->snapshot_sync_in_progress = FALSE;
 
 	/* Propagate event */
 	g_signal_emit(toolbox, signals[SNAPSHOT_CHANGED], 0, toolbox->selected_snapshot);
@@ -1713,6 +1734,8 @@ rs_toolbox_get_tones_widget(RSToolbox *toolbox)
 		gtk_notebook_append_page(GTK_NOTEBOOK(notebook),
 			new_tones_page(toolbox, i),
 			gtk_label_new(labels[i]));
+	toolbox->tones_notebook = notebook;
+	g_signal_connect(notebook, "switch-page", G_CALLBACK(notebook_switch_page), toolbox);
 	return notebook;
 }
 
@@ -1726,6 +1749,8 @@ rs_toolbox_get_effects_widget(RSToolbox *toolbox)
 		gtk_notebook_append_page(GTK_NOTEBOOK(notebook),
 			new_effects_page(toolbox, i),
 			gtk_label_new(labels[i]));
+	toolbox->effects_notebook = notebook;
+	g_signal_connect(notebook, "switch-page", G_CALLBACK(notebook_switch_page), toolbox);
 	return notebook;
 }
 
