@@ -1,0 +1,34 @@
+# Maintainer: Carafife <carafife@users.noreply.github.com>
+pkgname=carastudio
+pkgver=1.0
+pkgrel=1
+pkgdesc="Convivial raw photo developer — a beefed-up fork of RawStudio"
+arch=('x86_64')
+url="https://github.com/carafife/carastudio"
+license=('GPL-3.0-or-later')
+depends=('gtk3' 'lensfun' 'lcms2' 'libgphoto2' 'exiv2' 'libraw' 'fftw'
+         'sqlite' 'libtiff' 'libjpeg-turbo' 'dbus' 'libxml2' 'libx11')
+optdepends=('enblend-enfuse: exposure blending (Enfuse)')
+source=("https://github.com/carafife/carastudio/releases/download/${pkgname}-${pkgver}/${pkgname}-${pkgver}.tar.gz")
+sha256sums=('aa817c60f7c6ae4df211e4ffa168a8ff2a787fcc52e12e8052e0dfef325023d7')
+
+build() {
+	cd "${pkgname}-${pkgver}"
+	# Le tarball de dist embarque déjà ./configure (pas besoin d'autoreconf).
+	./configure --prefix=/usr --libdir=/usr/lib
+	make
+}
+
+package() {
+	cd "${pkgname}-${pkgver}"
+	make DESTDIR="${pkgdir}" install
+
+	# Fichiers de développement inutiles pour l'utilisateur final.
+	rm -rf "${pkgdir}/usr/include"
+	rm -f  "${pkgdir}/usr/lib/librawstudio.a"
+	rm -f  "${pkgdir}/usr/lib/pkgconfig/rawstudio-"*.pc
+	find   "${pkgdir}" -name '*.la' -delete
+
+	# Icône RawStudio résiduelle (rebranding).
+	rm -f  "${pkgdir}/usr/share/icons/rawstudio.png"
+}
