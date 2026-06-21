@@ -14,7 +14,8 @@ EXTRA_DIST = \
 	autogen.sh \
 	ChangeLog \
 	carastudio.desktop \
-	gettext.h
+	gettext.h \
+	data/icons
 
 # Hicolor icon theme — installed to $(datadir)/$(PACKAGE)/icons/hicolor/
 pkgiconhicolordir = $(datadir)/$(PACKAGE)/icons/hicolor
