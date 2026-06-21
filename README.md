@@ -2,7 +2,7 @@
 
 # CaraStudio
 
-**CaraStudio** est un convertisseur RAW open-source pour Linux, fork de [RawStudio](https://github.com/rawstudio/rawstudio), développé et maintenu par [Carafife](https://github.com/carafife).
+**CaraStudio** est un convertisseur RAW open-source pour Linux, fork bodybuildé de [RawStudio](https://github.com/rawstudio/rawstudio), développé et maintenu par [Carafife](https://github.com/carafife).
 
 CaraStudio permet de lire, ajuster et convertir les fichiers RAW de votre appareil photo numérique en JPEG, PNG ou TIFF, avec une interface sombre professionnelle inspirée des logiciels de retouche modernes.
 
@@ -85,9 +85,9 @@ carastudio
 
 ---
 
-## À propos du fork
+## À propos du fork bodybuildé
 
-CaraStudio est un fork de RawStudio (© Anders Brander, Anders Kvist, Klaus Post), distribué sous licence **GNU GPL v3 ou ultérieure**.
+CaraStudio est un fork bodybuildé de RawStudio (© Anders Brander, Anders Kvist, Klaus Post), distribué sous licence **GNU GPL v3 ou ultérieure**.
 
 Les apports de CaraStudio par rapport à RawStudio :
 
@@ -101,7 +101,7 @@ Les apports de CaraStudio par rapport à RawStudio :
 
 ## Le projet en chiffres
 
-CaraStudio a été développé à partir d'un fork de RawStudio, du **3 au 20 juin 2026** (~3 semaines de travail intensif) :
+CaraStudio a été développé à partir d'un fork bodybuildé de RawStudio, du **3 au 20 juin 2026** (~3 semaines de travail intensif) :
 
 | | |
 |---|---|
