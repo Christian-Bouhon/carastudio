@@ -23,6 +23,7 @@
 #include <exiv2/exiv2.hpp>
 #include <assert.h>
 #include "exiv2-colorspace.h"
+#include "rs-exiv2-compat.h"
 #include <math.h>
 #include <png.h>
 #include <jpeglib.h>
@@ -173,13 +174,13 @@ jpeg_fail:
 			ExifData::const_iterator i;
 			i = exifData.findKey(ExifKey("Exif.Image.BitsPerSample"));
 			if (i != exifData.end())
-				if (i->value().toUint32() == 16)
+				if (rs_exiv_to_uint32(i->value()) == 16)
 					*gamma_guess = 1.0f;
 			
 			i = exifData.findKey(ExifKey("Exif.Photo.ColorSpace"));
 			if (i != exifData.end())
 			{
-				if (i->value().toUint32() == 1)
+				if (rs_exiv_to_uint32(i->value()) == 1)
 					return rs_color_space_new_singleton("RSSrgb");
 			}
 
@@ -188,10 +189,10 @@ jpeg_fail:
 			if (i != exifData.end())
 			{
 				DataBuf buf(i->size());
-				i->copy(buf.data(), Exiv2::invalidByteOrder);
-				if (buf.data() && buf.size())
+				i->copy(rs_exiv_databuf_data(buf), Exiv2::invalidByteOrder);
+				if (rs_exiv_databuf_data(buf) && rs_exiv_databuf_size(buf))
 				{
-					RSIccProfile *icc = rs_icc_profile_new_from_memory((gchar*)buf.data(), buf.size(), TRUE);
+					RSIccProfile *icc = rs_icc_profile_new_from_memory((gchar*)rs_exiv_databuf_data(buf), rs_exiv_databuf_size(buf), TRUE);
 					return rs_color_space_icc_new_from_icc(icc);
 				}
 			}

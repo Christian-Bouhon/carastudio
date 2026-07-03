@@ -23,6 +23,7 @@
 #include <exiv2/exiv2.hpp>
 #include <assert.h>
 #include "exiv2-metadata.h"
+#include "rs-exiv2-compat.h"
 #include <math.h>
 
 #ifndef EXIV2_TEST_VERSION
@@ -123,7 +124,7 @@ exiv2_load_meta_interface(const gchar *service, RAWFILE *rawfile, guint offset, 
 				auto val = i->getValue();
 				if (val->count())
 				{
-					switch (val->toUint32())
+					switch (rs_exiv_to_uint32(*val))
 					{
 							case 6: meta->orientation = 90;
 								break;
@@ -176,7 +177,7 @@ exiv2_load_meta_interface(const gchar *service, RAWFILE *rawfile, guint offset, 
 #if EXIV2_TEST_VERSION(0,19,0)
 			i = isoSpeed(exifData);
 			if (i != exifData.end())
-				meta->iso = i->value().toUint32();
+				meta->iso = rs_exiv_to_uint32(i->value());
 
 			/* Text based Lens Identifier */
 			i = lensName(exifData);
@@ -184,7 +185,7 @@ exiv2_load_meta_interface(const gchar *service, RAWFILE *rawfile, guint offset, 
 			{
 				TypeId type = i->typeId();
 				if (type == unsignedShort || type == unsignedLong || type == signedShort || type == signedLong || type == unsignedByte || type == signedByte)
-					meta->lens_id = i->value().toUint32();
+					meta->lens_id = rs_exiv_to_uint32(i->value());
 				else if (type == asciiString || type == string)
 					meta->fixed_lens_identifier = g_strdup(i->toString().c_str());
 			}
@@ -226,7 +227,7 @@ exiv2_load_meta_interface(const gchar *service, RAWFILE *rawfile, guint offset, 
 			if (i == exifData.end())
 				i = exifData.findKey(ExifKey("Exif.NikonLd3.MinFocalLength"));
 			if (i != exifData.end())
-				meta->lens_min_focal = 5.0 * pow(2.0, i->value().toUint32()/24.0);
+				meta->lens_min_focal = 5.0 * pow(2.0, rs_exiv_to_uint32(i->value())/24.0);
 
 			i = exifData.findKey(ExifKey("Exif.NikonLd1.MaxFocalLength"));
 			if (i == exifData.end())
@@ -234,7 +235,7 @@ exiv2_load_meta_interface(const gchar *service, RAWFILE *rawfile, guint offset, 
 			if (i == exifData.end())
 				i = exifData.findKey(ExifKey("Exif.NikonLd3.MaxFocalLength"));
 			if (i != exifData.end())
-				meta->lens_max_focal = 5.0 * pow(2.0, i->value().toUint32()/24.0);
+				meta->lens_max_focal = 5.0 * pow(2.0, rs_exiv_to_uint32(i->value())/24.0);
 
 			i = exifData.findKey(ExifKey("Exif.NikonLd1.MaxApertureAtMinFocal"));
 			if (i == exifData.end())
@@ -242,7 +243,7 @@ exiv2_load_meta_interface(const gchar *service, RAWFILE *rawfile, guint offset, 
 			if (i == exifData.end())
 				i = exifData.findKey(ExifKey("Exif.NikonLd3.MaxApertureAtMinFocal"));
 			if (i != exifData.end())
-				meta->lens_min_aperture = i->value().toUint32()/12.0;
+				meta->lens_min_aperture = rs_exiv_to_uint32(i->value())/12.0;
 			
 			i = exifData.findKey(ExifKey("Exif.NikonLd1.MaxApertureAtMaxFocal"));
 			if (i == exifData.end())
@@ -250,7 +251,7 @@ exiv2_load_meta_interface(const gchar *service, RAWFILE *rawfile, guint offset, 
 			if (i == exifData.end())
 				i = exifData.findKey(ExifKey("Exif.NikonLd3.MaxApertureAtMaxFocal"));
 			if (i != exifData.end())
-				meta->lens_max_aperture = i->value().toUint32()/12.0;
+				meta->lens_max_aperture = rs_exiv_to_uint32(i->value())/12.0;
 				
 			/* Fuji */
 			i = exifData.findKey(ExifKey("Exif.Fujifilm.MinFocalLength"));

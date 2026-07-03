@@ -126,7 +126,8 @@ sharedir = $(datadir)/$(PACKAGE)/
 share_DATA = lens_fix.xml
 
 EXTRA_DIST = \
-	$(share_DATA)
+	$(share_DATA) \
+	rs-exiv2-compat.h
 
 # Remove .la file.
 install-exec-hook:
