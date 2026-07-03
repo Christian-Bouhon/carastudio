@@ -37,6 +37,16 @@
 extern gdouble rs_atof(const gchar *str);
 
 /**
+ * Relocate a compile-time absolute path for portable (AppImage) builds.
+ * If the APPDIR environment variable is set (inside an AppImage), the
+ * compiled path is prefixed with it; otherwise the path is returned
+ * unchanged. The result is cached (static lifetime) - do NOT free it.
+ * @param path A compile-time absolute path (e.g. PACKAGE_DATA_DIR "...")
+ * @return The relocated path, or @path verbatim outside an AppImage
+ */
+const gchar *rs_reloc(const gchar *path);
+
+/**
  * A convenience function to convert an EXIF timestamp to a unix timestamp.
  * @note This will only work until 2038 unless glib fixes its GTime
  * @param str A NULL terminated string containing a timestamp in the format "YYYY:MM:DD HH:MM:SS" (EXIF 2.2 section 4.6.4)

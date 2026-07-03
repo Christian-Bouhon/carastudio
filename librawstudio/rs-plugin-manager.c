@@ -37,9 +37,9 @@ rs_plugin_manager_load_all_plugins()
 
 	g_assert(g_module_supported());
 
-	RS_DEBUG(PLUGINS, "Loading modules from %s", PACKAGE_LIBRARY_DIR);
+	RS_DEBUG(PLUGINS, "Loading modules from %s", rs_reloc(PACKAGE_LIBRARY_DIR));
 
-	dir = g_dir_open(PACKAGE_LIBRARY_DIR, 0, NULL);
+	dir = g_dir_open(rs_reloc(PACKAGE_LIBRARY_DIR), 0, NULL);
 
 	while(dir && (filename = g_dir_read_name(dir)))
 	{
@@ -49,7 +49,7 @@ rs_plugin_manager_load_all_plugins()
 			gchar *path;
 
 			/* Load the plugin */
-			path = g_build_filename(PACKAGE_LIBRARY_DIR, filename, NULL);
+			path = g_build_filename(rs_reloc(PACKAGE_LIBRARY_DIR), filename, NULL);
 			plugin = rs_plugin_new(path);
 			g_free(path);
 

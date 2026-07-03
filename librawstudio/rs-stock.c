@@ -63,7 +63,7 @@ rs_stock_init(void)
 
 	/* Installed path: $(datadir)/carastudio/icons */
 	icon_theme_append_path(theme,
-		PACKAGE_DATA_DIR G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "icons");
+		rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "icons"));
 
 	/* Dev path: running from source tree without install */
 	if (g_file_test("data/icons", G_FILE_TEST_IS_DIR))
@@ -77,7 +77,7 @@ rs_cursor_new(GdkDisplay *display, RSCursorType cursor_type)
 	GdkPixbuf *pixbuf = NULL;
 
 	pixbuf = gdk_pixbuf_new_from_file(g_build_filename(
-		PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE,
+		rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE),
 		cursor->filename, NULL), NULL);
 
 	return gdk_cursor_new_from_pixbuf(display, pixbuf, cursor->x_hot, cursor->y_hot);

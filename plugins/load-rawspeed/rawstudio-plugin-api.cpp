@@ -42,7 +42,7 @@ load_rawspeed(const gchar *filename)
 		if (!fp) 
 		{
 			g_free(path);
-			path = g_build_filename(PACKAGE_DATA_DIR, "rawspeed/cameras.xml", NULL);
+			path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), "rawspeed/cameras.xml", NULL);
 		}
 		else
 			RS_DEBUG(PLUGINS, "RawSpeed: Using custom camera metadata information at %s.", path);

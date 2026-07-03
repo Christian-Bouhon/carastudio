@@ -621,12 +621,62 @@ rs_object_class_property_reset(GObject *object, const gchar *property_name)
 }
 
 /**
+ * Relocate a compile-time absolute path for portable (AppImage) builds.
+ * When the environment variable APPDIR is set - as it is inside a running
+ * AppImage - the compiled path is prefixed with it, so that e.g.
+ * "/usr/share/carastudio" resolves to "$APPDIR/usr/share/carastudio".
+ * Outside an AppImage (APPDIR unset) the path is returned verbatim, so
+ * regular installs behave exactly as before.
+ * Results are cached: the returned string has static lifetime and must
+ * NOT be freed by the caller. Thread-safe.
+ */
+const gchar *
+rs_reloc(const gchar *path)
+{
+	static gsize init = 0;
+	static const gchar *appdir = NULL;
+	static GHashTable *cache = NULL;
+	static GMutex lock;
+	const gchar *result;
+
+	if (path == NULL)
+		return NULL;
+
+	if (g_once_init_enter(&init))
+	{
+		const gchar *env = g_getenv("APPDIR");
+		if (env != NULL && env[0] != '\0')
+		{
+			appdir = g_strdup(env);
+			cache = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
+		}
+		g_once_init_leave(&init, 1);
+	}
+
+	/* Not running from an AppImage: no relocation needed */
+	if (appdir == NULL)
+		return path;
+
+	g_mutex_lock(&lock);
+	result = g_hash_table_lookup(cache, path);
+	if (result == NULL)
+	{
+		gchar *relocated = g_build_filename(appdir, path, NULL);
+		g_hash_table_insert(cache, g_strdup(path), relocated);
+		result = relocated;
+	}
+	g_mutex_unlock(&lock);
+
+	return result;
+}
+
+/**
  * Check (and complain if needed) the Rawstudio install
  */
 void
 check_install(void)
 {
-#define TEST_FILE_ACCESS(path) do { if (g_access(path, R_OK)!=0) g_debug("Cannot access %s\n", path);} while (0)
+#define TEST_FILE_ACCESS(path) do { if (g_access(rs_reloc(path), R_OK)!=0) g_debug("Cannot access %s\n", rs_reloc(path));} while (0)
 	TEST_FILE_ACCESS(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S PACKAGE ".png");
 	TEST_FILE_ACCESS(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_priority1.png");
 	TEST_FILE_ACCESS(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_priority2.png");

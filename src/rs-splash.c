@@ -1,6 +1,7 @@
 #include "rs-splash.h"
 #include <gtk/gtk.h>
 #include <math.h>
+#include <rawstudio.h>
 
 /* ── Géométrie ─────────────────────────────────────────────────────────── */
 #define SPLASH_W    560
@@ -131,7 +132,7 @@ rs_splash_show(void)
 {
     Splash *s = g_new0(Splash, 1);
 
-    gchar *path = g_build_filename(PACKAGE_DATA_DIR, "icons", "carastudio.png", NULL);
+    gchar *path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), "icons", "carastudio.png", NULL);
     s->logo_pb  = gdk_pixbuf_new_from_file(path, NULL);
     g_free(path);
 

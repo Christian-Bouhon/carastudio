@@ -287,7 +287,7 @@ test(void)
 	lf_db_load (lensdb);
 
 	RSProfileFactory *profile_factory = g_object_new(RS_TYPE_PROFILE_FACTORY, NULL);
-	rs_profile_factory_load_profiles(profile_factory, PACKAGE_DATA_DIR G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "profiles" G_DIR_SEPARATOR_S, TRUE, FALSE);
+	rs_profile_factory_load_profiles(profile_factory, rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "profiles" G_DIR_SEPARATOR_S), TRUE, FALSE);
 
 	printf("basename, load, filetype, thumb, meta, make, a-make, a-model, aperture, iso, s-speed, wb, f-length, lensfun camera, lens min focal, lens max focal, lens max aperture, lens min aperture, lens id, lens identifier, dcp profile\n");
 	status = g_io_channel_read_line(io, &filename, NULL, NULL, NULL);
@@ -665,7 +665,7 @@ main(int argc, char **argv)
 
 	/* Icône CaraStudio pour toutes les fenêtres (À propos, alt-tab…) */
 	{
-		gchar *icon_path = g_build_filename(PACKAGE_DATA_DIR, "icons", "carastudio.png", NULL);
+		gchar *icon_path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), "icons", "carastudio.png", NULL);
 		GError *ierr = NULL;
 		if (!gtk_window_set_default_icon_from_file(icon_path, &ierr) && ierr) {
 			g_warning("CaraStudio: icône non chargée: %s", ierr->message);
@@ -678,7 +678,7 @@ main(int argc, char **argv)
 	{
 		GtkCssProvider *provider = gtk_css_provider_new();
 		GError *err = NULL;
-		gchar *css_path = g_build_filename(PACKAGE_DATA_DIR, PACKAGE,
+		gchar *css_path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), PACKAGE,
 		                                   "theme.css", NULL);
 		if (gtk_css_provider_load_from_path(provider, css_path, &err))
 			gtk_style_context_add_provider_for_screen(

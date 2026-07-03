@@ -1091,9 +1091,9 @@ gui_get_uimanager()
 		gboolean client_mode;
 		rs_conf_get_boolean("client-mode", &client_mode);
 		if (client_mode)
-			gtk_ui_manager_add_ui_from_file (ui_manager, PACKAGE_DATA_DIR G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "ui-client.xml", &error);
+			gtk_ui_manager_add_ui_from_file (ui_manager, rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "ui-client.xml"), &error);
 		else
-			gtk_ui_manager_add_ui_from_file (ui_manager, PACKAGE_DATA_DIR G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "ui.xml", &error);
+			gtk_ui_manager_add_ui_from_file (ui_manager, rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "ui.xml"), &error);
 		if (error)
 		{
 			g_message ("Building menus failed: %s", error->message);
@@ -1534,7 +1534,7 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	/* Mémorise argv pour une éventuelle ré-exécution (bascule de langue). */
 	cs_saved_argv = argv;
 
-	gtk_window_set_default_icon_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S PACKAGE ".png", NULL);
+	gtk_window_set_default_icon_from_file(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S PACKAGE ".png"), NULL);
 	rs->window = gui_window_make(rs);
 	gtk_widget_show(rs->window);
 

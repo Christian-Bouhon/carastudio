@@ -168,7 +168,7 @@ rs_profile_factory_new_default(void)
 	g_mutex_lock(&lock);
 	if (!factory)
 	{
-		factory = rs_profile_factory_new(PROFILE_FACTORY_DEFAULT_SEARCH_PATH);
+		factory = rs_profile_factory_new(rs_reloc(PROFILE_FACTORY_DEFAULT_SEARCH_PATH));
 
 		const gchar *user_profiles = rs_profile_factory_get_user_profile_directory();
 		rs_profile_factory_load_profiles(factory, user_profiles, TRUE, TRUE);

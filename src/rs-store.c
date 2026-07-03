@@ -195,12 +195,12 @@ rs_store_class_init(RSStoreClass *klass)
 		G_TYPE_POINTER);
 	if (!icon_priority_1)
 	{
-		icon_priority_1	= gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_priority1.png", NULL);
-		icon_priority_2 = gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_priority2.png", NULL);
-		icon_priority_3 = gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_priority3.png", NULL);
-		icon_priority_D = gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_deleted.png", NULL);
-		icon_exported = gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_exported.png", NULL);
-		icon_enfuse = gdk_pixbuf_new_from_file(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_enfuse.png", NULL);
+		icon_priority_1	= gdk_pixbuf_new_from_file(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_priority1.png"), NULL);
+		icon_priority_2 = gdk_pixbuf_new_from_file(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_priority2.png"), NULL);
+		icon_priority_3 = gdk_pixbuf_new_from_file(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_priority3.png"), NULL);
+		icon_priority_D = gdk_pixbuf_new_from_file(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_deleted.png"), NULL);
+		icon_exported = gdk_pixbuf_new_from_file(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_exported.png"), NULL);
+		icon_enfuse = gdk_pixbuf_new_from_file(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "pixmaps" G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "overlay_enfuse.png"), NULL);
 	}
 }
 
@@ -1238,7 +1238,7 @@ rs_store_load_file(RSStore *store, gchar *fullname)
 
 	/* Global default icon */
 	if (!icon_default)
-		icon_default = gdk_pixbuf_new_from_file_at_size(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S "carastudio.png", 96, 96, NULL);
+		icon_default = gdk_pixbuf_new_from_file_at_size(rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S "icons" G_DIR_SEPARATOR_S "carastudio.png"), 96, 96, NULL);
 
 	/* Add file to store */
 	gdk_threads_enter();

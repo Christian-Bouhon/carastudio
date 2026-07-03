@@ -256,7 +256,7 @@ rs_lens_fix_init(void)
 	gchar *camera_make = NULL;
 	gchar *lens_name = NULL;
 
-	gchar *filename = g_build_filename(PACKAGE_DATA_DIR, PACKAGE, "lens_fix.xml", NULL);
+	gchar *filename = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), PACKAGE, "lens_fix.xml", NULL);
 
 	if (!g_file_test(filename, G_FILE_TEST_IS_REGULAR))
 	{

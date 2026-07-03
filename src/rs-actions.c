@@ -1627,7 +1627,7 @@ ACTION(online_documentation)
 		lang = "en";
 
 	gchar *fname = g_strdup_printf("index.%s.html", lang);
-	gchar *path = g_build_filename(PACKAGE_DATA_DIR, PACKAGE, "help", fname, NULL);
+	gchar *path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), PACKAGE, "help", fname, NULL);
 	gchar *uri = g_filename_to_uri(path, NULL, NULL);
 
 	if (!uri || !gtk_show_uri_on_window(GTK_WINDOW(rawstudio_window), uri, GDK_CURRENT_TIME, &error))
@@ -1687,7 +1687,7 @@ ACTION(about)
 
 	GdkPixbuf *logo = NULL;
 	{
-		gchar *icon_path = g_build_filename(PACKAGE_DATA_DIR, "icons", "carastudio.png", NULL);
+		gchar *icon_path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), "icons", "carastudio.png", NULL);
 		logo = gdk_pixbuf_new_from_file_at_size(icon_path, 192, 192, NULL);
 		g_free(icon_path);
 	}
