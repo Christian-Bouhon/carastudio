@@ -1,0 +1,4 @@
+# Outils téléchargés et artefacts de build (non versionnés)
+tools/
+build/
+*.AppImage

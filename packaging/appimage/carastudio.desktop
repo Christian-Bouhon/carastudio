@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CaraStudio
+GenericName=Raw image converter
+Comment=Read, manipulate and convert digital camera raw-images
+Exec=carastudio %F
+StartupNotify=true
+StartupWMClass=carastudio
+Icon=carastudio
+Categories=Graphics;Photography;GTK;
+MimeType=image/x-dcraw;
