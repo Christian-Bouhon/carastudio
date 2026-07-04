@@ -20,6 +20,7 @@
 #include <rawstudio.h>
 #include <rs-exif-extended.h>
 #include <gtk/gtk.h>
+#include <glib/gstdio.h> /* g_unlink() — suppression des courbes enregistrées */
 #include <config.h>
 #include "gettext.h"
 #include "rs-toolbox.h"
@@ -969,6 +970,113 @@ curve_preset_activated(GtkMenuItem *item, gpointer user_data)
 		rs_curve_widget_set_knots(RS_CURVE_WIDGET(curve), p->knots, p->nknots);
 }
 
+/* Supprime le fichier .rscurve associé à l'item (après confirmation). */
+static void
+curve_menu_delete_activated(GtkMenuItem *item, gpointer user_data)
+{
+	const gchar *filename = g_object_get_data(G_OBJECT(item), "filename");
+	if (!filename)
+		return;
+	gchar *label = g_strdup(filename);
+	gchar *ext = g_strrstr(label, ".rscurve");
+	if (ext) *ext = '\0';
+	GtkWidget *d = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL,
+		GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
+		_("Supprimer la courbe « %s » ?"), label);
+	g_free(label);
+	if (gtk_dialog_run(GTK_DIALOG(d)) == GTK_RESPONSE_YES)
+	{
+		gchar *full = g_build_filename(rs_confdir_get(), "curves", filename, NULL);
+		g_unlink(full);
+		g_free(full);
+	}
+	gtk_widget_destroy(d);
+}
+
+/* (Re)construit le menu du bouton « Courbes » : presets intégrés + courbes
+ * enregistrées par l'utilisateur (~/.config/.../curves/*.rscurve) + entrées
+ * « Enregistrer la courbe actuelle… » et « Supprimer une courbe ». Rebâti à
+ * chaque ouverture (signal « show ») pour refléter les changements.
+ * user_data = widget courbe. */
+static void
+curve_menu_populate(GtkWidget *menu, gpointer user_data)
+{
+	GtkWidget *curve = GTK_WIDGET(user_data);
+	guint i;
+
+	/* Vider le menu (reconstruction complète). */
+	GList *kids = gtk_container_get_children(GTK_CONTAINER(menu)), *k;
+	for (k = kids; k; k = k->next)
+		gtk_widget_destroy(GTK_WIDGET(k->data));
+	g_list_free(kids);
+
+	/* 1) Presets intégrés. */
+	for (i = 0; i < G_N_ELEMENTS(curve_presets); i++)
+	{
+		GtkWidget *mi = gtk_menu_item_new_with_label(_(curve_presets[i].name));
+		g_object_set_data(G_OBJECT(mi), "cs-preset", (gpointer) &curve_presets[i]);
+		g_signal_connect(mi, "activate", G_CALLBACK(curve_preset_activated), curve);
+		gtk_menu_shell_append(GTK_MENU_SHELL(menu), mi);
+	}
+
+	/* 2) Courbes enregistrées par l'utilisateur (triées). */
+	gchar *dirpath = g_build_filename(rs_confdir_get(), "curves", NULL);
+	GDir *dir = g_dir_open(dirpath, 0, NULL);
+	GList *files = NULL;
+	if (dir)
+	{
+		const gchar *fn;
+		while ((fn = g_dir_read_name(dir)))
+			if (g_str_has_suffix(fn, ".rscurve"))
+				files = g_list_prepend(files, g_strdup(fn));
+		g_dir_close(dir);
+	}
+	g_free(dirpath);
+	files = g_list_sort(files, (GCompareFunc) g_strcmp0);
+	if (files)
+		gtk_menu_shell_append(GTK_MENU_SHELL(menu), gtk_separator_menu_item_new());
+	for (GList *f = files; f; f = f->next)
+	{
+		gchar *fn = f->data;
+		gchar *label = g_strdup(fn);
+		gchar *ext = g_strrstr(label, ".rscurve");
+		if (ext) *ext = '\0';
+		GtkWidget *mi = gtk_menu_item_new_with_label(label);
+		g_free(label);
+		g_object_set_data_full(G_OBJECT(mi), "filename", g_strdup(fn), g_free);
+		g_signal_connect(mi, "activate", G_CALLBACK(curve_context_callback_preset), curve);
+		gtk_menu_shell_append(GTK_MENU_SHELL(menu), mi);
+	}
+	/* 3) Séparateur + « Enregistrer… » + sous-menu « Supprimer une courbe ». */
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), gtk_separator_menu_item_new());
+	GtkWidget *save_mi = gtk_menu_item_new_with_label(_("Enregistrer la courbe actuelle…"));
+	g_signal_connect(save_mi, "activate", G_CALLBACK(curve_context_callback_save), curve);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), save_mi);
+
+	if (files)
+	{
+		GtkWidget *del_item = gtk_menu_item_new_with_label(_("Supprimer une courbe"));
+		GtkWidget *del_menu = gtk_menu_new();
+		for (GList *f = files; f; f = f->next)
+		{
+			gchar *fn = f->data;
+			gchar *label = g_strdup(fn);
+			gchar *ext = g_strrstr(label, ".rscurve");
+			if (ext) *ext = '\0';
+			GtkWidget *mi = gtk_menu_item_new_with_label(label);
+			g_free(label);
+			g_object_set_data_full(G_OBJECT(mi), "filename", g_strdup(fn), g_free);
+			g_signal_connect(mi, "activate", G_CALLBACK(curve_menu_delete_activated), NULL);
+			gtk_menu_shell_append(GTK_MENU_SHELL(del_menu), mi);
+		}
+		gtk_menu_item_set_submenu(GTK_MENU_ITEM(del_item), del_menu);
+		gtk_menu_shell_append(GTK_MENU_SHELL(menu), del_item);
+	}
+	g_list_free_full(files, g_free);
+
+	gtk_widget_show_all(menu);
+}
+
 static GtkWidget *
 new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 {
@@ -1085,22 +1193,22 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	 * fiable sous Wayland, et c'est une ACTION « appliquer » pas un état.) */
 	GtkWidget *curve_vbox = gtk_vbox_new(FALSE, 2);
 	GtkWidget *cp_btn = gtk_menu_button_new();
-	gtk_button_set_label(GTK_BUTTON(cp_btn), _("Courbes prédéfinies…"));
+	gtk_button_set_label(GTK_BUTTON(cp_btn), _("Courbes…"));
+	gtk_button_set_image(GTK_BUTTON(cp_btn),
+		gtk_image_new_from_icon_name("cs-tone-curve", GTK_ICON_SIZE_LARGE_TOOLBAR));
+	gtk_button_set_always_show_image(GTK_BUTTON(cp_btn), TRUE);
 	gtk_widget_set_tooltip_text(cp_btn,
-		_("Applique une courbe de tonalité prête à l'emploi (remplace la courbe actuelle)."));
+		_("Applique une courbe prédéfinie ou enregistrée, enregistre ou supprime une courbe."));
 	GtkWidget *cp_menu = gtk_menu_new();
-	for (guint i = 0; i < G_N_ELEMENTS(curve_presets); i++)
-	{
-		GtkWidget *mi = gtk_menu_item_new_with_label(_(curve_presets[i].name));
-		g_object_set_data(G_OBJECT(mi), "cs-preset", (gpointer) &curve_presets[i]);
-		g_signal_connect(mi, "activate", G_CALLBACK(curve_preset_activated), toolbox->curve[snapshot]);
-		gtk_menu_shell_append(GTK_MENU_SHELL(cp_menu), mi);
-	}
-	gtk_widget_show_all(cp_menu);
+	/* Reconstruit à chaque ouverture (pour refléter les courbes enregistrées). */
+	g_signal_connect(cp_menu, "show", G_CALLBACK(curve_menu_populate), toolbox->curve[snapshot]);
+	curve_menu_populate(cp_menu, toolbox->curve[snapshot]);
 	gtk_menu_button_set_popup(GTK_MENU_BUTTON(cp_btn), cp_menu);
 	GtkWidget *cp_hbox = gtk_hbox_new(FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(cp_hbox), cp_btn, FALSE, FALSE, 0);
 	gtk_widget_set_halign(cp_hbox, GTK_ALIGN_CENTER);
+	gtk_widget_set_margin_top(cp_hbox, 6);    /* détacher le bouton de la courbe */
+	gtk_widget_set_margin_bottom(cp_hbox, 8);
 	gtk_box_pack_start(GTK_BOX(curve_vbox), cp_hbox, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(curve_vbox), toolbox->curve[snapshot], TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Curve"), curve_vbox, "show_curve", TRUE), FALSE, FALSE, 0);
