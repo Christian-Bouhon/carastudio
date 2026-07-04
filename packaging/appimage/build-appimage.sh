@@ -126,7 +126,11 @@ linuxdeploy.AppImage --appdir "$A" \
     --plugin gtk "${LIBS[@]}"
 
 echo "== Retrait des libs système-couplées (viennent du système hôte) =="
-( cd "$A/usr/lib" && rm -f libblkid.so.1 libmount.so.1 libselinux.so.1 \
+# libselinux reste bundlée : la libgio d'Ubuntu la référence en NEEDED et les
+# distros sans SELinux (Arch…) ne l'ont pas. Elle ne dépend que de libc et
+# libpcre2 (déjà bundlée). Les autres (mount/blkid/udev/systemd) existent
+# partout où la glibc 2.39 tourne.
+( cd "$A/usr/lib" && rm -f libblkid.so.1 libmount.so.1 \
                            libsystemd.so.0 libudev.so.1 )
 
 echo "== Empaquetage =="
