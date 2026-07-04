@@ -19,6 +19,7 @@
 
 #include <rawstudio.h>
 #include <string.h> /* memset() */
+#include <math.h> /* log2() — auto-exposition */
 #include <stdio.h> /* [WBPIP] trace comparative ART vs CaraStudio (#21) — temporaire */
 #include "rs-photo.h"
 #include "rs-cache.h"
@@ -784,6 +785,123 @@ skip_block:
 			photo->auto_wb_mul[c] = pre_mul[c];
 		}
 	rs_photo_set_wb_from_mul(photo, snapshot, pre_mul, PRESET_WB_AUTO);
+}
+
+/* --- Auto-exposition ------------------------------------------------------
+ *
+ * « Expose to the right » IDEMPOTENT : on mesure sur `auto_wb_filter`, la
+ * donnée CAMERA-LINÉAIRE (avant que l'exposition ne soit appliquée dans le
+ * DCP). La mesure est donc INDÉPENDANTE du réglage exposure courant → on pose
+ * une valeur ABSOLUE (pas cur+delta) → recliquer redonne le même résultat, plus
+ * de dérive. Et comme on est en linéaire, le calcul EV (log2) est correct.
+ *
+ * Réglages (les seules « molettes » à toucher) :
+ *   AE_HL_PERCENTILE : fraction de pixels ignorés en haut (0.005 = 0,5 %, pour
+ *                      ne pas caler sur quelques spéculaires).
+ *   AE_TARGET        : niveau visé pour ce centile haut, en fraction de la
+ *                      pleine échelle camera-linéaire (0.90 = hautes lumières
+ *                      près de l'écrêtage capteur sans y toucher). Baisser =
+ *                      plus sombre / plus de marge highlights.
+ * On mesure le MAX des canaux R/G/B par pixel (ETR = ne laisser écrêter aucun
+ * canal). La plage du réglage exposure est bornée à [-3, +3] EV (rs-settings.c).
+ *
+ * NB : l'auto-exposition ne touche QUE l'exposition (gain linéaire). Le tonal
+ * (butées noir/blanc, courbe) est laissé au bouton « Auto niveaux »
+ * (auto_adjust_curve_ends) et aux outils de courbe — axes orthogonaux.
+ */
+#define AE_HL_PERCENTILE  0.005
+#define AE_TARGET         0.90
+
+/* Rend une petite image du signal CAMERA-LINÉAIRE (même tap que l'Auto-WB,
+ * pré-DCP donc pré-exposition) pour y mesurer les hautes lumières. */
+static RS_IMAGE16 *
+calculate_auto_exposure_data(RS_PHOTO *photo)
+{
+	RSFilter *tmp_filter = rs_filter_new("RSResample", photo->auto_wb_filter);
+	g_object_set(tmp_filter,
+		"bounding-box", TRUE,
+		"width", 256,
+		"height", 256,
+		NULL);
+
+	RSFilterRequest *request = rs_filter_request_new();
+	rs_filter_request_set_quick(RS_FILTER_REQUEST(request), TRUE);
+	RSFilterResponse *response = rs_filter_get_image(tmp_filter, request);
+	g_object_unref(request);
+
+	RS_IMAGE16 *data = rs_filter_response_get_image(response);
+	g_object_unref(response);
+	g_object_unref(tmp_filter);
+
+	return data;
+}
+
+/**
+ * Autoadjust exposure of a RS_PHOTO ("expose to the right", idempotent, borné).
+ * Mesure les hautes lumières camera-linéaires et pose l'exposition ABSOLUE qui
+ * les amène près de l'écrêtage sans y toucher. Non destructif (pose le réglage
+ * exposure ; l'utilisateur peut ensuite affiner), et idempotent.
+ * @param photo A RS_PHOTO
+ * @param snapshot Which snapshot to affect
+ */
+void
+rs_photo_set_exposure_auto(RS_PHOTO *photo, const gint snapshot)
+{
+	g_assert(RS_IS_PHOTO(photo));
+	g_return_if_fail((snapshot >= 0) && (snapshot <= 2));
+
+	if (!photo->auto_wb_filter)
+		return;
+
+	RS_IMAGE16 *input = calculate_auto_exposure_data(photo);
+	if (!input)
+		return;
+
+	/* Histogramme du MAX des canaux (0..65535) sur 256 classes. */
+	guint hist[256];
+	memset(hist, 0, sizeof hist);
+	guint64 npix = 0;
+	gint row, col;
+
+	for (row = 0; row < input->h; row++)
+		for (col = 0; col < input->w; col++)
+		{
+			gint pr = input->pixels[row*input->rowstride + col*4 + R];
+			gint pg = input->pixels[row*input->rowstride + col*4 + G];
+			gint pb = input->pixels[row*input->rowstride + col*4 + B];
+			gint mx = pr;
+			if (pg > mx) mx = pg;
+			if (pb > mx) mx = pb;
+			if (mx < 0) mx = 0;
+			if (mx > 65535) mx = 65535;
+			hist[mx >> 8]++;
+			npix++;
+		}
+
+	g_object_unref(input);
+	if (npix == 0)
+		return;
+
+	/* Centile haut (99,5 %) : plus haute classe cumulée sous le seuil. */
+	guint64 cutoff = (guint64)((1.0 - AE_HL_PERCENTILE) * (gdouble) npix);
+	guint64 acc = 0;
+	gint bin = 255;
+	for (gint b = 0; b < 256; b++)
+	{
+		acc += hist[b];
+		if (acc >= cutoff) { bin = b; break; }
+	}
+	/* Valeur du centile en fraction de pleine échelle (milieu de classe). */
+	gdouble hl = ((gdouble)(bin << 8) + 128.0) / 65535.0;
+	if (hl < 1.0/65535.0)
+		hl = 1.0/65535.0; /* image quasi noire : évite log(0) */
+
+	/* Exposition ABSOLUE (EV) pour amener ce centile à la cible, bornée. */
+	gdouble target = log2(AE_TARGET / hl);
+	if (target >  3.0) target =  3.0;
+	if (target < -3.0) target = -3.0;
+
+	g_object_set(photo->settings[snapshot], "exposure", (gfloat) target, NULL);
 }
 
 /**

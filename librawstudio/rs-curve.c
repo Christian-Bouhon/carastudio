@@ -1083,7 +1083,7 @@ rs_curve_auto_adjust_ends(GtkWidget *widget) {
   RSCurveWidget *curve = RS_CURVE_WIDGET(widget);
 
   gint i = 0;
-  gdouble black_threshold = 0.2; // Percent underexposed pixels
+  gdouble black_threshold = 0.05; // Percent underexposed pixels (adouci : était 0.2 → point noir trop haut = photo assombrie)
   gdouble white_threshold = 0.05; // Percent overexposed pixels
   gdouble blackpoint;
   gdouble whitepoint;

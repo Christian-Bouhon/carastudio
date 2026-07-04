@@ -1009,7 +1009,34 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 
 	/* Pack everything nice (Argentico a été déplacé dans l'onglet Effets) */
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Balance des blancs"), wb_hbox, "show_wb", TRUE), FALSE, FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Basic"), GTK_WIDGET(table), "show_basic", TRUE), FALSE, FALSE, 0);
+	/* Bloc Basic : mini-rangée de deux « auto » orthogonaux en tête, puis les
+	 * curseurs. « Auto exposition » ne touche QUE l'exposition (gain linéaire),
+	 * « Auto niveaux » ne touche QUE la courbe (butées noir/blanc) → ils se
+	 * composent sans se contrarier. Non destructifs : l'utilisateur peut ensuite
+	 * affiner le curseur Exposition ou la courbe. */
+	GtkWidget *basic_vbox = gtk_vbox_new(FALSE, 2);
+	GtkWidget *ae_hbox = gtk_hbox_new(FALSE, 4);
+	GtkWidget *ae_btn = gtk_button_new_with_label(_("Auto exposition"));
+	gtk_button_set_image(GTK_BUTTON(ae_btn),
+		gtk_image_new_from_icon_name("cs-exposure", GTK_ICON_SIZE_BUTTON));
+	gtk_button_set_always_show_image(GTK_BUTTON(ae_btn), TRUE);
+	gtk_widget_set_tooltip_text(ae_btn,
+		_("Ajuste automatiquement l'exposition. Vous pouvez ensuite affiner le curseur Exposition."));
+	g_signal_connect_swapped(ae_btn, "clicked",
+		G_CALLBACK(rs_core_action_group_activate), "AutoExposure");
+	gtk_box_pack_start(GTK_BOX(ae_hbox), ae_btn, FALSE, FALSE, 0);
+	GtkWidget *al_btn = gtk_button_new_with_label(_("Auto niveaux"));
+	gtk_button_set_image(GTK_BUTTON(al_btn),
+		gtk_image_new_from_icon_name("cs-levels", GTK_ICON_SIZE_BUTTON));
+	gtk_button_set_always_show_image(GTK_BUTTON(al_btn), TRUE);
+	gtk_widget_set_tooltip_text(al_btn,
+		_("Cale automatiquement les butées noir et blanc de la courbe (auto-niveaux). Complémentaire de l'auto-exposition."));
+	g_signal_connect_swapped(al_btn, "clicked",
+		G_CALLBACK(rs_core_action_group_activate), "AutoAdjustCurveEnds");
+	gtk_box_pack_start(GTK_BOX(ae_hbox), al_btn, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(basic_vbox), ae_hbox, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(basic_vbox), GTK_WIDGET(table), FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Basic"), basic_vbox, "show_basic", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Channel Mixer"), GTK_WIDGET(channelmixertable), "show_channelmixer", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Lens Correction"), GTK_WIDGET(lenstable), "show_lens", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Curve"), toolbox->curve[snapshot], "show_curve", TRUE), FALSE, FALSE, 0);

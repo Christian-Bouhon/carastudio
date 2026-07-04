@@ -295,6 +295,13 @@ extern void rs_photo_set_wb_from_color(RS_PHOTO *photo, const gint snapshot, con
 extern void rs_photo_set_wb_auto(RS_PHOTO *photo, const gint snapshot);
 
 /**
+ * Autoadjust exposure of a RS_PHOTO ("expose to the right", bounded)
+ * @param photo A RS_PHOTO
+ * @param snapshot Which snapshot to affect
+ */
+extern void rs_photo_set_exposure_auto(RS_PHOTO *photo, const gint snapshot);
+
+/**
  * Autoadjust white balance from the in-camera settings
  * @param photo A RS_PHOTO
  * @param snapshot Which snapshot to affect

@@ -874,6 +874,15 @@ ACTION(auto_wb)
 	set_wb_on_multiple_photos(rs_store_get_selected_names(rs->store), rs->current_setting, PRESET_WB_AUTO);
 }
 
+ACTION(auto_exposure)
+{
+	if (RS_IS_PHOTO(rs->photo))
+	{
+		gui_status_notify(_("Adjusting to auto exposure"));
+		rs_photo_set_exposure_auto(rs->photo, rs->current_setting);
+	}
+}
+
 ACTION(camera_wb)
 {
 	if (RS_IS_PHOTO(rs->photo) && rs_store_is_photo_selected(rs->store, rs->photo->filename))
@@ -2055,6 +2064,7 @@ rs_get_core_action_group(RS_BLOB *rs)
 	{ "Priority3", NULL, _("_3"), "3", NULL, ACTION_CB(priority_3) },
 	{ "RemovePriority", NULL, _("_Remove Priority"), "0", NULL, ACTION_CB(priority_0) },
 	{ "AutoWB", NULL, _("_Auto"), "A", NULL, ACTION_CB(auto_wb) },
+	{ "AutoExposure", NULL, _("Auto _exposure"), NULL, NULL, ACTION_CB(auto_exposure) },
 	{ "CameraWB", NULL, _("_Camera"), "C", NULL, ACTION_CB(camera_wb) },
 	{ "Crop", RS_STOCK_CROP, _("_Crop"), "<shift>C", NULL, ACTION_CB(crop) },
 	{ "Uncrop", NULL, _("_Uncrop"), "<shift>V", NULL, ACTION_CB(uncrop) },
