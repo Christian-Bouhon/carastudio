@@ -1947,8 +1947,9 @@ toolbox_update_metadata(RSToolbox *toolbox, RS_PHOTO *photo)
 	/* ISO */
 	EXIF_SET(EXIF_ISO, m->iso != 0, "%d", m->iso);
 
-	/* Correction d'exposition */
-	EXIF_SET(EXIF_EXPBIAS, TRUE, _("%+.1f IL"), m->exposurebias);
+	/* Correction d'exposition (−999 = sentinelle « non renseignée », cf.
+	   rs-metadata.c:94 — ne pas l'afficher comme une vraie valeur) */
+	EXIF_SET(EXIF_EXPBIAS, m->exposurebias != -999.0, _("%+.1f IL"), m->exposurebias);
 
 	/* Balance des blancs (multiplicateurs R/V/B) */
 	if (m->cam_mul[0] > 0.0 && m->cam_mul[1] > 0.0 && m->cam_mul[2] > 0.0)
