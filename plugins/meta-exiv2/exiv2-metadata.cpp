@@ -50,7 +50,7 @@ set_metadata_maker(std::string maker, RSMetadata *meta)
 {
 	meta->make_ascii = rs_remove_tailing_spaces(g_strdup(maker.c_str()), TRUE);
 	
-	if (g_ascii_strncasecmp(meta->make_ascii, "Canon",5))
+	if (0 == g_ascii_strncasecmp(meta->make_ascii, "Canon",5))
 		meta->make = MAKE_CANON;
 	else if (0 == g_ascii_strncasecmp(meta->make_ascii, "CASIO", 5))
 		meta->make = MAKE_CASIO;
@@ -173,6 +173,14 @@ exiv2_load_meta_interface(const gchar *service, RAWFILE *rawfile, guint offset, 
 				i = exifData.findKey(ExifKey("Exif.Photo.FocalLength"));
 			if (i != exifData.end())
 				meta->focallength = i->toFloat()-0.01;
+
+			/* Correction d'exposition (sinon reste à la sentinelle -999.0 pour
+			   les JPEG → l'onglet Infos affichait « -999,0 IL »). */
+			i = exifData.findKey(ExifKey("Exif.Photo.ExposureBiasValue"));
+			if (i == exifData.end())
+				i = exifData.findKey(ExifKey("Exif.Image.ExposureBiasValue"));
+			if (i != exifData.end())
+				meta->exposurebias = i->toFloat();
 
 #if EXIV2_TEST_VERSION(0,19,0)
 			i = isoSpeed(exifData);
