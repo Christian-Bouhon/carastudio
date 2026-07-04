@@ -78,7 +78,9 @@ cd /root && tar xf cs-src.tar && cd carastudio
 # rawspeed (sous-module) copié séparément par l'hôte :
 mkdir -p plugins/load-rawspeed/rawspeed
 cp -a /root/rawspeed/. plugins/load-rawspeed/rawspeed/
-# install.sh (installeur utilisateur) casse automake Ubuntu (« anachronism ») :
+# install.sh (installeur utilisateur) : inutile ici, on l'écarte de la source
+# du build. (Il ne casse plus automake depuis AC_CONFIG_AUX_DIR([build-aux])
+# dans configure.ac ; ce rm n'est donc plus qu'un nettoyage de confort.)
 rm -f install.sh
 # autogen.sh a besoin d'un dépôt git (version) :
 git config --global user.email x@x; git config --global user.name x

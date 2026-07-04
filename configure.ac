@@ -1,6 +1,11 @@
 dnl Process this file with autoconf to produce a configure script.
 
 AC_INIT([carastudio],[1.0.1])
+dnl Scripts auxiliaires (install-sh, missing, depcomp…) dans build-aux/ :
+dnl sinon automake trouve notre script utilisateur install.sh à la racine et
+dnl le prend pour une relique de son install-sh (« anachronism »), ce qui
+dnl FAIT ÉCHOUER autoreconf sur Debian/Ubuntu (bloquant, pas juste un warning).
+AC_CONFIG_AUX_DIR([build-aux])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_HEADERS(config.h)
 AM_MAINTAINER_MODE
