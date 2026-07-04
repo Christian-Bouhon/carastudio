@@ -1,7 +1,7 @@
 
 Name:           carastudio
 Version:        1.0.1
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
 License:        GPLv3+
@@ -92,6 +92,14 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Sat Jul 04 2026 Carafife <carafife@users.noreply.github.com> - 1.0.1-2
+- Onglet Infos : lecture de la compensation d'exposition sur les JPEG
+  (fini l'affichage « -999,0 IL »), marque « CaraStudio », masquage des
+  champs non renseignés ; correctif de la détection du fabricant Canon.
+- Export JPEG : le profil ICC est toujours embarqué (y compris sRGB).
+- Aide (F1) : installation du manuel HTML (jusque-là jamais installé).
+- Portabilité de build : plancher abaissé à libraw >= 0.19, compat exiv2 0.27/0.28.
+
 * Sun Jun 21 2026 Carafife <carafife@users.noreply.github.com> - 1.0.1-1
 - Correctif : le Noir & Blanc (et les autres effets) restaient figés entre les
   instantanés A/B/C et ne se désactivaient pas (sélection A/B/C rendue globale).
