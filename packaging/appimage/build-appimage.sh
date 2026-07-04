@@ -127,6 +127,14 @@ linuxdeploy.AppImage --appdir "$A" \
     --icon-file /root/carastudio.png \
     --plugin gtk "${LIBS[@]}"
 
+echo "== Neutralise le GTK_THEME forcé par le plugin gtk =="
+# Le hook linuxdeploy-plugin-gtk.sh force GTK_THEME=Adwaita:<variante> (dark si
+# le bureau est en prefer-dark). Cet export ÉCRASE le theme.css (gris studio)
+# chargé par l'app → UI trop sombre, différente du natif. On commente l'export :
+# l'app pilote elle-même le thème via gtk-application-prefer-dark-theme + theme.css.
+GTKHOOK="$A/apprun-hooks/linuxdeploy-plugin-gtk.sh"
+[ -f "$GTKHOOK" ] && sed -i 's|^export GTK_THEME=|#[CaraStudio] laisse theme.css piloter le thème:\n#export GTK_THEME=|' "$GTKHOOK"
+
 echo "== Retrait des libs système-couplées (viennent du système hôte) =="
 # libselinux reste bundlée : la libgio d'Ubuntu la référence en NEEDED et les
 # distros sans SELinux (Arch…) ne l'ont pas. Elle ne dépend que de libc et
