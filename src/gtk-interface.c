@@ -1606,11 +1606,13 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	gtk_box_pack_start (GTK_BOX(open_box), library_expander, FALSE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX(open_box), directory_expander, TRUE, TRUE, 0);
 
+	GtkWidget *toolbox_notebook = NULL; /* le vrai notebook (rs->toolbox est réassigné à un vbox plus bas) */
 	if (client_mode)
 		rs->toolbox = tools;
 	else
 	{
 		rs->toolbox = gtk_notebook_new();
+		toolbox_notebook = rs->toolbox;
 		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox), tools, gtk_label_new(_("Tools")));
 		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox),
 			rs_toolbox_get_effects_widget(RS_TOOLBOX(tools)),
@@ -1778,6 +1780,11 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	gdk_threads_enter();
 	GTK_CATCHUP();
 	gdk_threads_leave();
+
+	/* Démarrer sur l'onglet Outils (page 0). rs->toolbox a été réassigné à un
+	   vbox : on cible le vrai notebook capturé plus haut. */
+	if (toolbox_notebook)
+		gtk_notebook_set_current_page(GTK_NOTEBOOK(toolbox_notebook), 0);
 
 	if (fullscreen)
 	{

@@ -938,6 +938,37 @@ argentico_enable_toggled(GtkToggleButton *btn, gpointer user_data)
 	toolbox->mute_from_photo = FALSE;
 }
 
+/* --- Courbes de tonalité prédéfinies (sélecteur du bloc Courbe) -----------
+ * Chaque preset = suite de nœuds (x,y) en 0..1 appliqués à la courbe du
+ * snapshot courant via rs_curve_widget_set_knots (→ « changed » → settings →
+ * aperçu). L'entrée 0 du combo est un intitulé (aucune action). */
+typedef struct { const gchar *name; const gfloat *knots; guint nknots; } RSCurvePreset;
+
+static const gfloat cp_linear[] = { 0.0f,0.0f, 1.0f,1.0f };
+static const gfloat cp_soft[]   = { 0.0f,0.0f, 0.25f,0.21f, 0.5f,0.5f, 0.75f,0.79f, 1.0f,1.0f };
+static const gfloat cp_medium[] = { 0.0f,0.0f, 0.25f,0.16f, 0.5f,0.5f, 0.75f,0.84f, 1.0f,1.0f };
+static const gfloat cp_bright[] = { 0.0f,0.0f, 0.3f,0.38f, 0.7f,0.78f, 1.0f,1.0f };
+static const gfloat cp_film[]   = { 0.0f,0.0f, 0.12f,0.08f, 0.35f,0.34f, 0.65f,0.74f, 0.88f,0.93f, 1.0f,1.0f };
+
+static const RSCurvePreset curve_presets[] = {
+	{ N_("Linéaire"),        cp_linear, 2 },
+	{ N_("Contraste doux"),  cp_soft,   5 },
+	{ N_("Contraste moyen"), cp_medium, 5 },
+	{ N_("Lumineux"),        cp_bright, 4 },
+	{ N_("Film"),            cp_film,   6 },
+};
+
+/* Applique le preset (attaché à l'item via « cs-preset ») à la courbe du
+ * snapshot (widget passé en user_data). */
+static void
+curve_preset_activated(GtkMenuItem *item, gpointer user_data)
+{
+	GtkWidget *curve = GTK_WIDGET(user_data);
+	const RSCurvePreset *p = g_object_get_data(G_OBJECT(item), "cs-preset");
+	if (p)
+		rs_curve_widget_set_knots(RS_CURVE_WIDGET(curve), p->knots, p->nknots);
+}
+
 static GtkWidget *
 new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 {
@@ -1049,7 +1080,30 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Basic"), basic_vbox, "show_basic", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Channel Mixer"), GTK_WIDGET(channelmixertable), "show_channelmixer", TRUE), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Lens Correction"), GTK_WIDGET(lenstable), "show_lens", TRUE), FALSE, FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Curve"), toolbox->curve[snapshot], "show_curve", TRUE), FALSE, FALSE, 0);
+	/* Bloc Courbe : bouton-menu de courbes prédéfinies au-dessus de l'éditeur.
+	 * (GtkMenuButton plutôt qu'un combo : s'ouvre au clic et reste ouvert,
+	 * fiable sous Wayland, et c'est une ACTION « appliquer » pas un état.) */
+	GtkWidget *curve_vbox = gtk_vbox_new(FALSE, 2);
+	GtkWidget *cp_btn = gtk_menu_button_new();
+	gtk_button_set_label(GTK_BUTTON(cp_btn), _("Courbes prédéfinies…"));
+	gtk_widget_set_tooltip_text(cp_btn,
+		_("Applique une courbe de tonalité prête à l'emploi (remplace la courbe actuelle)."));
+	GtkWidget *cp_menu = gtk_menu_new();
+	for (guint i = 0; i < G_N_ELEMENTS(curve_presets); i++)
+	{
+		GtkWidget *mi = gtk_menu_item_new_with_label(_(curve_presets[i].name));
+		g_object_set_data(G_OBJECT(mi), "cs-preset", (gpointer) &curve_presets[i]);
+		g_signal_connect(mi, "activate", G_CALLBACK(curve_preset_activated), toolbox->curve[snapshot]);
+		gtk_menu_shell_append(GTK_MENU_SHELL(cp_menu), mi);
+	}
+	gtk_widget_show_all(cp_menu);
+	gtk_menu_button_set_popup(GTK_MENU_BUTTON(cp_btn), cp_menu);
+	GtkWidget *cp_hbox = gtk_hbox_new(FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(cp_hbox), cp_btn, FALSE, FALSE, 0);
+	gtk_widget_set_halign(cp_hbox, GTK_ALIGN_CENTER);
+	gtk_box_pack_start(GTK_BOX(curve_vbox), cp_hbox, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(curve_vbox), toolbox->curve[snapshot], TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Curve"), curve_vbox, "show_curve", TRUE), FALSE, FALSE, 0);
 
 	return vbox;
 }
