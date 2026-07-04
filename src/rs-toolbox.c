@@ -1034,6 +1034,16 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	g_signal_connect_swapped(al_btn, "clicked",
 		G_CALLBACK(rs_core_action_group_activate), "AutoAdjustCurveEnds");
 	gtk_box_pack_start(GTK_BOX(ae_hbox), al_btn, FALSE, FALSE, 0);
+	GtkWidget *rst_btn = gtk_button_new_with_label(_("Réinitialiser"));
+	gtk_button_set_image(GTK_BUTTON(rst_btn),
+		gtk_image_new_from_icon_name("view-refresh", GTK_ICON_SIZE_BUTTON));
+	gtk_button_set_always_show_image(GTK_BUTTON(rst_btn), TRUE);
+	gtk_widget_set_tooltip_text(rst_btn,
+		_("Réinitialise tous les réglages de la photo (revient aux valeurs par défaut du boîtier)."));
+	g_signal_connect_swapped(rst_btn, "clicked",
+		G_CALLBACK(rs_core_action_group_activate), "ResetSettings");
+	gtk_box_pack_start(GTK_BOX(ae_hbox), rst_btn, FALSE, FALSE, 0);
+	gtk_widget_set_halign(ae_hbox, GTK_ALIGN_CENTER); /* centrer la rangée de boutons */
 	gtk_box_pack_start(GTK_BOX(basic_vbox), ae_hbox, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(basic_vbox), GTK_WIDGET(table), FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Basic"), basic_vbox, "show_basic", TRUE), FALSE, FALSE, 0);
