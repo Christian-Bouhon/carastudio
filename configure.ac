@@ -114,7 +114,11 @@ PKG_CHECK_MODULES(EXIV2, [exiv2])
 AC_SUBST(EXIV2_CFLAGS)
 AC_SUBST(EXIV2_LIBS)
 
-PKG_CHECK_MODULES(LIBRAW, [libraw >= 0.20])
+dnl 0.19 (et non 0.20) : le plugin load-libraw n'utilise que l'API C de base
+dnl (libraw_init/open_file/unpack/close…), présente depuis la 0.18. Abaisser
+dnl le plancher permet de compiler sur Ubuntu 20.04 / Debian oldstable de stock
+dnl (libraw 0.19.5) sans backport. Compilation validée en conteneur ubuntu:20.04.
+PKG_CHECK_MODULES(LIBRAW, [libraw >= 0.19])
 AC_SUBST(LIBRAW_CFLAGS)
 AC_SUBST(LIBRAW_LIBS)
 

@@ -1,7 +1,7 @@
 /*
  * CaraStudio — plugin load-libraw
  *
- * Décodeur RAW universel basé sur LibRaw 0.20+.
+ * Décodeur RAW universel basé sur LibRaw (API C de base, ≥ 0.19).
  * Remplace load-rawspeed (fork Klaus Post 2016, abandonné, ~400 boîtiers).
  * LibRaw supporte 1000+ boîtiers et est activement maintenu.
  *
