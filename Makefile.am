@@ -10,6 +10,12 @@ desktop_DATA = carastudio.desktop
 appdatadir = $(datarootdir)/appdata
 dist_appdata_DATA = carastudio.appdata.xml
 
+# Manuel HTML de l'aide (F1 / menu Aide). Le code ouvre
+# $(datadir)/$(PACKAGE)/help/index.<lang>.html (cf. rs-actions.c) ; ces
+# fichiers doivent donc être installés ET distribués dans le tarball.
+helpdir = $(datadir)/$(PACKAGE)/help
+dist_help_DATA = help/index.en.html help/index.fr.html
+
 EXTRA_DIST = \
 	autogen.sh \
 	ChangeLog \
