@@ -246,7 +246,11 @@ execute(RSOutput *output, RSFilter *filter)
 	jpeg_set_quality(&cinfo, jpegfile->quality, TRUE);
 	rs_io_lock();
 	jpeg_start_compress(&cinfo, TRUE);
-	if (jpegfile->color_space && !g_str_equal(G_OBJECT_TYPE_NAME(jpegfile->color_space), "RSSrgb"))
+	/* Toujours embarquer le profil ICC, y compris sRGB : sans lui, un
+	   visionneur géré-couleur ne sait pas comment interpréter le JPEG et peut
+	   l'afficher différemment de l'aperçu CaraStudio (retour Paul « JPG plus
+	   sombre »). TIFF/PNG marquent déjà leur espace ; le JPEG l'omettait pour sRGB. */
+	if (jpegfile->color_space)
 	{
 		const RSIccProfile *profile = rs_color_space_get_icc_profile(jpegfile->color_space, FALSE);
 		if (profile)
