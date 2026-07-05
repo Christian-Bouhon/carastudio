@@ -1,7 +1,7 @@
 
 Name:           carastudio
 Version:        1.0.1
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
 License:        GPLv3+
@@ -92,6 +92,10 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Sun Jul 05 2026 Carafife <carafife@users.noreply.github.com> - 1.0.1-3
+- Support des RAW Fujifilm X-Trans (.RAF) : ils s'ouvrent et se développent
+  désormais dans l'éditeur (démosaïquage via LibRaw). Signalé sur le forum.
+
 * Sat Jul 04 2026 Carafife <carafife@users.noreply.github.com> - 1.0.1-2
 - Onglet Infos : lecture de la compensation d'exposition sur les JPEG
   (fini l'affichage « -999,0 IL »), marque « CaraStudio », masquage des
