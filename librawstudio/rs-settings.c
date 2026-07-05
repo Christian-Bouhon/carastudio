@@ -484,6 +484,12 @@ rs_settings_init (RSSettings *self)
 	self->commit = 0;
 	self->commit_todo = 0;
 	self->curve_knots = NULL;
+	self->red_curve_knots = NULL;
+	self->green_curve_knots = NULL;
+	self->blue_curve_knots = NULL;
+	self->red_curve_nknots = 0;
+	self->green_curve_nknots = 0;
+	self->blue_curve_nknots = 0;
 	self->wb_ascii = NULL;
 	self->hsl_hue_curve = NULL;
 	self->hsl_sat_curve = NULL;
@@ -955,6 +961,20 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 		settings->curve_knots[3] = 1.0;
 		settings->curve_nknots = 2;
 		settings->commit_todo |= MASK_CURVE;
+
+		/* Courbes RVB par canal → linéaire (0,0)-(1,1). */
+		gfloat **rgb_knots[3] = { &settings->red_curve_knots, &settings->green_curve_knots, &settings->blue_curve_knots };
+		gint *rgb_nknots[3] = { &settings->red_curve_nknots, &settings->green_curve_nknots, &settings->blue_curve_nknots };
+		gint ch;
+		for (ch = 0; ch < 3; ch++)
+		{
+			g_free(*rgb_knots[ch]);
+			*rgb_knots[ch] = g_new(gfloat, 4);
+			(*rgb_knots[ch])[0] = 0.0; (*rgb_knots[ch])[1] = 0.0;
+			(*rgb_knots[ch])[2] = 1.0; (*rgb_knots[ch])[3] = 1.0;
+			*rgb_nknots[ch] = 2;
+		}
+		settings->commit_todo |= MASK_SOFTLIGHT_STRENGTH; /* bit « effets » (RSEffects) */
 	}
 	rs_settings_commit_stop(settings);
 }
@@ -1139,6 +1159,29 @@ do { \
 		}
 	}
 
+	/* Courbes RVB par canal (CaraStudio) — copiées avec la courbe. */
+	if (mask & MASK_CURVE)
+	{
+		gfloat *src_knots[3] = { source->red_curve_knots, source->green_curve_knots, source->blue_curve_knots };
+		gint src_nknots[3] = { source->red_curve_nknots, source->green_curve_nknots, source->blue_curve_nknots };
+		gfloat **tgt_knots[3] = { &target->red_curve_knots, &target->green_curve_knots, &target->blue_curve_knots };
+		gint *tgt_nknots[3] = { &target->red_curve_nknots, &target->green_curve_nknots, &target->blue_curve_nknots };
+		gint ch;
+		for (ch = 0; ch < 3; ch++)
+		{
+			gboolean diff = (*tgt_nknots[ch] != src_nknots[ch]);
+			if (!diff && src_knots[ch] && *tgt_knots[ch])
+				diff = (memcmp(src_knots[ch], *tgt_knots[ch], sizeof(gfloat)*2*src_nknots[ch]) != 0);
+			if (diff && src_knots[ch])
+			{
+				g_free(*tgt_knots[ch]);
+				*tgt_knots[ch] = g_memdup(src_knots[ch], sizeof(gfloat)*2*src_nknots[ch]);
+				*tgt_nknots[ch] = src_nknots[ch];
+				changed_mask |= MASK_SOFTLIGHT_STRENGTH; /* bit effets → RSEffects recalcule */
+			}
+		}
+	}
+
 	/* Emit seignal if needed */
 	if (changed_mask > 0)
 		rs_settings_update_settings(target, changed_mask);
@@ -1206,6 +1249,62 @@ rs_settings_get_curve_nknots(RSSettings *settings)
 	g_return_val_if_fail(RS_IS_SETTINGS(settings), 0);
 
 	return settings->curve_nknots;
+}
+
+/* Courbes RVB par canal (CaraStudio). Helper : renvoie les pointeurs vers les
+ * champs du canal (0=rouge, 1=vert, 2=bleu), ou FALSE si canal invalide. */
+static gboolean
+rgb_curve_fields(RSSettings *settings, const gint channel, gfloat ***knots, gint **nknots)
+{
+	switch (channel)
+	{
+		case 0: *knots = &settings->red_curve_knots;   *nknots = &settings->red_curve_nknots;   return TRUE;
+		case 1: *knots = &settings->green_curve_knots; *nknots = &settings->green_curve_nknots; return TRUE;
+		case 2: *knots = &settings->blue_curve_knots;  *nknots = &settings->blue_curve_nknots;  return TRUE;
+		default: return FALSE;
+	}
+}
+
+void
+rs_settings_set_rgb_curve_knots(RSSettings *settings, const gint channel, const gfloat *knots, const gint nknots)
+{
+	g_return_if_fail(RS_IS_SETTINGS(settings));
+	g_return_if_fail(nknots > 0);
+	g_return_if_fail(knots != NULL);
+
+	gfloat **kf; gint *nf;
+	if (!rgb_curve_fields(settings, channel, &kf, &nf))
+		return;
+
+	g_free(*kf);
+	*kf = g_memdup(knots, sizeof(gfloat)*2*nknots);
+	*nf = nknots;
+
+	rs_settings_update_settings(settings, MASK_SOFTLIGHT_STRENGTH); /* bit effets → RSEffects */
+}
+
+gfloat *
+rs_settings_get_rgb_curve_knots(RSSettings *settings, const gint channel)
+{
+	g_return_val_if_fail(RS_IS_SETTINGS(settings), NULL);
+
+	gfloat **kf; gint *nf;
+	if (!rgb_curve_fields(settings, channel, &kf, &nf) || !*kf)
+		return NULL;
+
+	return g_memdup(*kf, sizeof(gfloat)*2*(*nf));
+}
+
+gint
+rs_settings_get_rgb_curve_nknots(RSSettings *settings, const gint channel)
+{
+	g_return_val_if_fail(RS_IS_SETTINGS(settings), 0);
+
+	gfloat **kf; gint *nf;
+	if (!rgb_curve_fields(settings, channel, &kf, &nf))
+		return 0;
+
+	return *nf;
 }
 
 /**

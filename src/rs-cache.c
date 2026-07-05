@@ -144,6 +144,63 @@ rs_cache_save(RS_PHOTO *photo, const RSSettingsMask mask)
 	return;
 }
 
+/* Écrit une courbe (nœuds x,y) sous l'élément <name> (pour les courbes RVB
+   CaraStudio ; même format que la courbe de tonalité). */
+static void
+cache_write_curve(xmlTextWriterPtr writer, const gchar *name, const gfloat *knots, gint nknots)
+{
+	gint i;
+	if (!knots || nknots <= 0)
+		return;
+	xmlTextWriterStartElement(writer, BAD_CAST name);
+	xmlTextWriterWriteFormatAttribute(writer, BAD_CAST "num", "%d", nknots);
+	for (i = 0; i < nknots; i++)
+	{
+		gchar bx[G_ASCII_DTOSTR_BUF_SIZE], by[G_ASCII_DTOSTR_BUF_SIZE];
+		gchar *knot_str = g_strdup_printf("%s %s",
+			g_ascii_dtostr(bx, sizeof(bx), knots[i*2+0]),
+			g_ascii_dtostr(by, sizeof(by), knots[i*2+1]));
+		xmlTextWriterWriteElement(writer, BAD_CAST "knot", BAD_CAST knot_str);
+		g_free(knot_str);
+	}
+	xmlTextWriterEndElement(writer);
+}
+
+/* Lit une courbe <num=…><knot>x y</knot>…> dans un tableau fraîchement alloué. */
+static void
+cache_read_curve(xmlDocPtr doc, xmlNodePtr node, gfloat **out_knots, gint *out_nknots)
+{
+	xmlChar *val = xmlGetProp(node, BAD_CAST "num");
+	gint num = val ? atoi((gchar *) val) : 0;
+	if (val) xmlFree(val);
+	if (num <= 0)
+		return;
+
+	gfloat *knots = g_new(gfloat, 2*num);
+	gint n = 0;
+	xmlNodePtr k = node->xmlChildrenNode;
+	while (k && n < num)
+	{
+		if (!xmlStrcmp(k->name, BAD_CAST "knot"))
+		{
+			val = xmlNodeListGetString(doc, k->xmlChildrenNode, 1);
+			gchar **vals = g_strsplit((gchar *) val, " ", 4);
+			if (vals[0] && vals[1])
+			{
+				knots[n*2+0] = rs_atof(vals[0]);
+				knots[n*2+1] = rs_atof(vals[1]);
+				n++;
+			}
+			g_strfreev(vals);
+			xmlFree(val);
+		}
+		k = k->next;
+	}
+	g_free(*out_knots);
+	*out_knots = knots;
+	*out_nknots = n;
+}
+
 void
 rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriterPtr writer)
 {
@@ -195,6 +252,12 @@ rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriter
 		}
 		xmlTextWriterEndElement(writer);
 	}
+
+	/* Courbes RVB par canal (CaraStudio) — écrites inconditionnellement, comme
+	   les effets ci-dessous (elles partagent le bit softlight). */
+	cache_write_curve(writer, "red_curve",   rss->red_curve_knots,   rss->red_curve_nknots);
+	cache_write_curve(writer, "green_curve", rss->green_curve_knots, rss->green_curve_nknots);
+	cache_write_curve(writer, "blue_curve",  rss->blue_curve_knots,  rss->blue_curve_nknots);
 
 	/* Réglages de l'onglet Effets CaraStudio. Écrits inconditionnellement : leurs
 	   masques partagent des bits (RSSettingsMask saturé, cf. rs-settings.h), donc
@@ -544,6 +607,21 @@ rs_cache_load_setting(RSSettings *rss, xmlDocPtr doc, xmlNodePtr cur, gint versi
 				}
 				curve = curve->next;
 			}
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "red_curve")))
+		{
+			mask |= MASK_SOFTLIGHT_STRENGTH;
+			cache_read_curve(doc, cur, &rss->red_curve_knots, &rss->red_curve_nknots);
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "green_curve")))
+		{
+			mask |= MASK_SOFTLIGHT_STRENGTH;
+			cache_read_curve(doc, cur, &rss->green_curve_knots, &rss->green_curve_nknots);
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "blue_curve")))
+		{
+			mask |= MASK_SOFTLIGHT_STRENGTH;
+			cache_read_curve(doc, cur, &rss->blue_curve_knots, &rss->blue_curve_nknots);
 		}
 
 		if (target)

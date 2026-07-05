@@ -152,6 +152,13 @@ typedef struct _RSsettings {
 	gfloat channelmixer_blue;
 	gint curve_nknots;
 	gfloat *curve_knots;
+	/* Courbes RVB par canal (CaraStudio) — appliquées dans RSEffects, après le DCP */
+	gint red_curve_nknots;
+	gfloat *red_curve_knots;
+	gint green_curve_nknots;
+	gfloat *green_curve_knots;
+	gint blue_curve_nknots;
+	gfloat *blue_curve_knots;
 	gboolean recalc_temp;
 	/* Effets artistiques CaraStudio */
 	gfloat softlight_strength;
@@ -278,6 +285,14 @@ rs_settings_get_curve_knots(RSSettings *settings);
  */
 extern gint
 rs_settings_get_curve_nknots(RSSettings *settings);
+
+/**
+ * Courbes RVB par canal (CaraStudio). channel : 0=rouge, 1=vert, 2=bleu.
+ * Même convention que la courbe de tonalité (nœuds x,y en 0..1).
+ */
+extern void rs_settings_set_rgb_curve_knots(RSSettings *settings, const gint channel, const gfloat *knots, const gint nknots);
+extern gfloat *rs_settings_get_rgb_curve_knots(RSSettings *settings, const gint channel);
+extern gint rs_settings_get_rgb_curve_nknots(RSSettings *settings, const gint channel);
 
 /**
  * Use like g_signal_connect(source, "settings-changed", G_CALLBACK(rs_settings_changed), target);
