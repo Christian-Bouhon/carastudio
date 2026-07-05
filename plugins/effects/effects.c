@@ -69,6 +69,9 @@ typedef struct {
 	gfloat hsl_hx[32], hsl_hy[32]; gint hsl_hn;
 	gfloat hsl_sx[32], hsl_sy[32]; gint hsl_sn;
 	gfloat hsl_lx[32], hsl_ly[32]; gint hsl_ln;
+	/* Courbes RVB par canal — LUT 16 bits pré-calculées (NULL = canal identité) */
+	gushort *rgb_lut[3];
+	gboolean rgb_active;
 } RSEffects;
 
 typedef struct {
@@ -101,6 +104,10 @@ finalize(GObject *object)
 	}
 	e->settings_signal_id = 0;
 	e->settings = NULL;
+
+	g_free(e->rgb_lut[0]); e->rgb_lut[0] = NULL;
+	g_free(e->rgb_lut[1]); e->rgb_lut[1] = NULL;
+	g_free(e->rgb_lut[2]); e->rgb_lut[2] = NULL;
 }
 
 static void
@@ -200,6 +207,44 @@ hsl_parse_nodes(const gchar *str, gfloat *xs, gfloat *ys, gint *n, gint maxn)
 	g_strfreev(tok);
 }
 
+/* (Re)construit la LUT 16 bits d'un canal (0=R/1=V/2=B) depuis les nœuds de la
+ * courbe RVB. Les pixels sont ici en espace sRGB (gamma-encodé) → la courbe
+ * s'applique directement, sans correction gamma. Canal en identité → LUT=NULL. */
+static void
+build_rgb_lut(RSEffects *effects, RSSettings *settings, gint ch)
+{
+	gfloat *knots = rs_settings_get_rgb_curve_knots(settings, ch);
+	gint nknots = rs_settings_get_rgb_curve_nknots(settings, ch);
+
+	gboolean identity = (!knots || nknots < 2 ||
+		(nknots == 2 && knots[0] == 0.0f && knots[1] == 0.0f &&
+		                knots[2] == 1.0f && knots[3] == 1.0f));
+	if (identity)
+	{
+		g_free(effects->rgb_lut[ch]);
+		effects->rgb_lut[ch] = NULL;
+		g_free(knots);
+		return;
+	}
+
+	if (!effects->rgb_lut[ch])
+		effects->rgb_lut[ch] = g_new(gushort, 65536);
+
+	RSSpline *spline = rs_spline_new(knots, nknots, NATURAL);
+	gfloat *sampled = g_new(gfloat, 65536);
+	rs_spline_sample(spline, sampled, 65536);
+	g_object_unref(spline);
+
+	gint i;
+	for (i = 0; i < 65536; i++)
+	{
+		gfloat v = sampled[i] * 65535.0f;
+		effects->rgb_lut[ch][i] = (v <= 0.0f) ? 0 : (v >= 65535.0f) ? 65535 : (gushort)(v + 0.5f);
+	}
+	g_free(sampled);
+	g_free(knots);
+}
+
 static void
 settings_changed(RSSettings *settings, RSSettingsMask mask, RSEffects *effects)
 {
@@ -257,6 +302,12 @@ settings_changed(RSSettings *settings, RSSettingsMask mask, RSEffects *effects)
 		hsl_parse_nodes(ls, effects->hsl_lx, effects->hsl_ly, &effects->hsl_ln, 32);
 		g_free(hs); g_free(ss); g_free(ls);
 	}
+
+	/* Courbes RVB par canal : (re)construire les LUT + drapeau d'activité. */
+	build_rgb_lut(effects, settings, 0);
+	build_rgb_lut(effects, settings, 1);
+	build_rgb_lut(effects, settings, 2);
+	effects->rgb_active = (effects->rgb_lut[0] || effects->rgb_lut[1] || effects->rgb_lut[2]);
 
 	rs_filter_changed(RS_FILTER(effects), RS_FILTER_CHANGED_PIXELDATA);
 }
@@ -938,6 +989,25 @@ apply_colorzones(RS_IMAGE16 *img, RSEffects *e)
 /* Entrée principale                                                   */
 /* ------------------------------------------------------------------ */
 
+/* Applique les courbes RVB par canal via les LUT pré-calculées. */
+static void
+apply_rgb_curves(RS_IMAGE16 *img, RSEffects *e)
+{
+	const gint W = img->w, H = img->h, ps = img->pixelsize;
+	const gushort *lr = e->rgb_lut[0], *lg = e->rgb_lut[1], *lb = e->rgb_lut[2];
+	gint y, x;
+	for (y = 0; y < H; y++)
+	{
+		gushort *p = GET_PIXEL(img, 0, y);
+		for (x = 0; x < W; x++, p += ps)
+		{
+			if (lr) p[R] = lr[p[R]];
+			if (lg) p[G] = lg[p[G]];
+			if (lb) p[B] = lb[p[B]];
+		}
+	}
+}
+
 static RSFilterResponse *
 get_image(RSFilter *filter, const RSFilterRequest *request)
 {
@@ -974,7 +1044,9 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 			if (fabsf(effects->hsl_ly[k]) >= 0.001f) need_cz = TRUE;
 	}
 
-	if (!need_ar && !need_dh && !need_te && !need_bw && !need_sl && !need_vg && !need_cc && !need_cz)
+	const gboolean need_rgb = effects->rgb_active;
+
+	if (!need_ar && !need_dh && !need_te && !need_bw && !need_sl && !need_vg && !need_cc && !need_cz && !need_rgb)
 		return previous;
 
 	RS_IMAGE16 *img = rs_filter_response_get_image(previous);
@@ -1006,6 +1078,9 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 
 	if (need_cz)
 		apply_colorzones(out, effects);
+
+	if (need_rgb)
+		apply_rgb_curves(out, effects);
 
 	if (need_bw)
 		apply_bw(out, effects->bw_filter,
