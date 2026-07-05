@@ -28,6 +28,7 @@
 #include "gtk-helper.h"
 #include "rs-settings.h"
 #include "rs-curve.h"
+#include "cs-pipeline.h"
 #include "rs-image.h"
 #include "rs-histogram.h"
 #include "rs-utils.h"
@@ -1109,22 +1110,51 @@ curve_menu_populate(GtkWidget *menu, gpointer user_data)
 	gtk_widget_show_all(menu);
 }
 
+/* Étiquette d'onglet de courbe : petit pictogramme de courbe + badge pipeline +
+   nom (Valeur / R / V / B), façon ART. */
+static GtkWidget *
+cs_curve_tab_label(gint stage, gint num, const gchar *name)
+{
+	GtkWidget *hb = gtk_hbox_new(FALSE, 3);
+	/* Ordre : badge pipeline → pictogramme de courbe → nom. */
+	gchar *bm = cs_stage_badge(stage, num);
+	GtkWidget *badge = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(badge), bm);
+	g_free(bm);
+	gtk_box_pack_start(GTK_BOX(hb), badge, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(hb),
+		gtk_image_new_from_icon_name("cs-tone-curve", GTK_ICON_SIZE_MENU), FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(hb), gtk_label_new(name), FALSE, FALSE, 0);
+	gtk_widget_show_all(hb);
+	return hb;
+}
+
 static GtkWidget *
 new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 {
 	GtkWidget *vbox = gtk_vbox_new(FALSE, 1);
-	GtkTable *table, *channelmixertable, *lenstable, *softlighttable, *artvignettetable;
+	GtkTable *table, *detailtable, *channelmixertable, *lenstable, *softlighttable, *artvignettetable;
 	gint row;
 
-	table = GTK_TABLE(gtk_table_new(NBASICS, 5, FALSE));
+	/* Bloc Basique scindé : les 6 premiers curseurs = étape B (DCP) restent dans
+	   `table` ; netteté + débruitage luma/chroma (rows 6-8) = étape C vont dans
+	   `detailtable` (section « Réduction de bruit »). ranges[] reste indexé 0-8. */
+	#define CS_BASIC_B_COUNT 6
+	table = GTK_TABLE(gtk_table_new(CS_BASIC_B_COUNT, 5, FALSE));
+	detailtable = GTK_TABLE(gtk_table_new(NBASICS - CS_BASIC_B_COUNT, 5, FALSE));
 	channelmixertable = GTK_TABLE(gtk_table_new(NCHANNELMIXER, 5, FALSE));
 	lenstable = GTK_TABLE(gtk_table_new(NLENS, 5, FALSE));
 	softlighttable = GTK_TABLE(gtk_table_new(NSOFTLIGHT, 5, FALSE));
 	artvignettetable = GTK_TABLE(gtk_table_new(NARTVIGNETTE, 5, FALSE));
 
-	/* Add basic sliders */
+	/* Add basic sliders — rows 0..5 dans table (B), rows 6..8 dans detailtable (C) */
 	for(row=0;row<NBASICS;row++)
-		toolbox->ranges[snapshot][row] = basic_slider(toolbox, snapshot, table, row, &basic[row]);
+	{
+		if (row < CS_BASIC_B_COUNT)
+			toolbox->ranges[snapshot][row] = basic_slider(toolbox, snapshot, table, row, &basic[row]);
+		else
+			toolbox->ranges[snapshot][row] = basic_slider(toolbox, snapshot, detailtable, row - CS_BASIC_B_COUNT, &basic[row]);
+	}
 	for(row=0;row<NCHANNELMIXER;row++)
 		toolbox->channelmixer[snapshot][row] = basic_slider(toolbox, snapshot, channelmixertable, row, &channelmixer[row]);
 	for(row=0;row<NSOFTLIGHT;row++)
@@ -1212,7 +1242,8 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	gtk_box_pack_start(GTK_BOX(wb_hbox), mask_btn, FALSE, FALSE, 0);
 
 	/* Pack everything nice (Argentico a été déplacé dans l'onglet Effets) */
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Balance des blancs"), wb_hbox, "show_wb", TRUE), FALSE, FALSE, 0);
+	{ gchar *t = cs_stage_title(1, 1, _("Balance des blancs")); /* B — DCP */
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, wb_hbox, "show_wb", TRUE), FALSE, FALSE, 0); g_free(t); }
 	/* Bloc Basic : mini-rangée de deux « auto » orthogonaux en tête, puis les
 	 * curseurs. « Auto exposition » ne touche QUE l'exposition (gain linéaire),
 	 * « Auto niveaux » ne touche QUE la courbe (butées noir/blanc) → ils se
@@ -1250,9 +1281,14 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	gtk_widget_set_halign(ae_hbox, GTK_ALIGN_CENTER); /* centrer la rangée de boutons */
 	gtk_box_pack_start(GTK_BOX(basic_vbox), ae_hbox, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(basic_vbox), GTK_WIDGET(table), FALSE, FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Basic"), basic_vbox, "show_basic", TRUE), FALSE, FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Channel Mixer"), GTK_WIDGET(channelmixertable), "show_channelmixer", TRUE), FALSE, FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Lens Correction"), GTK_WIDGET(lenstable), "show_lens", TRUE), FALSE, FALSE, 0);
+	{ gchar *t = cs_stage_title(1, 3, _("Basic")); /* B3 — DCP */
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, basic_vbox, "show_basic", TRUE), FALSE, FALSE, 0); g_free(t); }
+	{ gchar *t = cs_stage_title(2, 1, _("Réduction de bruit / Netteté")); /* C1 — débruitage + netteté */
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(detailtable), "show_detail", TRUE), FALSE, FALSE, 0); g_free(t); }
+	{ gchar *t = cs_stage_title(1, 2, _("Channel Mixer")); /* B — DCP */
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(channelmixertable), "show_channelmixer", TRUE), FALSE, FALSE, 0); g_free(t); }
+	{ gchar *t = cs_stage_title(0, 1, _("Lens Correction")); /* A — géométrie */
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(lenstable), "show_lens", TRUE), FALSE, FALSE, 0); g_free(t); }
 	/* Bloc Courbe : bouton-menu de courbes prédéfinies au-dessus de l'éditeur.
 	 * (GtkMenuButton plutôt qu'un combo : s'ouvre au clic et reste ouvert,
 	 * fiable sous Wayland, et c'est une ACTION « appliquer » pas un état.) */
@@ -1276,11 +1312,26 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	gtk_widget_set_margin_bottom(cp_hbox, 8);
 	gtk_box_pack_start(GTK_BOX(curve_vbox), cp_hbox, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(curve_vbox), toolbox->curve[snapshot], TRUE, TRUE, 0);
+	/* Bouton Réinitialiser (comme les onglets R/V/B) — remet la courbe de tonalité à plat. */
+	{
+		GtkWidget *rst = gtk_button_new_with_label(_("Réinitialiser"));
+		gtk_widget_set_tooltip_text(rst, _("Remet la courbe de tonalité à plat (linéaire)."));
+		g_signal_connect(rst, "clicked", G_CALLBACK(rgb_curve_reset_clicked), toolbox->curve[snapshot]);
+		GtkWidget *rh = gtk_hbox_new(FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(rh), rst, FALSE, FALSE, 0);
+		gtk_widget_set_halign(rh, GTK_ALIGN_CENTER);
+		gtk_box_pack_start(GTK_BOX(curve_vbox), rh, FALSE, FALSE, 2);
+	}
 
 	/* Notebook courbes : onglet « Valeur » (tonalité, avec son menu Courbes…) +
 	 * onglets R / V / B (courbes par canal, appliquées dans RSEffects). */
 	GtkWidget *curve_nb = gtk_notebook_new();
-	gtk_notebook_append_page(GTK_NOTEBOOK(curve_nb), curve_vbox, gtk_label_new(_("Valeur")));
+	/* Marge droite : écarte la courbe de l'ascenseur du panneau, sinon le point
+	   haut-droit (hautes lumières) est collé à la barre → on scrolle au lieu de
+	   l'attraper. */
+	gtk_widget_set_margin_end(curve_nb, 16);
+	/* onglet Valeur = étape B (courbe de tonalité, dans le DCP) */
+	gtk_notebook_append_page(GTK_NOTEBOOK(curve_nb), curve_vbox, cs_curve_tab_label(1, 4, _("Valeur")));
 	{
 		const gchar *rgb_labels[3];
 		rgb_labels[0] = _("R"); rgb_labels[1] = _("V"); rgb_labels[2] = _("B");
@@ -1297,7 +1348,8 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 			gtk_box_pack_start(GTK_BOX(rh), rst, FALSE, FALSE, 0);
 			gtk_widget_set_halign(rh, GTK_ALIGN_CENTER);
 			gtk_box_pack_start(GTK_BOX(cv), rh, FALSE, FALSE, 2);
-			gtk_notebook_append_page(GTK_NOTEBOOK(curve_nb), cv, gtk_label_new(rgb_labels[ch]));
+			/* onglets R/V/B = étape D (courbes RVB, dans RSEffects) */
+			gtk_notebook_append_page(GTK_NOTEBOOK(curve_nb), cv, cs_curve_tab_label(3, 6, rgb_labels[ch]));
 		}
 	}
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Curve"), curve_nb, "show_curve", TRUE), FALSE, FALSE, 0);
@@ -1407,10 +1459,14 @@ new_effects_page(RSToolbox *toolbox, const gint snapshot)
 	g_signal_connect(toolbox->argentico_pick[snapshot], "toggled", G_CALLBACK(argentico_pick_toggled), toolbox);
 	gtk_box_pack_start(GTK_BOX(argentico_vbox), toolbox->argentico_pick[snapshot], FALSE, FALSE, 0);
 
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Argentico"), argentico_vbox, "show_argentico", TRUE), FALSE, FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Voile"), GTK_WIDGET(dehazetable), "show_dehaze", TRUE), FALSE, FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Soft Light"), GTK_WIDGET(softlighttable), "show_softlight", TRUE), FALSE, FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Vignette"), GTK_WIDGET(artvignettetable), "show_artvignette", TRUE), FALSE, FALSE, 0);
+	{ gchar *t = cs_stage_title(3, 1, _("Argentico")); /* D — effets */
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, argentico_vbox, "show_argentico", TRUE), FALSE, FALSE, 0); g_free(t); }
+	{ gchar *t = cs_stage_title(3, 2, _("Voile"));
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(dehazetable), "show_dehaze", TRUE), FALSE, FALSE, 0); g_free(t); }
+	{ gchar *t = cs_stage_title(3, 8, _("Soft Light"));
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(softlighttable), "show_softlight", TRUE), FALSE, FALSE, 0); g_free(t); }
+	{ gchar *t = cs_stage_title(3, 9, _("Vignette"));
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(artvignettetable), "show_artvignette", TRUE), FALSE, FALSE, 0); g_free(t); }
 
 	/* Section Noir & Blanc */
 	GtkWidget *bw_vbox = gtk_vbox_new(FALSE, 2);
@@ -1460,7 +1516,8 @@ new_effects_page(RSToolbox *toolbox, const gint snapshot)
 		toolbox->bw[snapshot][row] = basic_slider(toolbox, snapshot, bwtable, row, &bw_channels[row]);
 	gtk_box_pack_start(GTK_BOX(bw_vbox), GTK_WIDGET(bwtable), FALSE, FALSE, 0);
 
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Noir &amp; Blanc"), bw_vbox, "show_bw", TRUE), FALSE, FALSE, 0);
+	{ gchar *t = cs_stage_title(3, 7, _("Noir &amp; Blanc")); /* D — effets */
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, bw_vbox, "show_bw", TRUE), FALSE, FALSE, 0); g_free(t); }
 
 	return vbox;
 }
@@ -1945,7 +2002,8 @@ new_tones_page(RSToolbox *toolbox, const gint snapshot)
 		toolbox->toneeq[snapshot][row] = basic_slider(toolbox, snapshot, table, row, &toneeq[row]);
 	gtk_box_pack_start(GTK_BOX(te_vbox), GTK_WIDGET(table), FALSE, FALSE, 0);
 
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Tone doctor"), te_vbox, "show_toneeq", TRUE), FALSE, FALSE, 0);
+	{ gchar *t = cs_stage_title(3, 3, _("Tone doctor")); /* D — effets */
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, te_vbox, "show_toneeq", TRUE), FALSE, FALSE, 0); g_free(t); }
 
 	/* Correction couleur — roues 3 voies */
 	GtkWidget *cc_vbox = gtk_vbox_new(FALSE, 2);
@@ -1982,7 +2040,8 @@ new_tones_page(RSToolbox *toolbox, const gint snapshot)
 		gtk_box_pack_start(GTK_BOX(wheels_vbox), zhbox, FALSE, FALSE, 0);
 	}
 	gtk_box_pack_start(GTK_BOX(cc_vbox), wheels_vbox, FALSE, FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Color balance"), cc_vbox, "show_colorwheels", TRUE), FALSE, FALSE, 0);
+	{ gchar *t = cs_stage_title(3, 4, _("Color balance")); /* D — effets */
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, cc_vbox, "show_colorwheels", TRUE), FALSE, FALSE, 0); g_free(t); }
 
 	/* Égaliseur de couleurs (color zones) — 3 courbes sur le spectre des teintes */
 	GtkWidget *hsl_vbox = gtk_vbox_new(FALSE, 2);
@@ -2002,7 +2061,8 @@ new_tones_page(RSToolbox *toolbox, const gint snapshot)
 			gtk_label_new(cnames[c]));
 	}
 	gtk_box_pack_start(GTK_BOX(hsl_vbox), hsl_nb, FALSE, FALSE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Color scalpel"), hsl_vbox, "show_colorzones", TRUE), FALSE, FALSE, 0);
+	{ gchar *t = cs_stage_title(3, 5, _("Color scalpel")); /* D — effets */
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, hsl_vbox, "show_colorzones", TRUE), FALSE, FALSE, 0); g_free(t); }
 
 	/* Petite marge en bas pour ne pas coller le dernier module au bord de l'onglet */
 	GtkWidget *bottom_spacer = gtk_drawing_area_new();
@@ -2370,7 +2430,8 @@ new_transform(RSToolbox *toolbox, gboolean show)
 	gtk_box_pack_start(GTK_BOX (hbox), rot270, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX (hbox), rot90, FALSE, FALSE, 0);
 
-	return gui_box(_("Transforms"), hbox, "show_transforms", show);
+	{ gchar *t = cs_stage_title(0, 2, _("Transforms")); /* A — géométrie */
+	  GtkWidget *b = gui_box(t, hbox, "show_transforms", show); g_free(t); return b; }
 }
 
 GtkWidget *

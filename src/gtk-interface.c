@@ -40,6 +40,7 @@
 #include "rs-photo.h"
 #include "rs-external-editor.h"
 #include "rs-actions.h"
+#include "cs-pipeline.h"
 #include "rs-dir-selector.h"
 #include "rs-toolbox.h"
 #include "rs-library.h"

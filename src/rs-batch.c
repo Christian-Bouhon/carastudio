@@ -30,6 +30,7 @@
 #include "rs-batch.h"
 #include "conf_interface.h"
 #include "gettext.h"
+#include "cs-pipeline.h"
 #include "gtk-helper.h"
 #include "gtk-interface.h"
 #include "filename.h"
@@ -1080,6 +1081,19 @@ make_batchbox(RS_QUEUE *queue)
 	GtkWidget *batchbox;
 
 	batchbox = gtk_vbox_new(FALSE,4);
+
+	/* En-tête d'étape pipeline : l'export = étape E (Sortie). */
+	{
+		GtkWidget *hdr = gtk_label_new(NULL);
+		gchar *m = cs_stage_title(4, 1, _("Sortie / Export"));
+		gtk_label_set_markup(GTK_LABEL(hdr), m);
+		g_free(m);
+		gtk_widget_set_halign(hdr, GTK_ALIGN_START);
+		gtk_widget_set_margin_top(hdr, 4);
+		gtk_widget_set_margin_start(hdr, 4);
+		gtk_box_pack_start(GTK_BOX(batchbox), hdr, FALSE, FALSE, 0);
+	}
+
 	gtk_box_pack_start (GTK_BOX (batchbox), make_batch_options(queue), FALSE, FALSE, 0);
 	gtk_box_pack_start (GTK_BOX (batchbox), make_batchview(queue), TRUE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (batchbox), make_batchbuttons(queue), FALSE, FALSE, 0);
