@@ -62,7 +62,83 @@ load_libraw_file(const gchar *filename)
 	 * Ces formats nécessitent un dématriçage spécialisé non présent
 	 * dans CaraStudio. On laisse rawspeed tenter en fallback.
 	 */
-	if (raw->idata.filters == 9 || raw->idata.colors > 3) {
+	/*
+	 * Fujifilm X-Trans (filters == 9) : CaraStudio n'a pas de démosaïquage
+	 * X-Trans. On laisse LibRaw démosaïquer (Markesteijn) en CAMERA-LINÉAIRE,
+	 * sans balance des blancs, sans conversion couleur, sans auto-luminosité et
+	 * en gardant l'échelle brute (no_auto_scale). On renvoie du RGB déjà
+	 * démosaïqué (filters==0 → le démosaïqueur laisse passer) ; WB/DCP/expo de
+	 * CaraStudio s'appliquent ensuite comme pour un Bayer.
+	 */
+	if (raw->idata.filters == 9) {
+		raw->params.output_bps     = 16;
+		raw->params.output_color   = 0;    /* couleur camera-native (DCP fait la conversion) */
+		raw->params.gamm[0] = raw->params.gamm[1] = 1.0; /* gamma linéaire */
+		raw->params.no_auto_bright = 1;
+		raw->params.use_camera_wb  = 0;
+		raw->params.use_auto_wb    = 0;
+		raw->params.user_mul[0] = raw->params.user_mul[1] = raw->params.user_mul[2] = raw->params.user_mul[3] = 1.0f;
+		raw->params.no_auto_scale  = 0;    /* normaliser sur toute la plage 16 bits (gain uniforme, pas de WB car user_mul=1) — sinon image trop sombre */
+		raw->params.highlight      = 0;
+
+		rs_io_lock();
+		ret = libraw_dcraw_process(raw);
+		rs_io_unlock();
+		if (ret != LIBRAW_SUCCESS) {
+			g_warning("load-libraw: dcraw_process X-Trans échoué: %s — %s",
+			          filename, libraw_strerror(ret));
+			libraw_close(raw);
+			return rs_filter_response_new();
+		}
+
+		int errc = 0;
+		libraw_processed_image_t *proc = libraw_dcraw_make_mem_image(raw, &errc);
+		if (!proc || proc->type != LIBRAW_IMAGE_BITMAP || proc->colors != 3 || proc->bits != 16) {
+			g_warning("load-libraw: image X-Trans inattendue pour %s", filename);
+			if (proc) libraw_dcraw_clear_mem(proc);
+			libraw_close(raw);
+			return rs_filter_response_new();
+		}
+
+		guint w = proc->width, h = proc->height;
+		image = rs_image16_new(w, h, 3, 4); /* 3 canaux, pixelsize 4 — comme la sortie démosaïqueur */
+		if (!image) {
+			libraw_dcraw_clear_mem(proc);
+			libraw_close(raw);
+			return rs_filter_response_new();
+		}
+		image->filters = 0; /* déjà démosaïqué */
+
+		/* Gain de calage : LibRaw normalise sur la saturation capteur, ce qui
+		 * laisse le rendu ~1 IL sous une référence (darktable/JPEG boîtier).
+		 * XTRANS_GAIN ramène le niveau (2.0 = +1 IL). Molette à ajuster à l'œil. */
+		#define XTRANS_GAIN 2.83f  /* +1,5 IL (2^1.5) */
+		const uint16_t *sp = (const uint16_t *) proc->data;
+		guint yy, xx, c;
+		for (yy = 0; yy < h; yy++) {
+			gushort *dst = GET_PIXEL(image, 0, yy);
+			for (xx = 0; xx < w; xx++) {
+				const uint16_t *s = sp + (yy * (guint)w + xx) * 3;
+				for (c = 0; c < 3; c++) {
+					gfloat v = (gfloat) s[c] * XTRANS_GAIN;
+					dst[xx * image->pixelsize + c] = (v > 65535.0f) ? 65535 : (gushort) v;
+				}
+			}
+		}
+
+		libraw_dcraw_clear_mem(proc);
+		libraw_close(raw);
+
+		response = rs_filter_response_new();
+		rs_filter_response_set_image(response, image);
+		rs_filter_response_set_width(response, (gint)w);
+		rs_filter_response_set_height(response, (gint)h);
+		g_object_unref(image);
+		return response;
+	}
+
+	/* Sigma Foveon (colors > 3) : capteur multicouche, non géré pour l'instant. */
+	if (raw->idata.colors > 3) {
 		libraw_close(raw);
 		return rs_filter_response_new();
 	}
