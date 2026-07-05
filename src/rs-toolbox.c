@@ -166,6 +166,7 @@ struct _RSToolbox {
 	RSLens *rs_lens;
 	RSSettings *settings[3];
 	GtkWidget *curve[3];
+	GtkWidget *rgb_curve[3][3];   /* [snapshot][canal] : courbes RVB (0=R/1=V/2=B) */
 
 	GtkWidget *transforms;
 	gint selected_snapshot;
@@ -584,6 +585,37 @@ curve_changed(GtkWidget *widget, gpointer user_data)
 		g_free(knots);
 		toolbox->mute_from_photo = FALSE;
 	}
+}
+
+/* Courbe RVB modifiée → pose les nœuds dans le canal correspondant des settings. */
+static void
+rgb_curve_changed(GtkWidget *widget, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	gint snapshot = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "rs-snapshot"));
+	gint channel  = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "rs-channel"));
+
+	if (toolbox->mute_from_sliders)
+		return;
+
+	if (toolbox->photo)
+	{
+		gfloat *knots;
+		guint nknots;
+		toolbox->mute_from_photo = TRUE;
+		rs_curve_widget_get_knots(RS_CURVE_WIDGET(widget), &knots, &nknots);
+		rs_settings_set_rgb_curve_knots(toolbox->photo->settings[snapshot], channel, knots, nknots);
+		g_free(knots);
+		toolbox->mute_from_photo = FALSE;
+	}
+}
+
+/* Remet une courbe RVB à plat (linéaire) ; user_data = le widget courbe. */
+static void
+rgb_curve_reset_clicked(GtkButton *btn, gpointer user_data)
+{
+	static const gfloat linear[] = { 0.0f, 0.0f, 1.0f, 1.0f };
+	rs_curve_widget_set_knots(RS_CURVE_WIDGET(user_data), linear, 2);
 }
 
 static void
@@ -1117,6 +1149,20 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	g_signal_connect(toolbox->curve[snapshot], "changed", G_CALLBACK(curve_changed), toolbox);
 	g_signal_connect(toolbox->curve[snapshot], "right-click", G_CALLBACK(curve_context_callback), NULL);
 
+	/* Courbes RVB par canal (onglets R/V/B à côté de la courbe de tonalité). */
+	{
+		gint ch;
+		for (ch = 0; ch < 3; ch++)
+		{
+			GtkWidget *rc = rs_curve_widget_new();
+			g_object_set_data(G_OBJECT(rc), "rs-snapshot", GINT_TO_POINTER(snapshot));
+			g_object_set_data(G_OBJECT(rc), "rs-channel", GINT_TO_POINTER(ch));
+			gtk_widget_set_size_request(rc, -1, 128);
+			g_signal_connect(rc, "changed", G_CALLBACK(rgb_curve_changed), toolbox);
+			toolbox->rgb_curve[snapshot][ch] = rc;
+		}
+	}
+
 	/* Bloc Balance des blancs en tête (le WB se règle en premier) :
 	 * pipette (mode bascule) + auto + boîtier, icônes ART. */
 	GtkWidget *wb_hbox = gtk_hbox_new(FALSE, 4);
@@ -1211,7 +1257,31 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	gtk_widget_set_margin_bottom(cp_hbox, 8);
 	gtk_box_pack_start(GTK_BOX(curve_vbox), cp_hbox, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(curve_vbox), toolbox->curve[snapshot], TRUE, TRUE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Curve"), curve_vbox, "show_curve", TRUE), FALSE, FALSE, 0);
+
+	/* Notebook courbes : onglet « Valeur » (tonalité, avec son menu Courbes…) +
+	 * onglets R / V / B (courbes par canal, appliquées dans RSEffects). */
+	GtkWidget *curve_nb = gtk_notebook_new();
+	gtk_notebook_append_page(GTK_NOTEBOOK(curve_nb), curve_vbox, gtk_label_new(_("Valeur")));
+	{
+		const gchar *rgb_labels[3];
+		rgb_labels[0] = _("R"); rgb_labels[1] = _("V"); rgb_labels[2] = _("B");
+		gint ch;
+		for (ch = 0; ch < 3; ch++)
+		{
+			GtkWidget *cv = gtk_vbox_new(FALSE, 2);
+			gtk_box_pack_start(GTK_BOX(cv), toolbox->rgb_curve[snapshot][ch], TRUE, TRUE, 0);
+			GtkWidget *rst = gtk_button_new_with_label(_("Réinitialiser"));
+			gtk_widget_set_tooltip_text(rst, _("Remet cette courbe à plat (linéaire)."));
+			g_signal_connect(rst, "clicked", G_CALLBACK(rgb_curve_reset_clicked),
+				toolbox->rgb_curve[snapshot][ch]);
+			GtkWidget *rh = gtk_hbox_new(FALSE, 0);
+			gtk_box_pack_start(GTK_BOX(rh), rst, FALSE, FALSE, 0);
+			gtk_widget_set_halign(rh, GTK_ALIGN_CENTER);
+			gtk_box_pack_start(GTK_BOX(cv), rh, FALSE, FALSE, 2);
+			gtk_notebook_append_page(GTK_NOTEBOOK(curve_nb), cv, gtk_label_new(rgb_labels[ch]));
+		}
+	}
+	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Curve"), curve_nb, "show_curve", TRUE), FALSE, FALSE, 0);
 
 	return vbox;
 }
@@ -2582,6 +2652,23 @@ toolbox_copy_from_photo(RSToolbox *toolbox, const gint snapshot, const RSSetting
 			rs_curve_widget_reset(RS_CURVE_WIDGET(toolbox->curve[snapshot]));
 			rs_curve_widget_set_knots(RS_CURVE_WIDGET(toolbox->curve[snapshot]), knots, nknots);
 			g_free(knots);
+		}
+
+		/* Courbes RVB par canal (partagent le bit softlight). */
+		if (mask & MASK_SOFTLIGHT_STRENGTH)
+		{
+			gint ch;
+			for (ch = 0; ch < 3; ch++)
+			{
+				gfloat *rk = rs_settings_get_rgb_curve_knots(toolbox->photo->settings[snapshot], ch);
+				gint rn = rs_settings_get_rgb_curve_nknots(toolbox->photo->settings[snapshot], ch);
+				if (rk && rn >= 2)
+				{
+					rs_curve_widget_reset(RS_CURVE_WIDGET(toolbox->rgb_curve[snapshot][ch]));
+					rs_curve_widget_set_knots(RS_CURVE_WIDGET(toolbox->rgb_curve[snapshot][ch]), rk, rn);
+				}
+				g_free(rk);
+			}
 		}
 		toolbox->mute_from_sliders = FALSE;
 	}
