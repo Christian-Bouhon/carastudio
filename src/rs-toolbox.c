@@ -1188,9 +1188,28 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	g_signal_connect_swapped(wb_cam_btn, "clicked",
 		G_CALLBACK(rs_core_action_group_activate), "CameraWB");
 
+	/* Masque d'exposition : bouton bascule à droite. Lié à l'action toggle
+	   ExposureMask → synchro dans les deux sens (bouton enfoncé = masque actif,
+	   même si activé par Ctrl+E ou le menu). */
+	GtkWidget *mask_btn = gtk_toggle_button_new();
+	{
+		GtkAction *ma = rs_core_action_group_get_action("ExposureMask");
+		if (ma)
+		{
+			gtk_activatable_set_use_action_appearance(GTK_ACTIVATABLE(mask_btn), FALSE);
+			gtk_activatable_set_related_action(GTK_ACTIVATABLE(mask_btn), ma);
+		}
+	}
+	gtk_button_set_image(GTK_BUTTON(mask_btn),
+		gtk_image_new_from_icon_name("dialog-warning", GTK_ICON_SIZE_LARGE_TOOLBAR));
+	gtk_button_set_always_show_image(GTK_BUTTON(mask_btn), TRUE);
+	gtk_widget_set_tooltip_text(mask_btn,
+		_("Masque d'exposition : zones cramées en rouge, zones bouchées en bleu (Ctrl+E)."));
+
 	gtk_box_pack_start(GTK_BOX(wb_hbox), toolbox->wb_pick[snapshot], FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(wb_hbox), wb_auto_btn, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(wb_hbox), wb_cam_btn, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(wb_hbox), mask_btn, FALSE, FALSE, 0);
 
 	/* Pack everything nice (Argentico a été déplacé dans l'onglet Effets) */
 	gtk_box_pack_start(GTK_BOX(vbox), gui_box(_("Balance des blancs"), wb_hbox, "show_wb", TRUE), FALSE, FALSE, 0);
