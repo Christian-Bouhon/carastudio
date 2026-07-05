@@ -1512,6 +1512,63 @@ cs_language_clicked(GtkWidget *button, RS_BLOB *rs)
 	rs_core_action_group_activate("Quit"); /* sauvegarde des réglages + gtk_main_quit */
 }
 
+/* Charte des 5 étapes du pipeline (lettre + couleur + rappel). Référence unique :
+   ces couleurs/lettres servent au popover « Pipeline » et (à venir) aux badges
+   posés sur les en-têtes de modules. Ordre = ordre RÉEL de traitement. */
+static const struct { const gchar *letter; const gchar *name; const gchar *hint; const gchar *color; }
+cs_pipeline_stages[] = {
+	{ "A", N_("Géométrie"),          N_("objectif, rotation, recadrage"),                  "#7a8290" },
+	{ "B", N_("Développement RAW"),  N_("balance des blancs, exposition, courbe « Valeur »"), "#3d7fc4" },
+	{ "C", N_("Réduction de bruit"), N_("débruitage luminance et couleur"),                "#2fa39a" },
+	{ "D", N_("Effets"),             N_("voile, tonalité, courbes RVB, N&B, vignette"),     "#9a6fc0" },
+	{ "E", N_("Sortie"),             N_("affichage, masque d'exposition"),                 "#c8922e" },
+};
+
+static void
+cs_pipeline_button_clicked(GtkWidget *btn, gpointer popover)
+{
+	gtk_popover_popup(GTK_POPOVER(popover));
+}
+
+/* Bouton « Pipeline » (barre du haut) : popover-légende rappelant les 5 étapes
+   de traitement A→E avec leurs couleurs, consultable pendant le développement.
+   Construit avec le même helper que les autres boutons de la barre (icône +
+   libellé, fond harmonisé). */
+static GtkWidget *
+cs_make_pipeline_button(void)
+{
+	GtkWidget *btn = cs_icon_label_button("cs-pipeline", _("Pipeline"));
+	gtk_widget_set_tooltip_text(btn, _("Ordre de traitement des modules (A→E)"));
+
+	GtkWidget *pop = gtk_popover_new(btn);
+	GtkWidget *box = gtk_vbox_new(FALSE, 6);
+	gtk_container_set_border_width(GTK_CONTAINER(box), 10);
+
+	GtkWidget *title = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(title), _("<b>Pipeline de traitement</b>"));
+	gtk_widget_set_halign(title, GTK_ALIGN_START);
+	gtk_box_pack_start(GTK_BOX(box), title, FALSE, FALSE, 0);
+
+	guint i;
+	for (i = 0; i < G_N_ELEMENTS(cs_pipeline_stages); i++)
+	{
+		gchar *m = g_markup_printf_escaped(
+			"<span background=\"%s\" foreground=\"#ffffff\"><b> %s </b></span>  <b>%s</b> — %s",
+			cs_pipeline_stages[i].color, cs_pipeline_stages[i].letter,
+			_(cs_pipeline_stages[i].name), _(cs_pipeline_stages[i].hint));
+		GtkWidget *row = gtk_label_new(NULL);
+		gtk_label_set_markup(GTK_LABEL(row), m);
+		gtk_widget_set_halign(row, GTK_ALIGN_START);
+		gtk_box_pack_start(GTK_BOX(box), row, FALSE, FALSE, 0);
+		g_free(m);
+	}
+
+	gtk_container_add(GTK_CONTAINER(pop), box);
+	gtk_widget_show_all(box);
+	g_signal_connect(btn, "clicked", G_CALLBACK(cs_pipeline_button_clicked), pop);
+	return btn;
+}
+
 int
 gui_init(int argc, char **argv, RS_BLOB *rs)
 {
@@ -1749,6 +1806,9 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 			gtk_box_pack_end(GTK_BOX(view_toolbar), btn_lang, FALSE, FALSE, 0);
 			g_free(cur);
 		}
+
+		/* CaraStudio : bouton « Pipeline » (légende des 5 étapes), à gauche du bouton de langue. */
+		gtk_box_pack_end(GTK_BOX(view_toolbar), cs_make_pipeline_button(), FALSE, FALSE, 0);
 
 		gtk_box_pack_start(GTK_BOX(vbox), view_toolbar, FALSE, TRUE, 0);
 	}
