@@ -642,7 +642,12 @@ main(int argc, char **argv)
 			g_setenv("LANGUAGE", ui_lang, TRUE);
 		g_free(ui_lang);
 	}
-	bindtextdomain(GETTEXT_PACKAGE, PACKAGE_LOCALE_DIR);
+	/* rs_reloc : dans l'AppImage, PACKAGE_LOCALE_DIR (/usr/share/locale) est
+	   relocalisé vers $APPDIR/usr/share/locale (le .mo est embarqué là). Sans ça,
+	   gettext cherchait dans le /usr/share/locale de l'HÔTE → traductions (FR)
+	   introuvables → l'appli restait en anglais (signalé sur YouTube). En install
+	   système normale, rs_reloc renvoie le chemin inchangé. */
+	bindtextdomain(GETTEXT_PACKAGE, rs_reloc(PACKAGE_LOCALE_DIR));
 	bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");
 	textdomain(GETTEXT_PACKAGE);
 #endif
