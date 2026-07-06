@@ -6,6 +6,8 @@
 
 CaraStudio permet de lire, ajuster et convertir les fichiers RAW de votre appareil photo numérique en JPEG, PNG ou TIFF, avec une interface sombre professionnelle inspirée des logiciels de retouche modernes.
 
+💬 **Questions, idées, entraide, partage de photos → [Discussions CaraStudio](https://github.com/carafife/carastudio/discussions)**
+
 ---
 
 ## Fonctionnalités
