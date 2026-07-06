@@ -1,7 +1,7 @@
 
 Name:           carastudio
-Version:        1.0.1
-Release:        3%{?dist}
+Version:        2026.07
+Release:        1%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
 License:        GPLv3+
@@ -92,6 +92,19 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Mon Jul 06 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-1
+- Passage au versionnage par date (CalVer) : « 2026.07 ».
+- Barre du haut : nouveau bouton « Enfuse » (fusion d'expositions) avec garde
+  anti-plantage quand aucune photo n'est sélectionnée.
+- Bloc « Courbes » à 4 onglets (Valeur + courbes RVB par canal), avec courbes
+  préréglées et enregistrer/charger/supprimer.
+- Réglages de base : boutons Auto-exposition, Auto-niveaux et Réinitialiser.
+- Balance des blancs : bouton « Masque d'exposition ».
+- Pédagogie du pipeline : bouton « Pipeline » (légende des 5 étapes) et badges
+  A–E de couleur sur les modules.
+- Aide (F1) enrichie et illustrée (schéma du pipeline, nouvelles fonctions,
+  rubrique « À propos & communauté »), en français et en anglais.
+
 * Sun Jul 05 2026 Carafife <carafife@users.noreply.github.com> - 1.0.1-3
 - Support des RAW Fujifilm X-Trans (.RAF) : ils s'ouvrent et se développent
   désormais dans l'éditeur (démosaïquage via LibRaw). Signalé sur le forum.
