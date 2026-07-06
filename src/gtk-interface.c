@@ -1419,11 +1419,14 @@ void
 rs_window_set_title(const char *str)
 {
 	gboolean client_mode;
+	gchar *title;
 	rs_conf_get_boolean("client-mode", &client_mode);
 	if (client_mode)
-		gtk_window_set_title(GTK_WINDOW(rawstudio_window), _("CaraStudio — Client Mode"));
+		title = g_strdup_printf(_("CaraStudio %s — Client Mode"), VERSION);
 	else
-		gtk_window_set_title(GTK_WINDOW(rawstudio_window), _("CaraStudio — Powered by Carafife"));
+		title = g_strdup_printf(_("CaraStudio %s — Powered by Carafife"), VERSION);
+	gtk_window_set_title(GTK_WINDOW(rawstudio_window), title);
+	g_free(title);
 }
 
 /* CaraStudio: callbacks pour les boutons de zoom variable */

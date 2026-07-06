@@ -1097,11 +1097,11 @@ msgid "Opening directory..."
 msgstr "Opening directory..."
 
 #: src/gtk-interface.c:1423
-msgid "CaraStudio — Client Mode"
+msgid "CaraStudio %s — Client Mode"
 msgstr ""
 
 #: src/gtk-interface.c:1425
-msgid "CaraStudio — Powered by Carafife"
+msgid "CaraStudio %s — Powered by Carafife"
 msgstr ""
 
 #: src/gtk-interface.c:1496
