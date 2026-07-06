@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- Enfuse (fusion d'expositions) : soleil repris d'ART (env-verybright),
+       redessiné épuré en ambre — évoque la lumière/exposition mise en commun. -->
+  <g fill="none" stroke="#e0922e" stroke-width="2" stroke-linecap="round">
+    <!-- rayons cardinaux -->
+    <line x1="12" y1="1.5"  x2="12" y2="5"/>
+    <line x1="12" y1="19"   x2="12" y2="22.5"/>
+    <line x1="1.5"  y1="12" x2="5"  y2="12"/>
+    <line x1="19"   y1="12" x2="22.5" y2="12"/>
+    <!-- rayons diagonaux -->
+    <line x1="4.75" y1="4.75"  x2="7.2"  y2="7.2"  stroke-width="1.7"/>
+    <line x1="16.8" y1="16.8"  x2="19.25" y2="19.25" stroke-width="1.7"/>
+    <line x1="16.8" y1="7.2"   x2="19.25" y2="4.75" stroke-width="1.7"/>
+    <line x1="4.75" y1="19.25" x2="7.2"  y2="16.8" stroke-width="1.7"/>
+  </g>
+  <circle cx="12" cy="12" r="4" fill="#e0922e"/>
+</svg>

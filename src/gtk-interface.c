@@ -1458,6 +1458,38 @@ cs_icon_label_button(const gchar *icon_name, const gchar *label_text)
 	return btn;
 }
 
+/* CaraStudio : clic sur le bouton Enfuse de la barre du haut. On garde le bouton
+ * toujours cliquable, mais on vérifie d'abord qu'au moins une photo est
+ * sélectionnée : sinon l'action « Enfuse » plantait (g_assert sur une sélection
+ * vide). Dans ce cas on affiche un message d'invite au lieu de lancer la fusion. */
+static void
+cs_enfuse_button_clicked(GtkButton *button, gpointer user_data)
+{
+	RS_BLOB *rs = (RS_BLOB *) user_data;
+	GList *selected = rs_store_get_selected_names(rs->store);
+	gint num_selected = g_list_length(selected);
+	g_list_free_full(selected, g_free);
+
+	if (num_selected < 1)
+	{
+		GtkWidget *dialog = gtk_message_dialog_new(
+			GTK_WINDOW(rs->window),
+			GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+			GTK_MESSAGE_INFO, GTK_BUTTONS_OK,
+			_("Sélectionnez d'abord des photos à fusionner"));
+		gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
+			_("Enfuse combine plusieurs prises d'une même scène en une seule image. "
+			  "Sélectionnez au moins deux vignettes (idéalement bracketées à des "
+			  "expositions différentes) avant de lancer la fusion."));
+		gtk_window_set_title(GTK_WINDOW(dialog), _("Enfuse"));
+		gtk_dialog_run(GTK_DIALOG(dialog));
+		gtk_widget_destroy(dialog);
+		return;
+	}
+
+	rs_core_action_group_activate("Enfuse");
+}
+
 /* — Bascule de langue FR/EN (s'applique au redémarrage) — */
 
 /* Demande de relance posée par le bouton de langue ; honorée après gtk_main(). */
@@ -1764,6 +1796,16 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_iconbox,    FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_toolbox,    FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_fullscreen, FALSE, FALSE, 0);
+
+		/* CaraStudio : bouton Enfuse (fusion d'expositions / focus stacking),
+		 * déclenche l'action « Enfuse » (Ctrl+Alt+E, toujours active). Placé à
+		 * droite du trio d'escamotage pour l'avoir sous la main sans fouiller les
+		 * menus ; l'action reste insensible tant qu'aucune image n'est sélectionnée. */
+		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
+		GtkWidget *btn_enfuse = cs_icon_label_button("cs-enfuse", _("Enfuse"));
+		gtk_widget_set_tooltip_text(btn_enfuse, _("Fusionner les expositions sélectionnées (Enfuse — Ctrl+Alt+E)"));
+		g_signal_connect(btn_enfuse, "clicked", G_CALLBACK(cs_enfuse_button_clicked), rs);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_enfuse, FALSE, FALSE, 0);
 
 		/* Séparateur + boutons de zoom (icône seule) */
 		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
