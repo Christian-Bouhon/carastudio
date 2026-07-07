@@ -81,87 +81,108 @@ const lfLens **lf_lens_sort_by_model(const lfLens *const *array)
 
 static void lens_set (lens_data *data, const lfLens *lens)
 {
-	if (data->single_lens_data && lens)
+	/* ── Éditeur d'UN objectif (module « Correction d'objectif ») ──────────
+	 * data->single_lens_data est renseigné ; data->tree_view ne l'est PAS et
+	 * ne doit jamais être touché ici. On gère aussi le « Deselect » (lens NULL). */
+	if (data->single_lens_data)
 	{
-		/* Set Maker and Model to the selected RSLens */
-		rs_lens_set_lensfun_make(data->single_lens_data->lens, lens->Maker);
-		rs_lens_set_lensfun_model(data->single_lens_data->lens, lens->Model);
-		rs_lens_set_lensfun_enabled(data->single_lens_data->lens, TRUE);
+		RSLens *rs_lens = data->single_lens_data->lens;
 
-		gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_make), lens->Maker);
-		gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_model), lens->Model);
-		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(data->single_lens_data->checkbutton_enabled), TRUE);
+		if (lens)
+		{
+			rs_lens_set_lensfun_make(rs_lens, lens->Maker);
+			rs_lens_set_lensfun_model(rs_lens, lens->Model);
+			rs_lens_set_lensfun_enabled(rs_lens, TRUE);
 
-		gtk_widget_show(data->single_lens_data->lensfun_make);
-		gtk_widget_show(data->single_lens_data->lensfun_model);
-		gtk_widget_hide(data->single_lens_data->button);
+			gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_make), lens->Maker);
+			gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_model), lens->Model);
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(data->single_lens_data->checkbutton_enabled), TRUE);
 
-		RSLensDb *lens_db = rs_lens_db_get_default();
+			gtk_widget_show(data->single_lens_data->lensfun_make);
+			gtk_widget_show(data->single_lens_data->lensfun_model);
+			gtk_widget_hide(data->single_lens_data->button);
+		}
+		else
+		{
+			rs_lens_set_lensfun_make(rs_lens, NULL);
+			rs_lens_set_lensfun_model(rs_lens, NULL);
+			rs_lens_set_lensfun_enabled(rs_lens, FALSE);
+
+			gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_make), "");
+			gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_model), "");
+			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(data->single_lens_data->checkbutton_enabled), FALSE);
+
+			gtk_widget_hide(data->single_lens_data->lensfun_make);
+			gtk_widget_hide(data->single_lens_data->lensfun_model);
+			gtk_widget_show(data->single_lens_data->button);
+		}
 
 		/* Force save of RSLensDb */
-		rs_lens_db_save(lens_db);
+		rs_lens_db_save(rs_lens_db_get_default());
 
-		if (data)
-			g_free(data);
-
+		g_free(data);
 		return;
 	}
-    if (!rs_lens_get_lensfun_model(data->single_lens_data->lens))
-        return;
 
+	/* ── Bibliothèque complète (Ctrl+L) : la ligne sélectionnée du tableau ──
+	 * Ici single_lens_data == NULL (ne PAS le déréférencer) ; on travaille sur
+	 * la sélection de data->tree_view. */
 	GtkTreeSelection *selection = gtk_tree_view_get_selection(data->tree_view);
 	GtkTreeModel *model = NULL;
 	GtkTreeIter iter;
 
-	gtk_tree_selection_get_selected(selection, &model, &iter);
-
-	/* Set Maker and Model to the tree view */
-	if (lens)
+	if (gtk_tree_selection_get_selected(selection, &model, &iter))
 	{
-		gtk_list_store_set (GTK_LIST_STORE(model), &iter,
-					RS_LENS_DB_EDITOR_LENS_MAKE, lens->Maker,
-					RS_LENS_DB_EDITOR_LENS_MODEL, lens->Model,
-					RS_LENS_DB_EDITOR_ENABLED_ACTIVATABLE, TRUE,
-					RS_LENS_DB_EDITOR_ENABLED, TRUE,
-					RS_LENS_DB_EDITOR_DEFISH, FALSE,
-					-1);
-	}
-	else
-	{
-		gtk_list_store_set (GTK_LIST_STORE(model), &iter,
-					RS_LENS_DB_EDITOR_LENS_MAKE, "",
-					RS_LENS_DB_EDITOR_LENS_MODEL, "",
-					RS_LENS_DB_EDITOR_ENABLED_ACTIVATABLE, FALSE,
-					RS_LENS_DB_EDITOR_ENABLED, FALSE,
-					RS_LENS_DB_EDITOR_DEFISH, FALSE,
-					-1);
+		RSLens *rs_lens = NULL;
+
+		/* Set Maker and Model to the tree view */
+		if (lens)
+			gtk_list_store_set (GTK_LIST_STORE(model), &iter,
+						RS_LENS_DB_EDITOR_LENS_MAKE, lens->Maker,
+						RS_LENS_DB_EDITOR_LENS_MODEL, lens->Model,
+						RS_LENS_DB_EDITOR_ENABLED_ACTIVATABLE, TRUE,
+						RS_LENS_DB_EDITOR_ENABLED, TRUE,
+						RS_LENS_DB_EDITOR_DEFISH, FALSE,
+						-1);
+		else
+			gtk_list_store_set (GTK_LIST_STORE(model), &iter,
+						RS_LENS_DB_EDITOR_LENS_MAKE, "",
+						RS_LENS_DB_EDITOR_LENS_MODEL, "",
+						RS_LENS_DB_EDITOR_ENABLED_ACTIVATABLE, FALSE,
+						RS_LENS_DB_EDITOR_ENABLED, FALSE,
+						RS_LENS_DB_EDITOR_DEFISH, FALSE,
+						-1);
+
+		gtk_tree_model_get (model, &iter,
+				    RS_LENS_DB_EDITOR_LENS, &rs_lens,
+				    -1);
+
+		/* Set Maker and Model to the selected RSLens */
+		if (rs_lens)
+		{
+			if (lens)
+			{
+				rs_lens_set_lensfun_make(rs_lens, lens->Maker);
+				rs_lens_set_lensfun_model(rs_lens, lens->Model);
+				rs_lens_set_lensfun_enabled(rs_lens, TRUE);
+				rs_lens_set_lensfun_defish(rs_lens, FALSE);
+			}
+			else
+			{
+				rs_lens_set_lensfun_make(rs_lens, NULL);
+				rs_lens_set_lensfun_model(rs_lens, NULL);
+				rs_lens_set_lensfun_enabled(rs_lens, FALSE);
+				rs_lens_set_lensfun_defish(rs_lens, FALSE);
+			}
+		}
+
+		/* Force save of RSLensDb */
+		rs_lens_db_save(rs_lens_db_get_default());
 	}
 
-	RSLens *rs_lens = NULL;
-	gtk_tree_model_get (model, &iter,
-			    RS_LENS_DB_EDITOR_LENS, &rs_lens,
-			    -1);
-
-	/* Set Maker and Model to the selected RSLens */
-	if (lens)
-	{
-		rs_lens_set_lensfun_make(rs_lens, lens->Maker);
-		rs_lens_set_lensfun_model(rs_lens, lens->Model);
-		rs_lens_set_lensfun_enabled(rs_lens, TRUE);
-		rs_lens_set_lensfun_defish(rs_lens, FALSE);
-	}
-	else
-	{
-		rs_lens_set_lensfun_make(rs_lens, NULL);
-		rs_lens_set_lensfun_model(rs_lens, NULL);
-		rs_lens_set_lensfun_enabled(rs_lens, FALSE);
-		rs_lens_set_lensfun_defish(rs_lens, FALSE);
-	}
-
-	RSLensDb *lens_db = rs_lens_db_get_default();
-
-	/* Force save of RSLensDb */
-	rs_lens_db_save(lens_db);
+	/* NB : on ne libère PAS `data` ici — les items du menu (lens_menu_select)
+	 * le référencent encore et le menu reste vivant (cf. lens_menu_fill).
+	 * Fuite infime et préexistante, préférée à un usage-après-libération. */
 }
 
 
@@ -832,6 +853,7 @@ enable_lens(GtkCheckButton *checkbutton, gpointer user_data)
 {
 	RSLens *lens = user_data;
 	rs_lens_set_lensfun_enabled(lens, gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(checkbutton)));
+	rs_lens_db_save(rs_lens_db_get_default());
 }
 
 static void
@@ -839,6 +861,7 @@ defish_lens(GtkCheckButton *checkbutton, gpointer user_data)
 {
 	RSLens *lens = user_data;
 	rs_lens_set_lensfun_defish(lens, gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(checkbutton)));
+	rs_lens_db_save(rs_lens_db_get_default());
 }
 
 static void

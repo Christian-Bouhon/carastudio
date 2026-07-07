@@ -222,7 +222,7 @@ msgstr "Activer cet objectif"
 
 #: librawstudio/rs-lens-db-editor.c:941
 msgid "Enable Defish"
-msgstr "Activer cet objectif"
+msgstr "Activer le Defish (correction fisheye)"
 
 #: librawstudio/rs-lens-db-editor.c:945
 msgid "Set lens"
