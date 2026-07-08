@@ -72,8 +72,14 @@ install_deps() {
 
 [ "$INSTALL_DEPS" -eq 1 ] && install_deps || say "Dépendances ignorées (--no-deps)."
 
-if [ ! -x ./configure ]; then
+# On (re)génère si configure manque OU si les fichiers auxiliaires (build-aux/)
+# ne sont pas là — cas d'un clone git où un autoreconf précédent a été interrompu
+# (ex. autopoint manquant) : un configure a pu rester sans que build-aux/ soit
+# peuplé, ce qui fait échouer configure avec « cannot find required auxiliary
+# files ». Un tarball de dist, lui, embarque configure ET build-aux → on saute.
+if [ ! -x ./configure ] || [ ! -f build-aux/install-sh ]; then
 	say "Génération du script configure (autoreconf)…"
+	rm -f configure
 	autoreconf -fi || die "autoreconf a échoué"
 fi
 
