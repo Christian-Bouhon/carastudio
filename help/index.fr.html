@@ -12,7 +12,12 @@
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--bg); color: var(--text);
+    margin: 0; color: var(--text);
+    background:
+      radial-gradient(1100px 560px at 84% -8%, rgba(74,158,255,0.07), transparent 60%),
+      radial-gradient(820px 520px at -6% 2%, rgba(240,145,58,0.055), transparent 55%),
+      var(--bg);
+    background-attachment: fixed;
     font-family: "Segoe UI", "Cantarell", "Noto Sans", sans-serif;
     line-height: 1.65; font-size: 16px;
   }
@@ -24,13 +29,16 @@
     padding: 24px 18px;
   }
   nav h2 { font-size: 0.95rem; color: var(--accent2); margin: 18px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  nav > strong { background: linear-gradient(90deg, #ffd27a, #f0913a); -webkit-background-clip: text; background-clip: text; color: transparent; }
   nav a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; font-size: 0.92rem; }
   nav a:hover { color: var(--text); background: var(--panel2); }
   main { flex: 1; padding: 36px 44px; min-width: 0; }
-  header.hero { border-bottom: 1px solid var(--border); margin-bottom: 28px; padding-bottom: 20px; }
+  header.hero { margin-bottom: 30px; padding: 26px 28px; border: 1px solid var(--border); border-radius: 18px;
+    background: linear-gradient(135deg, rgba(74,158,255,0.14), rgba(240,145,58,0.09) 55%, rgba(126,200,160,0.11)); }
   header.hero h1 { font-size: 2.1rem; margin: 0 0 6px; }
   header.hero .sub { color: var(--muted); font-size: 1.05rem; }
-  h2.sec { font-size: 1.5rem; margin: 40px 0 12px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--accent); }
+  h2.sec { font-size: 1.55rem; margin: 46px 0 14px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--accent); }
+  h2.sec::after { content: ""; display: block; height: 3px; width: 72px; margin-top: 9px; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
   h3 { font-size: 1.15rem; margin: 24px 0 6px; color: var(--accent2); }
   p { margin: 8px 0; }
   ul, ol { margin: 8px 0; padding-left: 22px; }
@@ -41,16 +49,18 @@
     border-radius: 5px; padding: 1px 7px; color: var(--text); white-space: nowrap;
   }
   .tip, .note, .warn {
-    border-left: 3px solid var(--accent); background: var(--panel);
-    padding: 10px 16px; margin: 14px 0; border-radius: 0 8px 8px 0;
+    border-left: 4px solid var(--accent);
+    background: linear-gradient(90deg, rgba(74,158,255,0.09), rgba(74,158,255,0.02) 70%), var(--panel);
+    padding: 12px 18px; margin: 16px 0; border-radius: 0 10px 10px 0;
   }
-  .tip { border-color: var(--accent2); }
-  .warn { border-color: var(--warn); }
+  .tip { border-color: var(--accent2); background: linear-gradient(90deg, rgba(126,200,160,0.10), rgba(126,200,160,0.02) 70%), var(--panel); }
+  .warn { border-color: var(--warn); background: linear-gradient(90deg, rgba(230,184,96,0.11), rgba(230,184,96,0.02) 70%), var(--panel); }
   .tip b, .note b, .warn b { color: var(--text); }
   table { border-collapse: collapse; margin: 14px 0; width: 100%; }
   th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); }
   th { color: var(--accent2); font-weight: 600; }
   td:first-child { white-space: nowrap; }
+  table tr:hover td { background: rgba(255,255,255,0.028); }
   .lang { float: right; font-size: 0.85rem; color: var(--muted); }
   .lang a { color: var(--accent); text-decoration: none; }
   /* Liens dans le corps du texte : orange ambré, bien plus lisibles que le bleu/violet par défaut */
@@ -67,8 +77,8 @@
   figure.pipe figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 10px; }
   /* En-tête : logo + titre en dégradé + pastille « fork bodybuildé » */
   .herorow { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
-  .herologo { width: 104px; height: 104px; border-radius: 20px; flex: 0 0 auto;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.45); }
+  .herologo { width: 138px; height: 138px; border-radius: 24px; flex: 0 0 auto;
+    box-shadow: 0 10px 34px rgba(0,0,0,0.5); }
   .herotext { min-width: 0; }
   header.hero h1 { background: linear-gradient(90deg, #ffd27a, #f0913a 55%, #e0614a);
     -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -286,7 +296,15 @@
 <section id="objectif">
 <h2 class="sec"><span class="stagebadge" style="background:#7a8290">A</span>Objectif &amp; courbe</h2>
 <h3>Correction d'objectif <span class="stagebadge" style="background:#7a8290">A</span></h3>
-<p>Corrige les défauts optiques : aberration chromatique (<b>CA R</b>, <b>CA B</b>) et vignetage (<b>Vign</b>). Pour les objectifs reconnus, les corrections géométriques sont gérées automatiquement. C'est une étape <b>géométrique</b>, appliquée tout au début du pipeline <span class="stagebadge" style="background:#7a8290">A</span>.</p>
+<p>Chaque objectif a de petits défauts optiques : des bords qui s'assombrissent (<b>vignetage</b>), des franges colorées sur les contrastes (<b>aberration chromatique</b>), des lignes droites légèrement courbées (<b>distorsion</b>). Ce module les corrige. C'est une étape <b>géométrique</b>, appliquée tout au début du pipeline <span class="stagebadge" style="background:#7a8290">A</span>.</p>
+<p><b>Sur quoi ça repose : la base lensfun.</b> CaraStudio s'appuie sur <b>lensfun</b>, une <b>base de données libre et communautaire</b> qui recense les caractéristiques optiques de milliers d'objectifs (mesurées et partagées par des passionnés). Le principe : on <b>associe</b> ton objectif réel à sa fiche dans lensfun ; CaraStudio y lit alors la « signature » des défauts de cet objectif et applique <b>automatiquement</b> les corrections inverses (dévignetage, correction de la distorsion et de l'aberration chromatique) — sans réglage manuel. Les curseurs <b>CA R</b>, <b>CA B</b> et <b>Vign</b> restent là pour un ajustement fin si besoin.</p>
+<p><b>Associer un objectif.</b> Le bouton <b>Éditer l'objectif</b> ouvre l'éditeur. Clique <b>Set lens</b> (ou <b>Base de données d'objectifs</b> pour la bibliothèque complète), puis choisis la <b>marque</b> et le <b>modèle</b> de ton objectif dans la liste lensfun. Coche <b>Activer cet objectif</b> pour appliquer la correction, et <b>Activer le Defish</b> pour redresser un fisheye. Le bouton reste toujours disponible pour re-choisir.</p>
+<div class="note"><b>Important — la correction est PAR OBJECTIF, pas par photo.</b> Une fois un objectif associé, sa correction s'applique automatiquement à <b>toutes les photos prises avec cet objectif</b>.
+<ul>
+  <li><b>Objectifs modernes</b> (avec électronique) : chaque objectif est <b>reconnu automatiquement</b> via l'EXIF. Dans un même dossier, des photos prises avec des objectifs différents reçoivent donc <b>chacune la correction de SON objectif</b>, sans rien faire.</li>
+  <li><b>Objectifs manuels / anciens</b> (sans électronique, ex. Helios-44) : CaraStudio ne peut pas les distinguer (aucune donnée EXIF) → il les regroupe <b>par boîtier</b>. Le profil associé s'applique alors à <b>toutes</b> les photos en objectif manuel de ce boîtier.</li>
+</ul>
+<b>Conseil :</b> si une séance mélange <b>plusieurs objectifs manuels</b>, range-les dans des <b>dossiers séparés</b> (un objectif par dossier) — tu pourras ainsi appliquer le bon profil à chaque dossier complet.</div>
 <h3>Courbe <span class="stagebadge" style="background:#3d7fc4">B</span> <span class="stagebadge" style="background:#9a6fc0">D</span></h3>
 <p>La <b>courbe</b> donne un contrôle précis de la luminosité par plages. Le bloc est organisé en <b>quatre onglets</b> :</p>
 <ul>
