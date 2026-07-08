@@ -51,7 +51,7 @@ install_deps() {
 		say "Installation des dépendances (Debian/Ubuntu/apt)…"
 		$sudo apt-get update
 		$sudo apt-get install -y \
-			build-essential autoconf automake libtool pkg-config gettext \
+			build-essential autoconf automake libtool pkg-config gettext autopoint intltool \
 			libgtk-3-dev libglib2.0-dev libxml2-dev libx11-dev \
 			libjpeg-dev libtiff-dev libsqlite3-dev liblensfun-dev liblcms2-dev \
 			libgphoto2-dev libexiv2-dev libraw-dev libfftw3-dev libdbus-1-dev \
