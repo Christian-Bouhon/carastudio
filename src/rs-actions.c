@@ -1259,6 +1259,13 @@ TOGGLEACTION(show_filenames)
 TOGGLEACTION(load_8bit)
 {
 	rs_conf_set_boolean(CONF_LOAD_GDK, gtk_toggle_action_get_active(toggleaction));
+	/* Recharger le dossier courant (comme l'action « Reload ») pour que le
+	 * changement — afficher ou masquer les images non-RAW — prenne effet
+	 * immédiatement, dans les deux sens. Il faut VIDER le store d'abord
+	 * (rs_store_remove), sinon les vignettes se dupliquent à chaque bascule. */
+	rs_store_remove(rs->store, NULL, NULL);
+	rs_store_load_directory(rs->store, NULL);
+	rs_core_actions_update_menu_items(rs);
 }
 
 TOGGLEACTION(fullscreen)

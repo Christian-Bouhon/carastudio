@@ -1840,6 +1840,21 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		g_signal_connect_swapped(btn_split, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Split");
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_split, FALSE, FALSE, 0);
 
+		/* CaraStudio : deux bascules d'affichage sorties des menus, placées en FIN
+		 * de barre (après Recadrer / Séparer les vues).
+		 * — « Infos vignettes » : affiche/masque le texte sous les vignettes (toggle ShowFilenames).
+		 * — « Non-RAW » : charge ou non les JPEG/TIFF/PNG à côté des RAW (toggle Load8Bit). */
+		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
+		GtkWidget *btn_thumbinfo = cs_icon_label_button("cs-thumb-info", _("Infos vignettes"));
+		gtk_widget_set_tooltip_text(btn_thumbinfo, _("Afficher/masquer les infos sous les vignettes"));
+		g_signal_connect_swapped(btn_thumbinfo, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "ShowFilenames");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_thumbinfo, FALSE, FALSE, 0);
+
+		GtkWidget *btn_nonraw = cs_icon_label_button("cs-load-nonraw", _("Non-RAW"));
+		gtk_widget_set_tooltip_text(btn_nonraw, _("Charger aussi les images non-RAW (JPEG, TIFF, PNG)"));
+		g_signal_connect_swapped(btn_nonraw, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Load8Bit");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_nonraw, FALSE, FALSE, 0);
+
 		/* CaraStudio : bouton de langue FR/EN, calé à droite de la barre. Le
 		 * libellé montre la langue CIBLE (ce que le clic appliquera). */
 		{

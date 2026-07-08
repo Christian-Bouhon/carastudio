@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- Charger les images non-RAW : une pile de photos (formats variés) -->
+  <rect x="3" y="7" width="13" height="13" rx="2" fill="none" stroke="#cccccc" stroke-width="1.6" opacity="0.75"/>
+  <rect x="8" y="3.5" width="13" height="13" rx="2" fill="none" stroke="#cccccc" stroke-width="1.9"/>
+  <circle cx="12.2" cy="8" r="1.5" fill="#cccccc"/>
+  <path d="M9.3 13 L13 9 L17.8 13" fill="none" stroke="#cccccc" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
