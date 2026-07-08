@@ -94,13 +94,11 @@ static void lens_set (lens_data *data, const lfLens *lens)
 			rs_lens_set_lensfun_model(rs_lens, lens->Model);
 			rs_lens_set_lensfun_enabled(rs_lens, TRUE);
 
+			/* Mode « forcé » : le bouton et le nom restent visibles en permanence
+			 * (le bouton est sur sa propre ligne) → on met juste à jour le texte. */
 			gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_make), lens->Maker);
 			gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_model), lens->Model);
 			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(data->single_lens_data->checkbutton_enabled), TRUE);
-
-			gtk_widget_show(data->single_lens_data->lensfun_make);
-			gtk_widget_show(data->single_lens_data->lensfun_model);
-			gtk_widget_hide(data->single_lens_data->button);
 		}
 		else
 		{
@@ -108,13 +106,9 @@ static void lens_set (lens_data *data, const lfLens *lens)
 			rs_lens_set_lensfun_model(rs_lens, NULL);
 			rs_lens_set_lensfun_enabled(rs_lens, FALSE);
 
-			gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_make), "");
-			gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_model), "");
+			gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_make), "—");
+			gtk_label_set_text(GTK_LABEL(data->single_lens_data->lensfun_model), "—");
 			gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(data->single_lens_data->checkbutton_enabled), FALSE);
-
-			gtk_widget_hide(data->single_lens_data->lensfun_make);
-			gtk_widget_hide(data->single_lens_data->lensfun_model);
-			gtk_widget_show(data->single_lens_data->button);
 		}
 
 		/* Force save of RSLensDb */
@@ -995,10 +989,13 @@ rs_lens_db_editor_single_lens(RSLens *lens)
 	gtk_table_attach_defaults(GTK_TABLE(table), sep1, 0,2,5,6);
 	gtk_table_attach_defaults(GTK_TABLE(table), label_lensfun_make, 1,2,6,7);
 	gtk_table_attach_defaults(GTK_TABLE(table), label_lensfun_model, 1,2,7,8);
-	gtk_table_attach_defaults(GTK_TABLE(table), button_set_lens, 1,2,6,8);
-	gtk_table_attach_defaults(GTK_TABLE(table), sep2, 0,2,8,9);
-	gtk_table_attach_defaults(GTK_TABLE(table), checkbutton_enabled, 0,1,9,10);
-	gtk_table_attach_defaults(GTK_TABLE(table), checkbutton_defish, 1,2,9,10);
+	/* CaraStudio : bouton « Set lens » sur sa PROPRE ligne (pleine largeur) → il
+	 * reste toujours visible EN MÊME TEMPS que le nom de l'objectif assigné
+	 * (mode « forcé » : on peut toujours re-choisir/changer l'objectif). */
+	gtk_table_attach_defaults(GTK_TABLE(table), button_set_lens, 0,2,8,9);
+	gtk_table_attach_defaults(GTK_TABLE(table), sep2, 0,2,9,10);
+	gtk_table_attach_defaults(GTK_TABLE(table), checkbutton_enabled, 0,1,10,11);
+	gtk_table_attach_defaults(GTK_TABLE(table), checkbutton_defish, 1,2,10,11);
 
 	/* Set spacing around separator in table */
 	gtk_table_set_row_spacing(GTK_TABLE(table), 4, 10);
@@ -1030,17 +1027,13 @@ rs_lens_db_editor_single_lens(RSLens *lens)
         gtk_dialog_add_action_widget (GTK_DIALOG (editor), button_close, GTK_RESPONSE_CLOSE);
 
         gtk_widget_show_all(GTK_WIDGET(editor));
+	/* Mode « forcé » : le bouton ET le nom de l'objectif restent toujours
+	 * visibles (le bouton est sur sa propre ligne) → on peut toujours
+	 * re-choisir/changer. Si aucun objectif n'est associé, on affiche « — ». */
 	if (!rs_lens_get_lensfun_model(lens) || !rs_lens_get_lensfun_make(lens))
 	{
-		gtk_widget_hide(label_lensfun_make);
-		gtk_widget_hide(label_lensfun_model);
-		gtk_widget_show(button_set_lens);
-	}
-	else
-	{
-		gtk_widget_show(label_lensfun_make);
-		gtk_widget_show(label_lensfun_model);
-		gtk_widget_hide(button_set_lens);
+		gtk_label_set_text(GTK_LABEL(label_lensfun_make), "—");
+		gtk_label_set_text(GTK_LABEL(label_lensfun_model), "—");
 	}
 	return GTK_DIALOG(editor);
 }
