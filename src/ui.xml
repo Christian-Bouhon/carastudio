@@ -17,6 +17,7 @@
    <separator />
    <menuitem action="SaveStyle" />
    <menuitem action="ApplyStyle" />
+   <menuitem action="DeleteStyle" />
    <separator />
    <menuitem action="ResetSettings" />
    <menuitem action="SaveDefaultSettings" />

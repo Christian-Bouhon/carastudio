@@ -1236,14 +1236,76 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	gtk_widget_set_tooltip_text(mask_btn,
 		_("Masque d'exposition : zones cramées en rouge, zones bouchées en bleu (Ctrl+E)."));
 
+	/* Styles (presets) : bloc de trois boutons poussé à DROITE de la rangée
+	   (grand vide central + séparateur vertical), pour bien détacher le groupe
+	   balance des blancs / masque à gauche. Un style capture/applique les réglages
+	   d'édition, d'où leur place ici. Déclenchent SaveStyle / ApplyStyle /
+	   DeleteStyle (mêmes actions que le menu Édition). */
+	GtkWidget *style_save_btn = gtk_button_new();
+	gtk_button_set_image(GTK_BUTTON(style_save_btn),
+		gtk_image_new_from_icon_name("document-open", GTK_ICON_SIZE_LARGE_TOOLBAR));
+	gtk_widget_set_tooltip_text(style_save_btn,
+		_("Enregistrer les réglages actuels comme style"));
+	g_signal_connect_swapped(style_save_btn, "clicked",
+		G_CALLBACK(rs_core_action_group_activate), "SaveStyle");
+
+	GtkWidget *style_apply_btn = gtk_button_new();
+	gtk_button_set_image(GTK_BUTTON(style_apply_btn),
+		gtk_image_new_from_icon_name("document-save", GTK_ICON_SIZE_LARGE_TOOLBAR));
+	gtk_widget_set_tooltip_text(style_apply_btn,
+		_("Appliquer un style aux photos sélectionnées"));
+	g_signal_connect_swapped(style_apply_btn, "clicked",
+		G_CALLBACK(rs_core_action_group_activate), "ApplyStyle");
+
+	GtkWidget *style_del_btn = gtk_button_new();
+	gtk_button_set_image(GTK_BUTTON(style_del_btn),
+		gtk_image_new_from_icon_name("edit-delete", GTK_ICON_SIZE_LARGE_TOOLBAR));
+	gtk_widget_set_tooltip_text(style_del_btn, _("Supprimer un style"));
+	g_signal_connect_swapped(style_del_btn, "clicked",
+		G_CALLBACK(rs_core_action_group_activate), "DeleteStyle");
+
+	/* Les trois boutons Styles dans une rangée. */
+	GtkWidget *style_btns = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+	gtk_box_pack_start(GTK_BOX(style_btns), style_save_btn, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(style_btns), style_apply_btn, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(style_btns), style_del_btn, FALSE, FALSE, 0);
+
+	/* Titre « CaraStyles » aligné avec l'en-tête, boutons alignés avec la rangée :
+	   le panneau est une colonne [titre en haut][boutons en bas] placée À CÔTÉ de
+	   l'expander (pas dans son contenu), séparée par une barre verticale pleine
+	   hauteur. */
+	/* Texte normal (non gras), comme le titre « Balance des blancs » (qui n'est
+	   pas en gras : cs_stage_title ne met en gras que le badge coloré). */
+	GtkWidget *style_title = gtk_label_new("CaraStyles");
+	gtk_widget_set_halign(style_title, GTK_ALIGN_CENTER);
+
+	GtkWidget *style_panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+	gtk_box_pack_start(GTK_BOX(style_panel), style_title, FALSE, FALSE, 0);
+	gtk_box_pack_end(GTK_BOX(style_panel), style_btns, FALSE, FALSE, 0);
+
+	GtkWidget *style_sep = gtk_separator_new(GTK_ORIENTATION_VERTICAL);
+	gtk_style_context_add_class(gtk_widget_get_style_context(style_sep), "cs-styles-sep");
+	GtkWidget *style_side = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+	gtk_box_pack_start(GTK_BOX(style_side), style_sep, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(style_side), style_panel, FALSE, FALSE, 0);
+
 	gtk_box_pack_start(GTK_BOX(wb_hbox), toolbox->wb_pick[snapshot], FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(wb_hbox), wb_auto_btn, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(wb_hbox), wb_cam_btn, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(wb_hbox), mask_btn, FALSE, FALSE, 0);
 
-	/* Pack everything nice (Argentico a été déplacé dans l'onglet Effets) */
+	/* Section = [expander « Balance des blancs » (extensible)] [barre] [CaraStyles].
+	   (Argentico a été déplacé dans l'onglet Effets.) */
 	{ gchar *t = cs_stage_title(1, 1, _("Balance des blancs")); /* B — DCP */
-	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, wb_hbox, "show_wb", TRUE), FALSE, FALSE, 0); g_free(t); }
+	  GtkWidget *wb_expander = gui_box(t, wb_hbox, "show_wb", TRUE);
+	  GtkWidget *section_hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+	  /* Même fond que les sections (expander = cs_bg_dark) : sans ça, la zone à
+	     droite de l'expander laisse voir le fond sombre derrière. */
+	  gtk_style_context_add_class(gtk_widget_get_style_context(section_hbox), "cs-styles-row");
+	  gtk_box_pack_start(GTK_BOX(section_hbox), wb_expander, TRUE, TRUE, 0);
+	  gtk_box_pack_end(GTK_BOX(section_hbox), style_side, FALSE, FALSE, 0);
+	  gtk_box_pack_start(GTK_BOX(vbox), section_hbox, FALSE, FALSE, 0);
+	  g_free(t); }
 	/* Bloc Basic : mini-rangée de deux « auto » orthogonaux en tête, puis les
 	 * curseurs. « Auto exposition » ne touche QUE l'exposition (gain linéaire),
 	 * « Auto niveaux » ne touche QUE la courbe (butées noir/blanc) → ils se

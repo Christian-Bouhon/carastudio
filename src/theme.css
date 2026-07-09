@@ -65,6 +65,17 @@ expander {
     color: @cs_fg;
 }
 
+/* Panneau « CaraStyles » à droite de la section Balance des blancs : même fond
+   que les sections (sinon la zone hors expander laisse voir le fond sombre). */
+.cs-styles-row {
+    background-color: @cs_bg_dark;
+}
+/* Barre verticale de séparation du panneau CaraStyles (bien visible). */
+.cs-styles-sep {
+    background-color: @cs_border_soft;
+    min-width: 1px;
+}
+
 expander > title {
     background-color: @cs_bg_dark;
     color: @cs_fg;

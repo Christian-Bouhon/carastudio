@@ -1196,6 +1196,77 @@ ACTION(apply_style)
 	g_object_unref(ls);
 }
 
+ACTION(delete_style)
+{
+	GList *styles = rs_style_list();
+	if (!styles)
+	{
+		gui_status_notify(_("Aucun style à supprimer"));
+		return;
+	}
+	g_list_free_full(styles, g_free);
+
+	GtkWidget *dialog = gtk_dialog_new_with_buttons(_("Supprimer un style"),
+		GTK_WINDOW(rs->window),
+		GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+		_("_Fermer"), GTK_RESPONSE_CLOSE, NULL);
+	gtk_dialog_add_button(GTK_DIALOG(dialog), _("_Supprimer"), STYLE_RESP_DELETE);
+	gtk_window_set_default_size(GTK_WINDOW(dialog), 320, 300);
+
+	GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+	GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+	gtk_container_set_border_width(GTK_CONTAINER(vbox), 12);
+
+	GtkListStore *ls = gtk_list_store_new(1, G_TYPE_STRING);
+	style_dialog_reload(ls);
+	GtkWidget *tv = gtk_tree_view_new_with_model(GTK_TREE_MODEL(ls));
+	gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(tv), FALSE);
+	gtk_tree_view_insert_column_with_attributes(GTK_TREE_VIEW(tv), -1, NULL,
+		gtk_cell_renderer_text_new(), "text", 0, NULL);
+
+	GtkTreeIter it0;
+	if (gtk_tree_model_get_iter_first(GTK_TREE_MODEL(ls), &it0))
+		gtk_tree_selection_select_iter(gtk_tree_view_get_selection(GTK_TREE_VIEW(tv)), &it0);
+
+	GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
+	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),
+		GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+	gtk_container_add(GTK_CONTAINER(scroll), tv);
+	gtk_widget_set_vexpand(scroll, TRUE);
+	gtk_box_pack_start(GTK_BOX(vbox), scroll, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(content), vbox, TRUE, TRUE, 0);
+	gtk_widget_show_all(dialog);
+
+	while (gtk_dialog_run(GTK_DIALOG(dialog)) == STYLE_RESP_DELETE)
+	{
+		gchar *sel = style_dialog_selected(GTK_TREE_VIEW(tv));
+		if (!sel)
+		{
+			gui_status_notify(_("Sélectionnez un style"));
+			continue;
+		}
+		GtkWidget *q = gtk_message_dialog_new(GTK_WINDOW(dialog), GTK_DIALOG_MODAL,
+			GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
+			_("Supprimer le style « %s » ?"), sel);
+		if (gtk_dialog_run(GTK_DIALOG(q)) == GTK_RESPONSE_YES)
+		{
+			if (rs_style_delete(sel))
+			{
+				style_dialog_reload(ls);
+				gui_status_notify(_("Style supprimé"));
+			}
+		}
+		gtk_widget_destroy(q);
+		g_free(sel);
+
+		/* Plus aucun style : rien à supprimer, on ferme. */
+		if (!gtk_tree_model_get_iter_first(GTK_TREE_MODEL(ls), &it0))
+			break;
+	}
+	gtk_widget_destroy(dialog);
+	g_object_unref(ls);
+}
+
 ACTION(reset_settings)
 {
 	if (RS_IS_PHOTO(rs->photo))
@@ -2505,6 +2576,7 @@ rs_get_core_action_group(RS_BLOB *rs)
 	{ "PasteSettings", "edit-paste", _("_Paste Settings"), "<control>V", NULL, ACTION_CB(paste_settings) },
 	{ "SaveStyle", "document-save", _("Enregistrer comme _style…"), NULL, NULL, ACTION_CB(save_style) },
 	{ "ApplyStyle", "document-open", _("Appliquer un st_yle…"), NULL, NULL, ACTION_CB(apply_style) },
+	{ "DeleteStyle", "edit-delete", _("Supprimer un style…"), NULL, NULL, ACTION_CB(delete_style) },
 	{ "ResetSettings", "view-refresh", _("_Reset Settings"), NULL, NULL, ACTION_CB(reset_settings) },
 	{ "SaveDefaultSettings", NULL, _("_Save Camera Default Settings"), NULL, NULL, ACTION_CB(save_default_settings) },
 	{ "Preferences", "preferences-system", _("_Preferences"), NULL, NULL, ACTION_CB(preferences) },
