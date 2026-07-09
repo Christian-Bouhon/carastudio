@@ -800,22 +800,141 @@ style_prompt_name(GtkWindow *parent, const gchar *title, const gchar *initial)
 	return result;
 }
 
-/* Applique un style nommé aux photos sélectionnées (+ photo courante ouverte),
- * en respectant les groupes mémorisés dans le style. Ne touche JAMAIS au profil
- * DCP ni à la géométrie : ils restent propres à chaque photo. Calque la
- * mécanique de paste_settings (photo temporaire + rs_cache_load/save). */
-static void
-apply_named_style_to_selection(RS_BLOB *rs, const gchar *name)
-{
-	RSSettings *style = rs_settings_new();
-	RSStyleGroups groups = STYLE_ALL;
-	if (!rs_style_load(name, style, &groups))
-	{
-		g_object_unref(style);
-		gui_status_notify(_("Échec du chargement du style"));
-		return;
-	}
+/* ── Sélecteur de groupes « ce qu'on garde » (cases à cocher) ────────────── */
 
+typedef struct { RSStyleGroups bit; const gchar *label; } StyleGroupDef;
+
+/* Ordre par familles (tonal/couleur → effets créatifs → N&B → détail → optique). */
+static const StyleGroupDef style_group_defs[] = {
+	{ STYLE_EXPOSURE,     N_("Exposition") },
+	{ STYLE_WB,           N_("Balance des blancs") },
+	{ STYLE_CURVE,        N_("Courbes (tonalité + RVB)") },
+	{ STYLE_COLORWHEELS,  N_("Color balance") },
+	{ STYLE_HSL,          N_("Color scalpel") },
+	{ STYLE_ARGENTICO,    N_("Argentico") },
+	{ STYLE_TONEEQ,       N_("Tone doctor") },
+	{ STYLE_SOFTLIGHT,    N_("Soft Light") },
+	{ STYLE_DEHAZE,       N_("Voile") },
+	{ STYLE_BW,           N_("Noir & blanc") },
+	{ STYLE_CHANNELMIXER, N_("Mixeur de canaux") },
+	{ STYLE_SHARPEN,      N_("Netteté") },
+	{ STYLE_DENOISE,      N_("Débruitage") },
+	{ STYLE_ART_VIGNETTE, N_("Vignette") },
+	{ STYLE_VIGNETTING,   N_("Correction de vignettage") },
+	{ STYLE_TCA,          N_("Aberration chromatique") },
+};
+#define STYLE_GROUP_COUNT (G_N_ELEMENTS(style_group_defs))
+
+static void
+style_checks_set_all(GtkWidget *selector, gboolean active)
+{
+	GList *checks = g_object_get_data(G_OBJECT(selector), "style-checks");
+	for (; checks; checks = checks->next)
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(checks->data), active);
+}
+static void style_on_check_all(GtkButton *b, gpointer sel)   { (void) b; style_checks_set_all(sel, TRUE); }
+static void style_on_uncheck_all(GtkButton *b, gpointer sel) { (void) b; style_checks_set_all(sel, FALSE); }
+
+/* Construit le bloc de cases (2 colonnes) + boutons Tout cocher/décocher.
+ * Les cases initialement actives correspondent aux bits de « initial ». */
+static GtkWidget *
+style_group_selector_new(RSStyleGroups initial)
+{
+	GtkWidget *outer = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+	GtkWidget *grid = gtk_grid_new();
+	GList *checks = NULL;
+	guint i;
+
+	gtk_grid_set_row_spacing(GTK_GRID(grid), 2);
+	gtk_grid_set_column_spacing(GTK_GRID(grid), 18);
+	for (i = 0; i < STYLE_GROUP_COUNT; i++)
+	{
+		GtkWidget *cb = gtk_check_button_new_with_label(_(style_group_defs[i].label));
+		gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(cb),
+			(initial & style_group_defs[i].bit) != 0);
+		g_object_set_data(G_OBJECT(cb), "style-bit",
+			GSIZE_TO_POINTER((gsize) style_group_defs[i].bit));
+		gtk_grid_attach(GTK_GRID(grid), cb, i % 2, i / 2, 1, 1);
+		checks = g_list_prepend(checks, cb);
+	}
+	g_object_set_data_full(G_OBJECT(outer), "style-checks", checks, (GDestroyNotify) g_list_free);
+
+	GtkWidget *btns = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+	GtkWidget *all = gtk_button_new_with_label(_("Tout cocher"));
+	GtkWidget *none = gtk_button_new_with_label(_("Tout décocher"));
+	g_signal_connect(all, "clicked", G_CALLBACK(style_on_check_all), outer);
+	g_signal_connect(none, "clicked", G_CALLBACK(style_on_uncheck_all), outer);
+	gtk_box_pack_start(GTK_BOX(btns), all, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(btns), none, FALSE, FALSE, 0);
+
+	gtk_box_pack_start(GTK_BOX(outer), grid, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(outer), btns, FALSE, FALSE, 0);
+	return outer;
+}
+
+/* Lit les groupes cochés dans un sélecteur. */
+static RSStyleGroups
+style_group_selector_get(GtkWidget *selector)
+{
+	RSStyleGroups groups = 0;
+	GList *checks = g_object_get_data(G_OBJECT(selector), "style-checks");
+	for (; checks; checks = checks->next)
+		if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(checks->data)))
+			groups |= (RSStyleGroups) (gsize) g_object_get_data(G_OBJECT(checks->data), "style-bit");
+	return groups;
+}
+
+/* Petit dialogue « choisir les groupes » (pré-cochés à initial). Retourne TRUE
+ * et remplit *out si validé avec au moins un groupe ; FALSE si annulé. */
+static gboolean
+style_choose_groups(GtkWindow *parent, const gchar *title, const gchar *subtitle,
+                    RSStyleGroups initial, const gchar *ok_label, RSStyleGroups *out)
+{
+	GtkWidget *d = gtk_dialog_new_with_buttons(title, parent,
+		GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+		_("_Annuler"), GTK_RESPONSE_CANCEL, ok_label, GTK_RESPONSE_OK, NULL);
+	gtk_dialog_set_default_response(GTK_DIALOG(d), GTK_RESPONSE_OK);
+
+	GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(d));
+	GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+	gtk_container_set_border_width(GTK_CONTAINER(box), 12);
+	if (subtitle)
+	{
+		GtkWidget *lbl = gtk_label_new(subtitle);
+		gtk_widget_set_halign(lbl, GTK_ALIGN_START);
+		gtk_label_set_line_wrap(GTK_LABEL(lbl), TRUE);
+		gtk_box_pack_start(GTK_BOX(box), lbl, FALSE, FALSE, 0);
+	}
+	GtkWidget *selector = style_group_selector_new(initial);
+	gtk_box_pack_start(GTK_BOX(box), selector, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(content), box, TRUE, TRUE, 0);
+	gtk_widget_show_all(d);
+
+	gboolean ok = FALSE;
+	while (gtk_dialog_run(GTK_DIALOG(d)) == GTK_RESPONSE_OK)
+	{
+		RSStyleGroups g = style_group_selector_get(selector);
+		if (g == 0)
+		{
+			gui_status_notify(_("Cochez au moins un module"));
+			continue;
+		}
+		*out = g;
+		ok = TRUE;
+		break;
+	}
+	gtk_widget_destroy(d);
+	return ok;
+}
+
+/* Applique des réglages de style aux photos sélectionnées (+ photo courante
+ * ouverte), pour les groupes donnés. Ne touche JAMAIS au profil DCP ni à la
+ * géométrie : ils restent propres à chaque photo. Calque la mécanique de
+ * paste_settings (photo temporaire + rs_cache_load/save). Le style appartient à
+ * l'appelant (non libéré ici). */
+static void
+apply_style_settings_to_selection(RS_BLOB *rs, RSSettings *style, RSStyleGroups groups)
+{
 	gui_set_busy(TRUE);
 	guint msg = gui_status_push(_("Application du style aux images"));
 	GTK_CATCHUP();
@@ -862,7 +981,6 @@ apply_named_style_to_selection(RS_BLOB *rs, const gchar *name)
 		}
 	}
 
-	g_object_unref(style);
 	gui_status_notify(_("Style appliqué"));
 	gui_status_pop(msg);
 	GTK_CATCHUP();
@@ -901,29 +1019,70 @@ ACTION(save_style)
 		return;
 	}
 
-	gchar *name = style_prompt_name(GTK_WINDOW(rs->window), _("Enregistrer comme style"), NULL);
-	if (!name)
-		return;
+	GtkWidget *dialog = gtk_dialog_new_with_buttons(_("Enregistrer comme style"),
+		GTK_WINDOW(rs->window),
+		GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+		_("_Annuler"), GTK_RESPONSE_CANCEL,
+		_("_Enregistrer"), GTK_RESPONSE_OK, NULL);
+	gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
 
-	gboolean go = TRUE;
-	if (rs_style_exists(name))
+	GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+	GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+	gtk_container_set_border_width(GTK_CONTAINER(box), 12);
+
+	GtkWidget *namerow = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+	GtkWidget *namelbl = gtk_label_new(_("Nom du style :"));
+	GtkWidget *entry = gtk_entry_new();
+	gtk_entry_set_activates_default(GTK_ENTRY(entry), TRUE);
+	gtk_box_pack_start(GTK_BOX(namerow), namelbl, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(namerow), entry, TRUE, TRUE, 0);
+
+	GtkWidget *sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+	GtkWidget *inclbl = gtk_label_new(_("Réglages à inclure dans le style :"));
+	gtk_widget_set_halign(inclbl, GTK_ALIGN_START);
+	GtkWidget *selector = style_group_selector_new(STYLE_ALL); /* tout coché par défaut */
+
+	gtk_box_pack_start(GTK_BOX(box), namerow, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(box), sep, FALSE, FALSE, 4);
+	gtk_box_pack_start(GTK_BOX(box), inclbl, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(box), selector, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(content), box, TRUE, TRUE, 0);
+	gtk_widget_show_all(dialog);
+
+	while (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK)
 	{
-		GtkWidget *q = gtk_message_dialog_new(GTK_WINDOW(rs->window), GTK_DIALOG_MODAL,
-			GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
-			_("Un style « %s » existe déjà. Le remplacer ?"), name);
-		go = (gtk_dialog_run(GTK_DIALOG(q)) == GTK_RESPONSE_YES);
-		gtk_widget_destroy(q);
-	}
-	if (go)
-	{
-		/* Étape 2 : on mémorise TOUS les groupes ; le choix fin « ce qu'on garde »
-		 * arrivera avec le dialogue à cases de l'étape 3. */
-		if (rs_style_save(name, rs->photo->settings[rs->current_setting], STYLE_ALL))
+		gchar *name = g_strdup(gtk_entry_get_text(GTK_ENTRY(entry)));
+		g_strstrip(name);
+		if (!*name)
+		{
+			gui_status_notify(_("Donnez un nom au style"));
+			g_free(name);
+			continue;
+		}
+		RSStyleGroups groups = style_group_selector_get(selector);
+		if (groups == 0)
+		{
+			gui_status_notify(_("Cochez au moins un module à inclure"));
+			g_free(name);
+			continue;
+		}
+		if (rs_style_exists(name))
+		{
+			GtkWidget *q = gtk_message_dialog_new(GTK_WINDOW(dialog), GTK_DIALOG_MODAL,
+				GTK_MESSAGE_QUESTION, GTK_BUTTONS_YES_NO,
+				_("Un style « %s » existe déjà. Le remplacer ?"), name);
+			gboolean overwrite = (gtk_dialog_run(GTK_DIALOG(q)) == GTK_RESPONSE_YES);
+			gtk_widget_destroy(q);
+			if (!overwrite) { g_free(name); continue; }
+		}
+		if (rs_style_save(name, rs->photo->settings[rs->current_setting], groups))
 			gui_status_notify(_("Style enregistré"));
 		else
 			gui_status_notify(_("Échec de l'enregistrement du style"));
+		g_free(name);
+		break;
 	}
-	g_free(name);
+	gtk_widget_destroy(dialog);
 }
 
 ACTION(apply_style)
@@ -990,9 +1149,24 @@ ACTION(apply_style)
 
 		if (resp == STYLE_RESP_APPLY)
 		{
-			apply_named_style_to_selection(rs, sel);
-			g_free(sel);
-			break;
+			RSSettings *style = rs_settings_new();
+			RSStyleGroups stored = STYLE_ALL;
+			gboolean applied = FALSE;
+			if (rs_style_load(sel, style, &stored))
+			{
+				RSStyleGroups chosen = stored;
+				if (style_choose_groups(GTK_WINDOW(dialog), _("Appliquer le style"),
+						_("Réglages à appliquer aux photos sélectionnées :"),
+						stored, _("_Appliquer"), &chosen))
+				{
+					apply_style_settings_to_selection(rs, style, chosen);
+					applied = TRUE;
+				}
+			}
+			else
+				gui_status_notify(_("Échec du chargement du style"));
+			g_object_unref(style);
+			if (applied) { g_free(sel); break; }
 		}
 		else if (resp == STYLE_RESP_DELETE)
 		{
