@@ -83,6 +83,15 @@ if [ ! -x ./configure ] || [ ! -f build-aux/install-sh ]; then
 	autoreconf -fi || die "autoreconf a échoué"
 fi
 
+# CaraStudio : désactiver les vérifications de cast de la GLib. Avec les GLib
+# récentes (Ubuntu notamment), les macros de cast GObject font échouer la
+# compilation avec « too few arguments to function '..._get_type' » (le plugin
+# effects tombe en premier). Le flag règle ça sans impact fonctionnel (seul un
+# contrôle de type au runtime est désactivé) ; c'est déjà ce que fait le build
+# de l'AppImage.
+export CFLAGS="${CFLAGS:--O2} -DG_DISABLE_CAST_CHECKS"
+export CXXFLAGS="${CXXFLAGS:--O2} -DG_DISABLE_CAST_CHECKS"
+
 say "Configuration (préfixe : $PREFIX)…"
 ./configure --prefix="$PREFIX" || die "configure a échoué"
 
