@@ -14,6 +14,10 @@
    <menuitem action="CopySettings" />
 	 <menuitem action="CopyImage" />
    <menuitem action="PasteSettings" />
+   <separator />
+   <menuitem action="SaveStyle" />
+   <menuitem action="ApplyStyle" />
+   <separator />
    <menuitem action="ResetSettings" />
    <menuitem action="SaveDefaultSettings" />
    <separator />

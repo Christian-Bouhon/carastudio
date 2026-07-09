@@ -22,6 +22,10 @@
 
 #include <libxml/xmlwriter.h>
 
+/* Version du format de sérialisation des réglages (partagée avec les styles
+ * .carastyle, qui réutilisent rs_cache_save_settings/rs_cache_load_setting). */
+#define CACHEVERSION 5
+
 extern gchar *rs_cache_get_name(const gchar *src);
 extern void rs_cache_save(RS_PHOTO *photo, const RSSettingsMask mask);
 extern void rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriterPtr writer);

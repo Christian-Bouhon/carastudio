@@ -39,7 +39,6 @@
 #include "gtk-interface.h"
 
 /* This will be written to XML files for making backward compatibility easier to implement */
-#define CACHEVERSION 5
 
 gchar *
 rs_cache_get_name(const gchar *src)
