@@ -73,7 +73,11 @@ install_deps() {
 				gtk3-devel glib2-devel libxml2-devel libX11-devel \
 				libjpeg-turbo-devel libtiff-devel sqlite-devel lensfun-devel lcms2-devel \
 				libgphoto2-devel exiv2-devel LibRaw-devel fftw-devel dbus-devel \
-				enblend-enfuse || die "échec dnf"
+				|| die "échec dnf"
+			# enblend/enfuse = dépendance RUNTIME optionnelle (fonction Enfuse), pas
+			# nécessaire à la compilation → best-effort, on ne bloque pas si absent.
+			$sudo dnf install -y enblend-enfuse 2>/dev/null \
+				|| say "enblend/enfuse non installé (fonction Enfuse indisponible — optionnel)."
 			;;
 		apt)
 			say "Installation des dépendances (Debian/Ubuntu/apt)…"
@@ -83,7 +87,9 @@ install_deps() {
 				libgtk-3-dev libglib2.0-dev libxml2-dev libx11-dev \
 				libjpeg-dev libtiff-dev libsqlite3-dev liblensfun-dev liblcms2-dev \
 				libgphoto2-dev libexiv2-dev libraw-dev libfftw3-dev libdbus-1-dev \
-				enblend || die "échec apt"
+				|| die "échec apt"
+			$sudo apt-get install -y enblend enfuse 2>/dev/null \
+				|| say "enblend/enfuse non installé (fonction Enfuse indisponible — optionnel)."
 			;;
 		pacman)
 			say "Installation des dépendances (Arch/pacman)…"
@@ -91,7 +97,9 @@ install_deps() {
 				base-devel autoconf automake libtool pkgconf gettext \
 				gtk3 glib2 libxml2 libx11 \
 				libjpeg-turbo libtiff sqlite lensfun lcms2 libgphoto2 exiv2 libraw fftw dbus \
-				enblend-enblend || die "échec pacman"
+				|| die "échec pacman"
+			$sudo pacman -S --needed --noconfirm enblend-enfuse 2>/dev/null \
+				|| say "enblend-enfuse non installé (fonction Enfuse indisponible — optionnel)."
 			;;
 		*)
 			die "Gestionnaire de paquets non reconnu. Installez les dépendances à la main puis relancez avec --no-deps."
