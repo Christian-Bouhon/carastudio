@@ -128,6 +128,37 @@ typedef enum {
 #define RS_UNPACK_SNAPSHOT(packed)   (((guint)(packed)) >> RS_SNAPSHOT_SHIFT)
 #define RS_UNPACK_MASK(packed)       ((packed) & MASK_ALL)
 
+/* ── Groupes de style (copie sélective 64 bits) ────────────────────────────
+ * RSSettingsMask (32 bits) est saturé : les 6 modules couleur récents (softlight,
+ * voile, argentico, égaliseur de tons, roues chromatiques, color zones/HSL)
+ * partagent tous le bit MASK_SOFTLIGHT_STRENGTH, donc on ne peut pas les
+ * cocher/décocher indépendamment. Pour le copier/coller et les STYLES nommés,
+ * on introduit une granularité 64 bits DÉDIÉE (un bit par module), sans toucher
+ * au signal "settings-changed" 32 bits (qui ne sert qu'au rafraîchissement des
+ * curseurs et reste inchangé). Voir rs_settings_copy_partial(). */
+typedef guint64 RSStyleGroups;
+#define STYLE_EXPOSURE      (G_GUINT64_CONSTANT(1)<<0)   /* expo, saturation, teinte, contraste */
+#define STYLE_WB            (G_GUINT64_CONSTANT(1)<<1)   /* balance des blancs (temp/teinte/boîtier) */
+#define STYLE_CURVE         (G_GUINT64_CONSTANT(1)<<2)   /* courbe tonale + courbes RVB */
+#define STYLE_SHARPEN       (G_GUINT64_CONSTANT(1)<<3)
+#define STYLE_DENOISE       (G_GUINT64_CONSTANT(1)<<4)   /* débruitage luma + chroma */
+#define STYLE_TCA           (G_GUINT64_CONSTANT(1)<<5)   /* aberration chromatique */
+#define STYLE_CHANNELMIXER  (G_GUINT64_CONSTANT(1)<<6)
+#define STYLE_VIGNETTING    (G_GUINT64_CONSTANT(1)<<7)   /* correction de vignettage optique */
+#define STYLE_SOFTLIGHT     (G_GUINT64_CONSTANT(1)<<8)   /* lumière douce */
+#define STYLE_ART_VIGNETTE  (G_GUINT64_CONSTANT(1)<<9)   /* vignettage artistique */
+#define STYLE_BW            (G_GUINT64_CONSTANT(1)<<10)  /* noir & blanc + filtre */
+#define STYLE_DEHAZE        (G_GUINT64_CONSTANT(1)<<11)  /* voile / anti-brume */
+#define STYLE_ARGENTICO     (G_GUINT64_CONSTANT(1)<<12)  /* négatif argentique */
+#define STYLE_TONEEQ        (G_GUINT64_CONSTANT(1)<<13)  /* égaliseur de tons */
+#define STYLE_COLORWHEELS   (G_GUINT64_CONSTANT(1)<<14)  /* roues chromatiques 3 voies */
+#define STYLE_HSL           (G_GUINT64_CONSTANT(1)<<15)  /* color zones / égaliseur de couleurs */
+#define STYLE_ALL \
+	(STYLE_EXPOSURE | STYLE_WB | STYLE_CURVE | STYLE_SHARPEN | STYLE_DENOISE | \
+	 STYLE_TCA | STYLE_CHANNELMIXER | STYLE_VIGNETTING | STYLE_SOFTLIGHT | \
+	 STYLE_ART_VIGNETTE | STYLE_BW | STYLE_DEHAZE | STYLE_ARGENTICO | \
+	 STYLE_TONEEQ | STYLE_COLORWHEELS | STYLE_HSL)
+
 typedef struct _RSsettings {
 	GObject parent;
 	gint commit;
@@ -254,6 +285,17 @@ extern RSSettingsMask rs_settings_commit_stop(RSSettings *settings);
  * @param target The target RSSettings
  */
 extern RSSettingsMask rs_settings_copy(RSSettings *source, const RSSettingsMask mask, RSSettings *target);
+
+/**
+ * Copie sélective par GROUPES de style (granularité 64 bits) : contrairement à
+ * rs_settings_copy(), permet d'inclure/exclure indépendamment chacun des modules
+ * couleur récents (voile, argentico, roues, HSL…). Sert au copier/coller et aux
+ * styles nommés. Émet "settings-changed" pour rafraîchir les curseurs concernés.
+ * @param source RSSettings source
+ * @param groups Combinaison de STYLE_* (les groupes à copier)
+ * @param target RSSettings cible
+ */
+extern void rs_settings_copy_partial(RSSettings *source, const RSStyleGroups groups, RSSettings *target);
 
 /**
  * Set curve knots
