@@ -39,33 +39,64 @@ install_deps() {
 	local sudo=""
 	[ "$(id -u)" -ne 0 ] && sudo="sudo"
 
-	if command -v dnf >/dev/null 2>&1; then
-		say "Installation des dépendances (Fedora/dnf)…"
-		$sudo dnf install -y \
-			gcc gcc-c++ make autoconf automake libtool pkgconf-pkg-config gettext-devel \
-			gtk3-devel glib2-devel libxml2-devel libX11-devel \
-			libjpeg-turbo-devel libtiff-devel sqlite-devel lensfun-devel lcms2-devel \
-			libgphoto2-devel exiv2-devel LibRaw-devel fftw-devel dbus-devel \
-			enblend-enfuse || die "échec dnf"
-	elif command -v apt-get >/dev/null 2>&1; then
-		say "Installation des dépendances (Debian/Ubuntu/apt)…"
-		$sudo apt-get update
-		$sudo apt-get install -y \
-			build-essential autoconf automake libtool pkg-config gettext autopoint intltool \
-			libgtk-3-dev libglib2.0-dev libxml2-dev libx11-dev \
-			libjpeg-dev libtiff-dev libsqlite3-dev liblensfun-dev liblcms2-dev \
-			libgphoto2-dev libexiv2-dev libraw-dev libfftw3-dev libdbus-1-dev \
-			enblend || die "échec apt"
-	elif command -v pacman >/dev/null 2>&1; then
-		say "Installation des dépendances (Arch/pacman)…"
-		$sudo pacman -S --needed --noconfirm \
-			base-devel autoconf automake libtool pkgconf gettext \
-			gtk3 glib2 libxml2 libx11 \
-			libjpeg-turbo libtiff sqlite lensfun lcms2 libgphoto2 exiv2 libraw fftw dbus \
-			enblend-enblend || die "échec pacman"
-	else
-		die "Gestionnaire de paquets non reconnu. Installez les dépendances à la main puis relancez avec --no-deps."
+	# Détecter la FAMILLE de distribution via /etc/os-release (ID + ID_LIKE) plutôt
+	# que la simple présence d'une commande : certains systèmes Debian/Ubuntu ont
+	# dnf installé sans être Fedora, ce qui faisait choisir à tort le chemin dnf
+	# (« pas de dépôts activés / impossible de détecter le numéro de version »).
+	local osid="" oslike=""
+	if [ -r /etc/os-release ]; then
+		osid=$(. /etc/os-release 2>/dev/null; echo "${ID:-}")
+		oslike=$(. /etc/os-release 2>/dev/null; echo "${ID_LIKE:-}")
 	fi
+
+	local mgr=""
+	case " $osid $oslike " in
+		*fedora*|*rhel*|*centos*|*rocky*|*almalinux*) mgr="dnf" ;;
+		*debian*|*ubuntu*|*mint*|*pop*|*elementary*)  mgr="apt" ;;
+		*arch*|*manjaro*|*endeavour*)                 mgr="pacman" ;;
+	esac
+
+	# Repli si os-release muet : détection par commande (apt AVANT dnf, car un
+	# vrai Fedora n'a pas apt alors qu'un Debian peut avoir dnf installé).
+	if [ -z "$mgr" ]; then
+		if   command -v apt-get >/dev/null 2>&1; then mgr="apt"
+		elif command -v dnf     >/dev/null 2>&1; then mgr="dnf"
+		elif command -v pacman  >/dev/null 2>&1; then mgr="pacman"
+		fi
+	fi
+
+	case "$mgr" in
+		dnf)
+			say "Installation des dépendances (Fedora/dnf)…"
+			$sudo dnf install -y \
+				gcc gcc-c++ make autoconf automake libtool pkgconf-pkg-config gettext-devel \
+				gtk3-devel glib2-devel libxml2-devel libX11-devel \
+				libjpeg-turbo-devel libtiff-devel sqlite-devel lensfun-devel lcms2-devel \
+				libgphoto2-devel exiv2-devel LibRaw-devel fftw-devel dbus-devel \
+				enblend-enfuse || die "échec dnf"
+			;;
+		apt)
+			say "Installation des dépendances (Debian/Ubuntu/apt)…"
+			$sudo apt-get update
+			$sudo apt-get install -y \
+				build-essential autoconf automake libtool pkg-config gettext autopoint intltool \
+				libgtk-3-dev libglib2.0-dev libxml2-dev libx11-dev \
+				libjpeg-dev libtiff-dev libsqlite3-dev liblensfun-dev liblcms2-dev \
+				libgphoto2-dev libexiv2-dev libraw-dev libfftw3-dev libdbus-1-dev \
+				enblend || die "échec apt"
+			;;
+		pacman)
+			say "Installation des dépendances (Arch/pacman)…"
+			$sudo pacman -S --needed --noconfirm \
+				base-devel autoconf automake libtool pkgconf gettext \
+				gtk3 glib2 libxml2 libx11 \
+				libjpeg-turbo libtiff sqlite lensfun lcms2 libgphoto2 exiv2 libraw fftw dbus \
+				enblend-enblend || die "échec pacman"
+			;;
+		*)
+			die "Gestionnaire de paquets non reconnu. Installez les dépendances à la main puis relancez avec --no-deps."
+			;;
+	esac
 }
 
 # --- Compilation --------------------------------------------------------------
