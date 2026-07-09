@@ -115,7 +115,12 @@
 #define DEFAULT_CONF_MAIN_WINDOW_HEIGHT 600
 #define DEFAULT_CONF_MAIN_WINDOW_POS_X 50
 #define DEFAULT_CONF_MAIN_WINDOW_POS_Y 50
-#define DEFAULT_CONF_MAIN_WINDOW_MAXIMIZED FALSE
+/* Maximisé au premier lancement : la fenêtre remplit la zone de travail plutôt
+ * qu'une petite fenêtre flottante 800×600. Évite que la barre du bas soit coupée
+ * sur les écrans courts (la somme des hauteurs minimales dépassait l'écran) ;
+ * réversible et mémorisé par utilisateur (bouton restaurer). N'affecte que le
+ * premier lancement (aucune préférence enregistrée) — voir gui_init(). */
+#define DEFAULT_CONF_MAIN_WINDOW_MAXIMIZED TRUE
 #define DEFAULT_CONF_ENFUSE_METHOD 0
 #define DEFAULT_CONF_ENFUSE_ALIGN_IMAGES TRUE
 #define DEFAULT_CONF_ENFUSE_EXTEND TRUE
