@@ -54,10 +54,13 @@ jobs:
               elif command -v pacman  >/dev/null; then pacman -Sy --noconfirm --needed git ca-certificates
               fi
 
-              # Un dépôt git est nécessaire pour que install.sh initialise le
-              # sous-module (le mount fournit .git ; on neutralise le garde
-              # "dubious ownership" de git en conteneur).
-              git config --global --add safe.directory /src
+              # Le mount fournit .git à install.sh (qui initialise rawspeed). Le
+              # volume monté appartient à un autre UID que le root du conteneur →
+              # git refuse d opérer (« dubious ownership »), y compris dans le
+              # sous-module. On neutralise ce garde pour TOUT l arbre (artefact CI
+              # uniquement : un vrai utilisateur possède ses fichiers). "*" évite
+              # aussi que le glob shell ne le développe.
+              git config --global --add safe.directory "*"
 
               # Le VRAI test : tout le parcours utilisateur, sans --no-deps.
               ./install.sh
