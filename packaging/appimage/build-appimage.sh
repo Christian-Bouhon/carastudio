@@ -2,11 +2,16 @@
 #
 # build-appimage.sh — construit une AppImage CaraStudio portable.
 #
-# Pourquoi un conteneur Ubuntu 24.04 ?
-#   - Sa pile GTK3 est stable et « bundlable » (Fedora 44 embarque des
-#     composants trop récents — glycin, tinysparql… — qui plantent à l'init
-#     des bibliothèques dans une AppImage).
-#   - glibc 2.39 → l'AppImage tourne sur la plupart des distributions récentes.
+# Pourquoi un conteneur Ubuntu 20.04 ?
+#   - glibc 2.31 : une AppImage embarque TOUT sauf la glibc, donc elle exige au
+#     minimum la glibc de la machine de BUILD. En construisant sur la plus
+#     ANCIENNE base raisonnable (20.04), l'AppImage tourne partout depuis 2020
+#     (Ubuntu 20.04+, Debian 11+, Fedora, Arch…). Bâtir sur du récent (24.04 =
+#     glibc 2.39) excluait Ubuntu 20.04/22.04 et Debian stable, qui échouaient au
+#     lancement avec « version GLIBC_2.38 not found » (signalé par des utilisateurs).
+#   - Sa pile GTK3 (3.24) est stable et « bundlable » (les Fedora récentes
+#     embarquent des composants trop neufs — glycin, tinysparql… — qui plantent
+#     à l'init des bibliothèques dans une AppImage).
 #   - Rien n'est installé sur la machine hôte : tout se passe dans le conteneur.
 #
 # Usage :
@@ -23,7 +28,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 OUT="${1:-$REPO_ROOT/CaraStudio-x86_64.AppImage}"
 TOOLS_DIR="$SCRIPT_DIR/tools"
 CTX="$(mktemp -d)"
-IMAGE="docker.io/library/ubuntu:24.04"
+IMAGE="docker.io/library/ubuntu:20.04"
 CONTAINER="carastudio-appimage-build"
 
 # Sous-module rawspeed : indispensable (git archive ne l'inclut pas).
@@ -139,7 +144,7 @@ echo "== Retrait des libs système-couplées (viennent du système hôte) =="
 # libselinux reste bundlée : la libgio d'Ubuntu la référence en NEEDED et les
 # distros sans SELinux (Arch…) ne l'ont pas. Elle ne dépend que de libc et
 # libpcre2 (déjà bundlée). Les autres (mount/blkid/udev/systemd) existent
-# partout où la glibc 2.39 tourne.
+# partout où la glibc 2.31 tourne.
 ( cd "$A/usr/lib" && rm -f libblkid.so.1 libmount.so.1 \
                            libsystemd.so.0 libudev.so.1 )
 
