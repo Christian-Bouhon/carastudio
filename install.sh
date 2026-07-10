@@ -111,6 +111,17 @@ install_deps() {
 
 [ "$INSTALL_DEPS" -eq 1 ] && install_deps || say "Dépendances ignorées (--no-deps)."
 
+# Sous-modules Git (rawspeed). Un « git clone » simple, sans --recursive, laisse
+# plugins/load-rawspeed/rawspeed/ VIDE → la compilation du plugin load-rawspeed
+# s'arrête sur « StdAfx.h: Aucun fichier ou dossier de ce nom ». Si on est dans un
+# dépôt git pourvu de sous-modules, on les initialise (opération idempotente). Un
+# tarball de dist n'a ni .git ni .gitmodules → cette étape est simplement sautée.
+if [ -e .git ] && [ -f .gitmodules ] && command -v git >/dev/null 2>&1; then
+	say "Initialisation des sous-modules Git (rawspeed)…"
+	git submodule update --init --recursive \
+		|| die "échec de l'initialisation des sous-modules (git submodule update --init --recursive)"
+fi
+
 # On (re)génère si configure manque OU si les fichiers auxiliaires (build-aux/)
 # ne sont pas là — cas d'un clone git où un autoreconf précédent a été interrompu
 # (ex. autopoint manquant) : un configure a pu rester sans que build-aux/ soit
