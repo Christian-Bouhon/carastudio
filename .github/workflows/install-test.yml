@@ -1,0 +1,69 @@
+name: install.sh (distros)
+
+# Teste l'installation depuis les sources dans des conteneurs PROPRES, comme le
+# ferait un nouvel utilisateur : install.sh installe les dépendances, initialise
+# le sous-module rawspeed, compile et installe. But : détecter une dépendance
+# manquante ou une régression de build AVANT les utilisateurs du forum.
+
+on:
+  push:
+    branches: [ main, dev ]
+    paths-ignore:
+      - 'help/**'
+      - 'promo/**'
+      - '**/*.md'
+  pull_request:
+    paths-ignore:
+      - 'help/**'
+      - 'promo/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+jobs:
+  install:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - ubuntu:20.04
+          - ubuntu:22.04
+          - ubuntu:24.04
+          - debian:12
+          - fedora:40
+          - fedora:41
+          - archlinux:latest
+    steps:
+      # Checkout SANS sous-module : on veut que install.sh l'initialise lui-même
+      # (c'est le chemin réel de l'utilisateur, celui qui échouait sur StdAfx.h).
+      - uses: actions/checkout@v4
+
+      - name: install.sh dans ${{ matrix.image }}
+        run: |
+          docker run --rm -v "$PWD":/src -w /src \
+            -e DEBIAN_FRONTEND=noninteractive \
+            "${{ matrix.image }}" bash -c '
+              set -euxo pipefail
+
+              # Prérequis minimaux du conteneur : git (clone du sous-module
+              # rawspeed) + certificats (fetch https). Le reste est du ressort
+              # d install.sh lui-même.
+              if   command -v apt-get >/dev/null; then apt-get update -qq && apt-get install -y -qq git ca-certificates
+              elif command -v dnf     >/dev/null; then dnf -y -q install git ca-certificates
+              elif command -v pacman  >/dev/null; then pacman -Sy --noconfirm --needed git ca-certificates
+              fi
+
+              # Un dépôt git est nécessaire pour que install.sh initialise le
+              # sous-module (le mount fournit .git ; on neutralise le garde
+              # "dubious ownership" de git en conteneur).
+              git config --global --add safe.directory /src
+
+              # Le VRAI test : tout le parcours utilisateur, sans --no-deps.
+              ./install.sh
+
+              # Smoke test : le binaire est bien produit et installé.
+              test -x "$HOME/.local/bin/carastudio"
+              file "$HOME/.local/bin/carastudio" | grep -q ELF
+              echo "OK — carastudio compilé et installé sur ${{ matrix.image }}"
+            '
