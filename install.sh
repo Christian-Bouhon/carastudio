@@ -122,6 +122,22 @@ if [ -e .git ] && [ -f .gitmodules ] && command -v git >/dev/null 2>&1; then
 		|| die "échec de l'initialisation des sous-modules (git submodule update --init --recursive)"
 fi
 
+# Garde-fou : si rawspeed est toujours absent, on s'arrête AVANT la compilation
+# avec un message clair, au lieu de laisser l'utilisateur tomber cinq minutes plus
+# tard sur « StdAfx.h: Aucun fichier ou dossier de ce nom ». Cas typique : une
+# archive ZIP téléchargée depuis GitHub — elle n'embarque NI les sous-modules NI
+# le .git, donc l'étape d'initialisation ci-dessus a été sautée.
+if [ ! -f plugins/load-rawspeed/rawspeed/RawSpeed/StdAfx.h ]; then
+	die "Le composant « rawspeed » (décodeur RAW) est manquant : le dossier
+plugins/load-rawspeed/rawspeed/ est vide. Vous avez probablement téléchargé une
+archive ZIP, qui n'inclut pas ce composant. Récupérez plutôt le code avec Git :
+
+    git clone https://github.com/carafife/carastudio.git
+    cd carastudio && ./install.sh
+
+…ou utilisez l'AppImage (aucune compilation nécessaire) — voir le README."
+fi
+
 # On (re)génère si configure manque OU si les fichiers auxiliaires (build-aux/)
 # ne sont pas là — cas d'un clone git où un autoreconf précédent a été interrompu
 # (ex. autopoint manquant) : un configure a pu rester sans que build-aux/ soit
