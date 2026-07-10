@@ -289,12 +289,46 @@ show_save_error ( const gchar *message, const char* filename )
 
 }
 
-static gpointer 
+/* Cible d'export = dossier de destination + nom saisi.
+   Sur un gtk_file_chooser_widget intégré en mode SAVE, gtk_file_chooser_get_
+   filename() renvoie l'ÉLÉMENT SÉLECTIONNÉ dans la liste, tandis que get_current_
+   folder() renvoie le dossier AFFICHÉ. Quand l'utilisateur clique (sélectionne) un
+   dossier sans y entrer — ex. « Bureau » depuis le dossier personnel — il veut y
+   enregistrer : le dossier de destination est alors l'élément sélectionné, pas le
+   dossier affiché (bug constaté : l'export tombait dans le dossier personnel).
+   Règle : si un DOSSIER est sélectionné, on enregistre dedans ; sinon on prend le
+   dossier affiché. Puis on y colle le nom saisi. */
+static gchar *
+save_dialog_get_target(RSSaveDialog *dialog)
+{
+	GtkFileChooser *fc = GTK_FILE_CHOOSER(dialog->chooser);
+	gchar *selected = gtk_file_chooser_get_filename(fc);
+	gchar *name     = gtk_file_chooser_get_current_name(fc);
+	gchar *folder   = NULL;
+	gchar *target   = NULL;
+
+	if (selected && g_file_test(selected, G_FILE_TEST_IS_DIR))
+		folder = g_strdup(selected);              /* un dossier est sélectionné */
+	else
+		folder = gtk_file_chooser_get_current_folder(fc); /* dossier affiché */
+
+	if (folder && name && *name)
+		target = g_build_filename(folder, name, NULL);
+	else if (selected)
+		target = g_strdup(selected);              /* repli : élément sélectionné */
+
+	g_free(selected);
+	g_free(folder);
+	g_free(name);
+	return target;
+}
+
+static gpointer
 job(RSJobQueueSlot *slot, gpointer data)
 {
 	RSSaveDialog *dialog = RS_SAVE_DIALOG(data);
 
-	gchar *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog->chooser));
+	gchar *filename = save_dialog_get_target(dialog);
 	if (!filename)
 		return NULL;
 	gchar *description = g_strdup_printf(_("Exporting to %s"), filename);
@@ -355,7 +389,7 @@ job(RSJobQueueSlot *slot, gpointer data)
 		g_object_set(dialog->output, "filename", filename, NULL);
 
 	gboolean exported = rs_output_execute(dialog->output, dialog->fend);
-	
+
 	if(!exported)
 		show_save_error(_("Could not save file: %s\n\nCheck that you have write permissions to this folder."),filename);
 
@@ -377,7 +411,7 @@ static void
 save_clicked(GtkButton *button, gpointer user_data)
 {
 	RSSaveDialog *dialog = RS_SAVE_DIALOG(user_data);
-	gchar *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog->chooser));
+	gchar *filename = save_dialog_get_target(dialog);
 	if (filename)
 	{
 		if (g_file_test(filename, G_FILE_TEST_EXISTS) && g_object_class_find_property(G_OBJECT_GET_CLASS(dialog->output), "filename"))
