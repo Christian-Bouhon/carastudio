@@ -65,8 +65,10 @@ jobs:
               # Le VRAI test : tout le parcours utilisateur, sans --no-deps.
               ./install.sh
 
-              # Smoke test : le binaire est bien produit et installé.
+              # Smoke test : binaire produit, exécutable, et vraie signature ELF
+              # (via head — pas de dépendance à l utilitaire "file", absent des
+              # images minimales comme fedora:41).
               test -x "$HOME/.local/bin/carastudio"
-              file "$HOME/.local/bin/carastudio" | grep -q ELF
+              head -c 4 "$HOME/.local/bin/carastudio" | grep -q ELF
               echo "OK — carastudio compilé et installé sur ${{ matrix.image }}"
             '
