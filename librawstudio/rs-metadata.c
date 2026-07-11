@@ -130,7 +130,7 @@ rs_metadata_new (void)
 /* 11→12 (10/07) : les vignettes non-RAW (JPEG/TIFF/PNG) appliquent désormais
    l'orientation EXIF (load-gdk) ; bump pour invalider les anciennes vignettes en
    cache (couchées en paysage) et forcer leur régénération orientée. */
-#define METACACHEVERSION 12
+#define METACACHEVERSION 13
 void
 rs_metadata_cache_save(RSMetadata *metadata, const gchar *filename)
 {
