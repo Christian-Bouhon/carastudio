@@ -1810,6 +1810,15 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		g_signal_connect(btn_enfuse, "clicked", G_CALLBACK(cs_enfuse_button_clicked), rs);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_enfuse, FALSE, FALSE, 0);
 
+		/* CaraStudio : bouton « GIMP » juste à côté d'Enfuse — deux outils EXTERNES
+		 * regroupés. Envoie la photo développée vers GIMP (action ExportToGimp /
+		 * Ctrl+G, qui se garde elle-même si aucune photo n'est ouverte). Icône =
+		 * logo GIMP du thème (présent dès que GIMP est installé). */
+		GtkWidget *btn_gimp = cs_icon_label_button("gimp", _("GIMP"));
+		gtk_widget_set_tooltip_text(btn_gimp, _("Envoyer la photo vers GIMP pour retouche (Ctrl+G)"));
+		g_signal_connect_swapped(btn_gimp, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "ExportToGimp");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_gimp, FALSE, FALSE, 0);
+
 		/* Séparateur + boutons de zoom (icône seule) */
 		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
 		GtkWidget *btn_zoom_out = gtk_button_new_from_icon_name("zoom-out",        GTK_ICON_SIZE_LARGE_TOOLBAR);
