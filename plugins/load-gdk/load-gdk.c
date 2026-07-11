@@ -143,7 +143,20 @@ load_gdk(const gchar *filename)
 static gboolean
 rs_gdk_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *meta)
 {
-	meta->thumbnail = gdk_pixbuf_new_from_file_at_size(service, 128, 128, NULL);
+	GdkPixbuf *thumb = gdk_pixbuf_new_from_file_at_size(service, 128, 128, NULL);
+	if (thumb)
+	{
+		/* Appliquer l'orientation EXIF : sinon les vignettes portrait (JPEG/TIFF)
+		   s'affichent couchées en paysage. gdk_pixbuf_new_from_file_at_size ne
+		   l'applique pas ; apply_embedded_orientation lit l'option « orientation »
+		   posée par le chargeur et renvoie une nouvelle pixbuf tournée. Isolé aux
+		   NON-RAW (ce plugin) → aucun risque de double-rotation des vignettes RAW,
+		   qui passent par d'autres loaders déjà orientés. */
+		meta->thumbnail = gdk_pixbuf_apply_embedded_orientation(thumb);
+		g_object_unref(thumb);
+	}
+	else
+		meta->thumbnail = NULL;
 	return FALSE;
 }
 
