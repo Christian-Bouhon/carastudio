@@ -64,6 +64,7 @@ typedef struct {
 	RSFilter *fresample;
 	RSFilter *fdcp;
 	RSFilter *fdenoise;
+	RSFilter *feffects;
 	RSFilter *ftransform_display;
 	RSFilter *fend;
 

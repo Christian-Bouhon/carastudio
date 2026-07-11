@@ -59,6 +59,7 @@ rs_save_dialog_dispose (GObject *object)
 		g_object_unref(dialog->fresample);
 		g_object_unref(dialog->fdcp);
 		g_object_unref(dialog->fdenoise);
+		g_object_unref(dialog->feffects);
 		g_object_unref(dialog->ftransform_display);
 
 		if (dialog->photo)
@@ -167,7 +168,12 @@ rs_save_dialog_init (RSSaveDialog *dialog)
 	dialog->fdcp = rs_filter_new("RSDcp", dialog->fcrop);
 	dialog->fresample= rs_filter_new("RSResample", dialog->fdcp);
 	dialog->fdenoise= rs_filter_new("RSDenoise", dialog->fresample);
-	dialog->ftransform_display = rs_filter_new("RSColorspaceTransform", dialog->fdenoise);
+	/* RSEffects : applique les effets CaraStudio (courbes RVB, argentico, tone
+	   doctor, color balance, color scalpel, N&B, voile, vignettage…). Absent de la
+	   chaîne d'origine (écrite avant ces modules) → l'« Exporter sous » enregistrait
+	   SANS les effets. Même position que l'aperçu / l'export par lot. */
+	dialog->feffects = rs_filter_new("RSEffects", dialog->fdenoise);
+	dialog->ftransform_display = rs_filter_new("RSColorspaceTransform", dialog->feffects);
 	dialog->fend = dialog->ftransform_display;
 
 	/* FIXME: Set correct ICC-profiles */
