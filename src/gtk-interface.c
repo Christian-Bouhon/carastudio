@@ -1210,16 +1210,20 @@ gui_window_make(RS_BLOB *rs)
 	rs_conf_get_boolean_with_default(CONF_MAIN_WINDOW_MAXIMIZED, &maximized, DEFAULT_CONF_MAIN_WINDOW_MAXIMIZED);
 
 	rawstudio_window = GTK_WINDOW(gtk_window_new (GTK_WINDOW_TOPLEVEL));
-	if (!maximized)
-	{
-//		gtk_window_set_position((GtkWindow *) rawstudio_window, GTK_WIN_POS_NONE);
-//		gtk_window_move((GtkWindow *) rawstudio_window, pos_x, pos_y);
-		gtk_window_resize((GtkWindow *) rawstudio_window, width, height);
-	}
-	else
-	{
+
+	/* TOUJOURS borner la taille initiale à une valeur qui tient à l'écran, PUIS
+	 * maximiser si demandé. Sur Wayland, gtk_window_maximize() avant l'affichage
+	 * n'est pas toujours honoré à temps par le compositeur (comportement racy) :
+	 * sans taille par défaut, la fenêtre s'ouvre alors à sa taille NATURELLE (somme
+	 * des hauteurs minimales des panneaux), qui peut dépasser l'écran → barre de
+	 * titre hors champ, croix de fermeture inatteignable (bug remonté par Philippe
+	 * et un utilisateur du forum). En posant une taille par défaut, le pire cas
+	 * devient une fenêtre à la dernière taille connue (attrapable) plutôt qu'un
+	 * débordement. La position (pos_x/pos_y) reste ignorée : Wayland interdit à
+	 * l'application de se positionner elle-même. */
+	gtk_window_set_default_size((GtkWindow *) rawstudio_window, width, height);
+	if (maximized)
 		gtk_window_maximize((GtkWindow *) rawstudio_window);
-	}
 
 	rs_window_set_title(NULL);
 	gtk_window_set_icon_name(rawstudio_window, "carastudio");
