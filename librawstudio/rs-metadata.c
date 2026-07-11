@@ -219,7 +219,41 @@ rs_metadata_cache_save(RSMetadata *metadata, const gchar *filename)
 	if (metadata->thumbnail)
 	{
 		thumb_filename = rs_metadata_dotdir_helper(filename, DOTDIR_THUMB);
-		gdk_pixbuf_save(metadata->thumbnail, thumb_filename, "jpeg", NULL, "quality", "90", NULL);
+
+		/* JPEG ne gère pas l'alpha. Sur Fedora récent, gdk_pixbuf_save() délègue à
+		   glycin, dont l'encodeur JPEG REFUSE une pixbuf RGBA (« color type Rgba8
+		   not supported »). Les vignettes régénérées avec effets sortent en 4 canaux
+		   → la sauvegarde échouait → aucun .thumb.jpg → au rechargement, repli sur la
+		   vignette sans effets. Attention : gdk_pixbuf_composite_color_simple() NE
+		   retire PAS le canal alpha (elle le remplit). On crée donc une vraie pixbuf
+		   RGB à 3 canaux et on y compose (fond blanc pour d'éventuelles zones
+		   transparentes — ici l'alpha n'est qu'un remplissage opaque, rendu identique). */
+		GdkPixbuf *to_save = metadata->thumbnail;
+		GdkPixbuf *flat = NULL;
+		if (gdk_pixbuf_get_has_alpha(to_save))
+		{
+			gint tw = gdk_pixbuf_get_width(to_save);
+			gint th = gdk_pixbuf_get_height(to_save);
+			flat = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, tw, th);
+			if (flat)
+			{
+				gdk_pixbuf_fill(flat, 0xffffffff);
+				gdk_pixbuf_composite(to_save, flat, 0, 0, tw, th, 0, 0,
+					1.0, 1.0, GDK_INTERP_NEAREST, 255);
+				to_save = flat;
+			}
+		}
+
+		GError *terr = NULL;
+		if (!gdk_pixbuf_save(to_save, thumb_filename, "jpeg", &terr, "quality", "90", NULL))
+		{
+			g_warning("Échec de sauvegarde de la vignette %s : %s",
+				thumb_filename, terr ? terr->message : "erreur inconnue");
+			g_clear_error(&terr);
+		}
+
+		if (flat)
+			g_object_unref(flat);
 		g_free(thumb_filename);
 	}
 }
