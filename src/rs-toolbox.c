@@ -250,6 +250,73 @@ rs_toolbox_class_init (RSToolboxClass *klass)
 	object_class->finalize = rs_toolbox_finalize;
 }
 
+/* Replie (ou déplie) TOUS les modules de la boîte à outils d'un coup.
+ * On parcourt récursivement l'arbre des widgets et on agit sur chaque GtkExpander
+ * rencontré (les modules sont des expanders créés par gui_box). Parcours à la
+ * volée = toujours à jour, sans liste à maintenir quand on ajoute des outils.
+ * gtk_expander_set_expanded() n'émet PAS le signal « activate » → le rappel qui
+ * sauvegarde l'état par module (gui_box_toggle_callback) ne se déclenche pas :
+ * le repli est donc VISUEL (session), il n'écrase pas les préférences réglées
+ * section par section par l'utilisateur. */
+static void
+cs_toolbox_fold_recurse(GtkWidget *widget, gpointer data)
+{
+	if (GTK_IS_EXPANDER(widget))
+		gtk_expander_set_expanded(GTK_EXPANDER(widget), GPOINTER_TO_INT(data));
+	if (GTK_IS_CONTAINER(widget))
+		gtk_container_foreach(GTK_CONTAINER(widget), cs_toolbox_fold_recurse, data);
+}
+
+static void
+cs_toolbox_fold_all_clicked(GtkButton *button, gpointer fold_root)
+{
+	cs_toolbox_fold_recurse(GTK_WIDGET(fold_root), GINT_TO_POINTER(FALSE));
+}
+
+static void
+cs_toolbox_unfold_all_clicked(GtkButton *button, gpointer fold_root)
+{
+	cs_toolbox_fold_recurse(GTK_WIDGET(fold_root), GINT_TO_POINTER(TRUE));
+}
+
+/* Un bouton « icône + libellé » de la barre de repli. Icône symbolique à gauche
+ * (recolorée par le thème), classe CSS « cs-fold-btn » pour le style coloré défini
+ * dans theme.css. expand=TRUE → déplier, FALSE → replier. */
+static GtkWidget *
+cs_make_fold_button(const gchar *icon_name, const gchar *label_text,
+                    GtkWidget *fold_root, gboolean expand)
+{
+	GtkWidget *btn = gtk_button_new();
+	GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+	gtk_box_pack_start(GTK_BOX(box),
+		gtk_image_new_from_icon_name(icon_name, GTK_ICON_SIZE_BUTTON), FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(box), gtk_label_new(label_text), FALSE, FALSE, 0);
+	gtk_container_add(GTK_CONTAINER(btn), box);
+	gtk_style_context_add_class(gtk_widget_get_style_context(btn), "cs-fold-btn");
+	gtk_widget_set_tooltip_text(btn,
+		expand ? _("Déplier tous les modules") : _("Replier tous les modules"));
+	g_signal_connect(btn, "clicked",
+		G_CALLBACK(expand ? cs_toolbox_unfold_all_clicked : cs_toolbox_fold_all_clicked),
+		fold_root);
+	return btn;
+}
+
+/* Fabrique la barre « Tout replier / Tout déplier ». Les boutons agissent sur tous
+ * les GtkExpander situés sous fold_root — réutilisable pour chaque onglet à modules
+ * (Outils, Effets, Tonalité). */
+static GtkWidget *
+cs_make_fold_bar(GtkWidget *fold_root)
+{
+	GtkWidget *fold_bar = gtk_hbox_new(FALSE, 4);
+	gtk_container_set_border_width(GTK_CONTAINER(fold_bar), 3);
+	gtk_style_context_add_class(gtk_widget_get_style_context(fold_bar), "cs-fold-bar");
+	gtk_box_pack_start(GTK_BOX(fold_bar),
+		cs_make_fold_button("cs-collapse", _("Tout replier"), fold_root, FALSE), TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(fold_bar),
+		cs_make_fold_button("cs-expand",   _("Tout déplier"), fold_root, TRUE),  TRUE, TRUE, 0);
+	return fold_bar;
+}
+
 static void
 rs_toolbox_init (RSToolbox *self)
 {
@@ -261,6 +328,13 @@ rs_toolbox_init (RSToolbox *self)
 
 	/* A box to hold everything */
 	self->toolbox = GTK_BOX(gtk_vbox_new (FALSE, 1));
+
+	/* Barre « Tout replier / Tout déplier » : plie ou déplie tous les modules d'un
+	 * clic. Confort immédiat (moins de défilement) et indispensable à mesure qu'on
+	 * ajoute des outils. Placée tout en haut ; le repli raccourcit la colonne, donc
+	 * on la retrouve aussitôt. Repli visuel non persistant (voir cs_toolbox_fold_*).
+	 * Ici : agit sur l'onglet Outils (self) ; Effets/Tonalité ont leur propre barre. */
+	gtk_box_pack_start(self->toolbox, cs_make_fold_bar(GTK_WIDGET(self)), FALSE, FALSE, 0);
 
 	self->selector = rs_profile_selector_new();
 	g_object_set(self->selector, "width-request", 75, NULL);
@@ -2146,7 +2220,15 @@ rs_toolbox_get_tones_widget(RSToolbox *toolbox)
 			gtk_label_new(labels[i]));
 	toolbox->tones_notebook = notebook;
 	g_signal_connect(notebook, "switch-page", G_CALLBACK(notebook_switch_page), toolbox);
-	return notebook;
+
+	/* Barre « Tout replier / Tout déplier » propre à l'onglet Tonalité (agit sur ses
+	 * propres modules, via le notebook comme racine). */
+	{
+		GtkWidget *vbox = gtk_vbox_new(FALSE, 1);
+		gtk_box_pack_start(GTK_BOX(vbox), cs_make_fold_bar(notebook), FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(vbox), notebook, TRUE, TRUE, 0);
+		return vbox;
+	}
 }
 
 GtkWidget *
@@ -2161,7 +2243,14 @@ rs_toolbox_get_effects_widget(RSToolbox *toolbox)
 			gtk_label_new(labels[i]));
 	toolbox->effects_notebook = notebook;
 	g_signal_connect(notebook, "switch-page", G_CALLBACK(notebook_switch_page), toolbox);
-	return notebook;
+
+	/* Barre « Tout replier / Tout déplier » propre à l'onglet Effets. */
+	{
+		GtkWidget *vbox = gtk_vbox_new(FALSE, 1);
+		gtk_box_pack_start(GTK_BOX(vbox), cs_make_fold_bar(notebook), FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(vbox), notebook, TRUE, TRUE, 0);
+		return vbox;
+	}
 }
 
 /* Normalise une chaîne pour une comparaison insensible à la casse ET aux
