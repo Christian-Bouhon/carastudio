@@ -1214,7 +1214,7 @@ void
 rs_tethered_shooting_open(RS_BLOB *rs) 
 {
 	GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_title(GTK_WINDOW(window), _("Rawstudio Tethered Shooting"));
+	gtk_window_set_title(GTK_WINDOW(window), _("CaraStudio Tethered Shooting"));
 	gtk_window_set_transient_for(GTK_WINDOW(window), GTK_WINDOW(rs->window));
 	gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER_ON_PARENT);
 	gchar* filename_template = rs_conf_get_string("tether-export-filename");
