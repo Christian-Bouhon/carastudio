@@ -126,6 +126,7 @@
   <h2>Develop</h2>
   <a href="#pipeline">The processing pipeline</a>
   <a href="#wb">White balance</a>
+  <a href="#dcp">Camera color profiles (DCP)</a>
   <a href="#basic">Basic adjustments</a>
   <a href="#lens">Lens &amp; curve</a>
   <a href="#crop">Cropping</a>
@@ -291,6 +292,34 @@
 <h3>Exposure mask</h3>
 <p>The <b>Exposure mask</b> button (in the white balance row) overlays a visual aid on the preview: <b>over-exposed</b> areas (blown white, with no detail) and sometimes <b>under-exposed</b> areas are colour-coded, so you can spot at a glance what is being lost. It is a <b>display overlay</b> (pipeline stage <span class="stagebadge" style="background:#c8922e">E</span>): it does not alter the photo, it guides you while you set the exposure. Click again to remove it.</p>
 <div class="note"><b>RAW vs JPEG:</b> white balance is most flexible on RAW files. On a JPEG (already developed by the camera), adjustments are still possible but more limited.</div>
+</section>
+
+<section id="dcp">
+<h2 class="sec"><span class="stagebadge" style="background:#3d7fc4">B</span>Camera color profiles (DCP)</h2>
+<p>Every camera sensor has its own color "signature": two cameras shooting the same scene do not record exactly the same hues. A <b>DCP profile</b> (<i>Digital Camera Profile</i>, a standard format created by Adobe) describes precisely how to convert the raw colors of <b>one specific camera</b> into accurate colors. Without a dedicated profile, CaraStudio falls back on a generic conversion: correct, but less refined — skin tones, saturated reds or foliage greens may lack nuance.</p>
+<p>At the very top of the <b>Tools</b> tab, the <b>profile selector</b> shows the profile used for the current photo. Unfold it to switch profiles or add one.</p>
+
+<h3>Installing a profile for your camera</h3>
+<table>
+  <tr><th>Step</th><th>Action</th></tr>
+  <tr><td>1</td><td>Get a <b>.dcp</b> file matching your camera (see sources below).</td></tr>
+  <tr><td>2</td><td>Open a photo from that camera, unfold the profile selector (top of the <b>Tools</b> tab) and pick <b>"Add profile…"</b>. Select the .dcp file: it is copied into your personal profile library.</td></tr>
+  <tr><td>3</td><td>Select the profile in the list: the photo's rendering changes immediately.</td></tr>
+  <tr><td>4</td><td>To apply it automatically to <b>every photo from this camera</b>: menu <b>Photo → Save Camera Default Settings</b>. The bottom bar confirms ("Settings saved as default for…"). From now on, each photo from this camera loads with this profile.</td></tr>
+</table>
+<div class="warn"><b>Careful:</b> step 4 saves <b>all the photo's current settings</b> (exposure, saturation…) as defaults, not just the profile. Preferably do it on a photo with untouched settings, right after picking the profile.</div>
+
+<h3>Where to find DCP profiles</h3>
+<table>
+  <tr><th>Source</th><th>Details</th></tr>
+  <tr><td>RawTherapee (installed)</td><td>If it is installed on your machine, hundreds of profiles are already in <code>/usr/share/rawtherapee/dcpprofiles/</code> — help yourself!</td></tr>
+  <tr><td>ART (installed)</td><td>Same thing in ART's <code>dcpprofiles</code> folder (e.g. <code>/usr/local/share/ART/dcpprofiles/</code>).</td></tr>
+  <tr><td>RawTherapee (online)</td><td>The same profiles, freely downloadable: <a href="https://github.com/Beep6581/RawTherapee/tree/dev/rtdata/dcpprofiles">github.com/Beep6581/RawTherapee — rtdata/dcpprofiles folder</a> (click a file, then "Download raw file").</td></tr>
+  <tr><td>Adobe DNG Converter</td><td>Free (Windows/macOS): <a href="https://helpx.adobe.com/camera-raw/using/adobe-dng-converter.html">helpx.adobe.com — Adobe DNG Converter</a>. Its installation ships Adobe .dcp profiles for virtually every camera on the market — retrievable from its <i>CameraProfiles</i> folder.</td></tr>
+  <tr><td>Make your own</td><td>With a ColorChecker target and the free tool <a href="https://torger.se/anders/dcamprof.html">dcamprof (torger.se)</a>: the profile will be calibrated on <b>your</b> very camera. For the most dedicated.</td></tr>
+</table>
+<div class="tip"><b>Camera too recent, no profile available?</b> Use the profile of a camera with a <b>closely related sensor</b> (often the previous generation in the same line, or a sibling model): the rendering will already be far more refined than the generic conversion. Real-world example: the <i>Nikon Z f</i> profile works very well on a <i>Nikon Z5 II</i>, whose sensor is a close cousin.</div>
+<div class="note"><b>Where do your profiles live?</b> Added profiles are copied into your personal folder (<code>~/.rawstudio/profiles/</code>) and the per-camera choice is stored in your configuration — your photos themselves are never modified.</div>
 </section>
 
 <section id="basic">

@@ -126,6 +126,7 @@
   <h2>Développer</h2>
   <a href="#pipeline">Le pipeline de traitement</a>
   <a href="#wb">Balance des blancs</a>
+  <a href="#dcp">Profils couleur (DCP)</a>
   <a href="#basique">Réglages de base</a>
   <a href="#objectif">Objectif &amp; courbe</a>
   <a href="#recadrage">Recadrage</a>
@@ -291,6 +292,34 @@
 <h3>Masque d'exposition</h3>
 <p>Le bouton <b>Masque d'exposition</b> (dans la rangée de la balance des blancs) superpose une aide visuelle sur l'aperçu : les zones <b>surexposées</b> (blanc « cramé », sans détail) et parfois les zones <b>sous-exposées</b> se colorent, pour repérer d'un coup d'œil ce qui est perdu. C'est une <b>surcouche d'affichage</b> (étape <span class="stagebadge" style="background:#c8922e">E</span> du pipeline) : elle ne modifie pas la photo, elle vous guide pendant le réglage de l'exposition. Recliquez pour la retirer.</p>
 <div class="note"><b>RAW vs JPEG :</b> la balance des blancs est la plus souple sur les RAW. Sur un JPEG (déjà développé par l'appareil), les réglages restent possibles mais plus limités.</div>
+</section>
+
+<section id="dcp">
+<h2 class="sec"><span class="stagebadge" style="background:#3d7fc4">B</span>Profils couleur du boîtier (DCP)</h2>
+<p>Chaque capteur photo a sa propre « signature » couleur : deux boîtiers photographiant la même scène n'enregistrent pas exactement les mêmes teintes. Un <b>profil DCP</b> (<i>Digital Camera Profile</i>, un format standard créé par Adobe) décrit précisément comment convertir les couleurs brutes d'<b>un boîtier donné</b> en couleurs justes. Sans profil dédié, CaraStudio utilise une conversion générique : correcte, mais moins fine — les teintes de peau, les rouges saturés ou les verts de feuillage peuvent manquer de nuance.</p>
+<p>Tout en haut de l'onglet <b>Outils</b>, le <b>sélecteur de profil</b> affiche le profil utilisé pour la photo courante. Dépliez-le pour changer de profil ou en ajouter un.</p>
+
+<h3>Installer un profil pour votre boîtier</h3>
+<table>
+  <tr><th>Étape</th><th>Action</th></tr>
+  <tr><td>1</td><td>Procurez-vous un fichier <b>.dcp</b> correspondant à votre boîtier (voir les sources ci-dessous).</td></tr>
+  <tr><td>2</td><td>Ouvrez une photo du boîtier, dépliez le sélecteur de profil (haut de l'onglet <b>Outils</b>) et choisissez <b>« Ajouter profile… »</b>. Sélectionnez le fichier .dcp : il est copié dans votre bibliothèque personnelle de profils.</td></tr>
+  <tr><td>3</td><td>Sélectionnez le profil dans la liste : la photo change immédiatement de rendu.</td></tr>
+  <tr><td>4</td><td>Pour l'appliquer automatiquement à <b>toutes les photos de ce boîtier</b> : menu <b>Photo → Sauvegarder les paramètres par défaut de l'appareil</b>. La barre du bas confirme (« Settings saved as default for… »). Désormais, chaque photo de ce boîtier chargera avec ce profil.</td></tr>
+</table>
+<div class="warn"><b>Attention :</b> l'étape 4 enregistre comme défauts <b>tous les réglages actuels</b> de la photo (exposition, saturation…), pas seulement le profil. Faites-la de préférence sur une photo aux réglages vierges, juste après avoir choisi le profil.</div>
+
+<h3>Où trouver des profils DCP ?</h3>
+<table>
+  <tr><th>Source</th><th>Détail</th></tr>
+  <tr><td>RawTherapee (installé)</td><td>S'il est installé sur votre machine, des centaines de profils sont déjà dans <code>/usr/share/rawtherapee/dcpprofiles/</code> — servez-vous !</td></tr>
+  <tr><td>ART (installé)</td><td>Même chose dans le dossier <code>dcpprofiles</code> d'ART (ex. <code>/usr/local/share/ART/dcpprofiles/</code>).</td></tr>
+  <tr><td>RawTherapee (en ligne)</td><td>Les mêmes profils, librement téléchargeables : <a href="https://github.com/Beep6581/RawTherapee/tree/dev/rtdata/dcpprofiles">github.com/Beep6581/RawTherapee — dossier rtdata/dcpprofiles</a> (cliquez un fichier puis « Download raw file »).</td></tr>
+  <tr><td>Adobe DNG Converter</td><td>Gratuit (Windows/macOS) : <a href="https://helpx.adobe.com/camera-raw/using/adobe-dng-converter.html">helpx.adobe.com — Adobe DNG Converter</a>. Son installation contient des profils Adobe (.dcp) pour la quasi-totalité des boîtiers du marché — récupérables dans son dossier <i>CameraProfiles</i>.</td></tr>
+  <tr><td>Créer le vôtre</td><td>Avec une mire ColorChecker et l'outil libre <a href="https://torger.se/anders/dcamprof.html">dcamprof (torger.se)</a> : le profil sera calibré sur <b>votre</b> exemplaire du boîtier. Réservé aux plus motivés.</td></tr>
+</table>
+<div class="tip"><b>Boîtier trop récent, aucun profil disponible ?</b> Utilisez le profil d'un boîtier au <b>capteur proche</b> (souvent la génération précédente de la même gamme, ou un modèle de la même famille) : le rendu sera déjà bien plus fin que la conversion générique. Exemple vécu : le profil <i>Nikon Z f</i> convient très bien à un <i>Nikon Z5 II</i>, dont le capteur est cousin.</div>
+<div class="note"><b>Où vivent vos profils ?</b> Les profils ajoutés sont copiés dans votre dossier personnel (<code>~/.rawstudio/profiles/</code>) et le choix par boîtier est mémorisé dans votre configuration — vos photos elles-mêmes ne sont jamais modifiées.</div>
 </section>
 
 <section id="basique">
