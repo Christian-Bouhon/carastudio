@@ -1102,6 +1102,19 @@ rs_photo_update_thumbnail(RS_PHOTO *photo)
 	if (!photo || !photo->metadata || !photo->thumbnail_filter)
 		return NULL;
 
+	/* La chaîne de vignette (navigateur) est PARTAGÉE entre photos : au moment où
+	 * l'on rend la vignette d'une photo que l'on quitte, la chaîne peut déjà avoir
+	 * été reconfigurée pour la photo suivante (profil DCP, réglages…). Sans cette
+	 * ré-application, la vignette héritait du profil du VOISIN — ex. profil ajouté
+	 * sur une photo → cast magenta sur la vignette de la photo quittée, qui se
+	 * « réparait » au clic en contaminant la suivante. On reconfigure donc la chaîne
+	 * pour LA photo rendue (réglages + profil ou use-profile FALSE + orientation…). */
+	{
+		GList *filters = g_list_append(NULL, photo->thumbnail_filter);
+		rs_photo_apply_to_filters(photo, filters, 0);
+		g_list_free(filters);
+	}
+
 	RSFilterRequest *request = rs_filter_request_new();
 	rs_filter_request_set_roi(request, FALSE);
 	rs_filter_request_set_quick(request, TRUE);
