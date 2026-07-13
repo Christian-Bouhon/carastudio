@@ -1221,6 +1221,29 @@ gui_window_make(RS_BLOB *rs)
 	 * devient une fenêtre à la dernière taille connue (attrapable) plutôt qu'un
 	 * débordement. La position (pos_x/pos_y) reste ignorée : Wayland interdit à
 	 * l'application de se positionner elle-même. */
+	/* Borner à la ZONE DE TRAVAIL du moniteur (écran moins les barres système),
+	 * automatiquement : si la maximisation n'est pas honorée à temps (Wayland), la
+	 * fenêtre de repli ne doit JAMAIS dépasser l'écran. S'adapte à toute résolution
+	 * (1920×1080, 16:10, écran externe…) sans aucun réglage utilisateur. On retranche
+	 * une marge pour la barre de titre (décorations côté client). */
+	{
+		GdkDisplay *display = gdk_display_get_default();
+		GdkMonitor *mon = NULL;
+		if (display)
+		{
+			mon = gdk_display_get_primary_monitor(display);
+			if (!mon && gdk_display_get_n_monitors(display) > 0)
+				mon = gdk_display_get_monitor(display, 0);
+		}
+		if (mon)
+		{
+			GdkRectangle wa;
+			gdk_monitor_get_workarea(mon, &wa);
+			if (wa.width  > 0 && width  > wa.width)       width  = wa.width;
+			if (wa.height > 0 && height > wa.height - 40)  height = wa.height - 40;
+		}
+	}
+
 	gtk_window_set_default_size((GtkWindow *) rawstudio_window, width, height);
 	if (maximized)
 		gtk_window_maximize((GtkWindow *) rawstudio_window);

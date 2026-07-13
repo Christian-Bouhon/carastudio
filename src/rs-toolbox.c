@@ -2222,12 +2222,18 @@ rs_toolbox_get_tones_widget(RSToolbox *toolbox)
 	g_signal_connect(notebook, "switch-page", G_CALLBACK(notebook_switch_page), toolbox);
 
 	/* Barre « Tout replier / Tout déplier » propre à l'onglet Tonalité (agit sur ses
-	 * propres modules, via le notebook comme racine). */
+	 * propres modules, via le notebook comme racine). Le tout est rendu DÉFILANT
+	 * (comme l'onglet Outils) : sinon la hauteur de ses modules force la fenêtre à
+	 * une hauteur minimale supérieure à l'écran → débordement (barre de titre/bas
+	 * hors champ). */
 	{
 		GtkWidget *vbox = gtk_vbox_new(FALSE, 1);
 		gtk_box_pack_start(GTK_BOX(vbox), cs_make_fold_bar(notebook), FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(vbox), notebook, TRUE, TRUE, 0);
-		return vbox;
+		GtkWidget *sw = gtk_scrolled_window_new(NULL, NULL);
+		gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+		gtk_container_add(GTK_CONTAINER(sw), vbox);
+		return sw;
 	}
 }
 
@@ -2244,12 +2250,17 @@ rs_toolbox_get_effects_widget(RSToolbox *toolbox)
 	toolbox->effects_notebook = notebook;
 	g_signal_connect(notebook, "switch-page", G_CALLBACK(notebook_switch_page), toolbox);
 
-	/* Barre « Tout replier / Tout déplier » propre à l'onglet Effets. */
+	/* Barre « Tout replier / Tout déplier » propre à l'onglet Effets. Rendu DÉFILANT
+	 * comme l'onglet Outils (cf. onglet Tonalité) pour ne pas forcer la hauteur de la
+	 * fenêtre au-delà de l'écran. */
 	{
 		GtkWidget *vbox = gtk_vbox_new(FALSE, 1);
 		gtk_box_pack_start(GTK_BOX(vbox), cs_make_fold_bar(notebook), FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(vbox), notebook, TRUE, TRUE, 0);
-		return vbox;
+		GtkWidget *sw = gtk_scrolled_window_new(NULL, NULL);
+		gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+		gtk_container_add(GTK_CONTAINER(sw), vbox);
+		return sw;
 	}
 }
 
