@@ -265,7 +265,7 @@
   <tr><td><span class="stagebadge" style="background:#7a8290">A</span>Geometry</td><td>Lens correction, rotation, cropping. Processed <b>first</b>, even though it sits lower on screen.</td><td>Lens, Crop</td></tr>
   <tr><td><span class="stagebadge" style="background:#3d7fc4">B</span>RAW development</td><td>The heart of developing: white balance, exposure, channel mixer, saturation/hue/contrast, then the <b>Value</b> curve.</td><td>White balance, Basic, Curve (Value tab)</td></tr>
   <tr><td><span class="stagebadge" style="background:#2fa39a">C</span>Noise reduction</td><td>Denoising (luminance and colour) and sharpening.</td><td>Basic (Sharpness, Denoise)</td></tr>
-  <tr><td><span class="stagebadge" style="background:#9a6fc0">D</span>Effects</td><td>All the creative treatments, in a fixed internal order: Argentico → Dehaze → Tone doctor → Color balance → Color scalpel → RGB curves → Black &amp; White → Soft light → Vignette.</td><td>Effects, Tone, Curve (R/G/B tabs)</td></tr>
+  <tr><td><span class="stagebadge" style="background:#9a6fc0">D</span>Effects</td><td>All the creative treatments, in a fixed internal order: Argentico → Dehaze → Dynamic range → Tone doctor → Color balance → Color scalpel → RGB curves → Black &amp; White → Soft light → Vignette.</td><td>Effects, Tone, Curve (R/G/B tabs)</td></tr>
   <tr><td><span class="stagebadge" style="background:#c8922e">E</span>Output</td><td>Conversion to the display colour space and helper overlays (exposure mask).</td><td>Display, export</td></tr>
 </table>
 
@@ -389,9 +389,18 @@
 
 <section id="effects">
 <h2 class="sec"><span class="stagebadge" style="background:#9a6fc0">D</span>Effects</h2>
-<p>The <b>Effects</b> tab gathers the creative treatments. They form stage <span class="stagebadge" style="background:#9a6fc0">D</span> of the pipeline and run in a <b>fixed internal order</b> (Argentico → Dehaze → Tone doctor → Color balance → Color scalpel → RGB curves → Black &amp; White → Soft light → Vignette), always <i>after</i> the base development.</p>
+<p>The <b>Effects</b> tab gathers the creative treatments. They form stage <span class="stagebadge" style="background:#9a6fc0">D</span> of the pipeline and run in a <b>fixed internal order</b> (Argentico → Dehaze → Dynamic range → Tone doctor → Color balance → Color scalpel → RGB curves → Black &amp; White → Soft light → Vignette), always <i>after</i> the base development.</p>
 <h3>Dehaze</h3>
 <p>Clears mist and atmospheric haze for more clarity and local contrast. The <b>Dehaze</b> slider doses the effect, <b>Saturation</b> compensates the colour.</p>
+<h3>Dynamic range (compressor)</h3>
+<p>A very contrasty scene — a backlit subject, an interior with a sunlit window, woodland with patches of bright sky — often exceeds what a screen or a print can show: either the shadows block up, or the highlights "blow out". The <b>dynamic range compressor</b> narrows that gap by <b>bringing both extremes closer together</b>: it <b>lifts the shadows</b> AND <b>holds back the highlights</b>, so all the information fits into a visible range.</p>
+<p>Its strength is that it works <b>locally</b>: it compresses the large areas of brightness while <b>preserving micro-contrast</b> (textures, fine detail), where a plain global curve would flatten the image.</p>
+<table>
+  <tr><th>Setting</th><th>Role</th></tr>
+  <tr><td>Amount</td><td>Strength of the compression. At 0, no effect. Raise it to open up the shadows and recover the highlights; too strong, and the result looks "flat" or unreal.</td></tr>
+  <tr><td>Threshold</td><td>Boosts <b>micro-contrast</b> (local detail) to restore "bite" after compression. Lower it for a softer look.</td></tr>
+</table>
+<div class="tip">Use with restraint: a gentle setting is often enough. On very sharp transitions (a dark edge against bright sky), a strong setting can create a faint bright <b>halo</b> — reduce the Amount in that case.</div>
 <h3>Soft light</h3>
 <p>A "soft light" effect that softens the image and gives a luminous, velvety look.</p>
 <h3>Artistic vignette</h3>

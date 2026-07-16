@@ -278,6 +278,8 @@ rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriter
 	RS_XML_WRITE_FLOAT(writer, "bw_violet",  rss->bw_violet);
 	RS_XML_WRITE_FLOAT(writer, "dehaze_strength",   rss->dehaze_strength);
 	RS_XML_WRITE_FLOAT(writer, "dehaze_saturation", rss->dehaze_saturation);
+	RS_XML_WRITE_FLOAT(writer, "drc_amount",    rss->drc_amount);
+	RS_XML_WRITE_FLOAT(writer, "drc_threshold", rss->drc_threshold);
 	RS_XML_WRITE_INT  (writer, "argentico_enabled",    rss->argentico_enabled);
 	RS_XML_WRITE_FLOAT(writer, "argentico_green_exp",  rss->argentico_green_exp);
 	RS_XML_WRITE_FLOAT(writer, "argentico_red_ratio",  rss->argentico_red_ratio);
@@ -472,6 +474,10 @@ rs_cache_load_setting(RSSettings *rss, xmlDocPtr doc, xmlNodePtr cur, gint versi
 			{ mask |= MASK_DEHAZE_STRENGTH;   target = &rss->dehaze_strength; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "dehaze_saturation")))
 			{ mask |= MASK_DEHAZE_SATURATION; target = &rss->dehaze_saturation; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "drc_amount")))
+			{ mask |= MASK_DRC_AMOUNT;    target = &rss->drc_amount; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "drc_threshold")))
+			{ mask |= MASK_DRC_THRESHOLD; target = &rss->drc_threshold; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_green_exp")))
 			{ mask |= MASK_ARGENTICO_GREEN_EXP;  target = &rss->argentico_green_exp; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_red_ratio")))

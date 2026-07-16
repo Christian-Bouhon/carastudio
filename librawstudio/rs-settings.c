@@ -82,6 +82,8 @@ enum {
 	PROP_BW_VIOLET,
 	PROP_DEHAZE_STRENGTH,
 	PROP_DEHAZE_SATURATION,
+	PROP_DRC_AMOUNT,
+	PROP_DRC_THRESHOLD,
 	/* Argentico (négatif argentique) */
 	PROP_ARGENTICO_ENABLED,
 	PROP_ARGENTICO_GREEN_EXP,
@@ -315,6 +317,16 @@ rs_settings_class_init (RSSettingsClass *klass)
 			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
+		PROP_DRC_AMOUNT, g_param_spec_float(
+			"drc-amount", _("Ampleur"), _("Dynamic Range Compression Amount"),
+			0.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_DRC_THRESHOLD, g_param_spec_float(
+			"drc-threshold", _("Seuil"), _("Dynamic Range Compression Threshold"),
+			-100.0, 300.0, 30.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
 		PROP_ARGENTICO_ENABLED, g_param_spec_boolean(
 			"argentico-enabled", _("Argentico"), _("Activer le négatif argentique"),
 			FALSE, G_PARAM_READWRITE)
@@ -540,6 +552,8 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
 		CASE(DEHAZE_STRENGTH, dehaze_strength);
 		CASE(DEHAZE_SATURATION, dehaze_saturation);
+		CASE(DRC_AMOUNT, drc_amount);
+		CASE(DRC_THRESHOLD, drc_threshold);
 		CASE(ARGENTICO_GREEN_EXP, argentico_green_exp);
 		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
 		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
@@ -678,6 +692,8 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
 		CASE(DEHAZE_STRENGTH, dehaze_strength);
 		CASE(DEHAZE_SATURATION, dehaze_saturation);
+		CASE(DRC_AMOUNT, drc_amount);
+		CASE(DRC_THRESHOLD, drc_threshold);
 		CASE(ARGENTICO_GREEN_EXP, argentico_green_exp);
 		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
 		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
@@ -920,6 +936,8 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	rs_object_class_property_reset(object, "bw-violet");
 	rs_object_class_property_reset(object, "dehaze-strength");
 	rs_object_class_property_reset(object, "dehaze-saturation");
+	rs_object_class_property_reset(object, "drc-amount");
+	rs_object_class_property_reset(object, "drc-threshold");
 	rs_object_class_property_reset(object, "argentico-enabled");
 	rs_object_class_property_reset(object, "argentico-green-exp");
 	rs_object_class_property_reset(object, "argentico-red-ratio");
@@ -1086,6 +1104,8 @@ do { \
 	SETTINGS_COPY(BW_VIOLET, bw_violet);
 	SETTINGS_COPY(DEHAZE_STRENGTH, dehaze_strength);
 	SETTINGS_COPY(DEHAZE_SATURATION, dehaze_saturation);
+	SETTINGS_COPY(DRC_AMOUNT, drc_amount);
+	SETTINGS_COPY(DRC_THRESHOLD, drc_threshold);
 	if (mask & MASK_ARGENTICO_ENABLED)
 		target->argentico_enabled = source->argentico_enabled;
 	SETTINGS_COPY(ARGENTICO_GREEN_EXP, argentico_green_exp);

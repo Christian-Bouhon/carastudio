@@ -77,6 +77,9 @@ typedef enum {
 	/* Partage le bit softlight — tous les masques bits sont épuisés (0-29) */
 	MASK_DEHAZE_STRENGTH    = MASK_SOFTLIGHT_STRENGTH,
 	MASK_DEHAZE_SATURATION  = MASK_SOFTLIGHT_STRENGTH,
+	/* Compresseur de plage dynamique (Fattal02) — partage le bit softlight */
+	MASK_DRC_AMOUNT         = MASK_SOFTLIGHT_STRENGTH,
+	MASK_DRC_THRESHOLD      = MASK_SOFTLIGHT_STRENGTH,
 	/* Argentico (négatif argentique) — partage aussi le bit softlight */
 	MASK_ARGENTICO_ENABLED    = MASK_SOFTLIGHT_STRENGTH,
 	MASK_ARGENTICO_GREEN_EXP  = MASK_SOFTLIGHT_STRENGTH,
@@ -209,6 +212,9 @@ typedef struct _RSsettings {
 	/* Voile */
 	gfloat dehaze_strength;
 	gfloat dehaze_saturation;
+	/* Compresseur de plage dynamique (Fattal02) */
+	gfloat drc_amount;
+	gfloat drc_threshold;
 	/* Argentico (négatif argentique) */
 	gboolean argentico_enabled;
 	gfloat argentico_green_exp;

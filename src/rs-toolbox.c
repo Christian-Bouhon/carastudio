@@ -89,6 +89,12 @@ const static BasicSettings dehaze[] = {
 };
 #define NDEHAZE (2)
 
+const static BasicSettings drc[] = {
+	{ "drc-amount",    1.0, MASK_SOFTLIGHT_STRENGTH },
+	{ "drc-threshold", 1.0, MASK_SOFTLIGHT_STRENGTH },
+};
+#define NDRC (2)
+
 const static BasicSettings artvignette[] = {
 	{ "art-vignette-strength", 0.1, MASK_ART_VIGNETTE_STRENGTH },
 	{ "art-vignette-feather",  1.0, MASK_ART_VIGNETTE_FEATHER  },
@@ -146,6 +152,7 @@ struct _RSToolbox {
 	GtkRange *softlight[3][NSOFTLIGHT];
 	GtkRange *artvignette[3][NARTVIGNETTE];
 	GtkRange *dehaze_slider[3][NDEHAZE];
+	GtkRange *drc_slider[3][NDRC];
 	GtkRange *bw[3][NBW];
 	GtkWidget *bw_enable[3];
 	GtkRange *toneeq[3][NTONEEQ];
@@ -1574,6 +1581,10 @@ new_effects_page(RSToolbox *toolbox, const gint snapshot)
 	for (row = 0; row < NDEHAZE; row++)
 		toolbox->dehaze_slider[snapshot][row] = basic_slider(toolbox, snapshot, dehazetable, row, &dehaze[row]);
 
+	GtkTable *drctable = GTK_TABLE(gtk_table_new(NDRC, 5, FALSE));
+	for (row = 0; row < NDRC; row++)
+		toolbox->drc_slider[snapshot][row] = basic_slider(toolbox, snapshot, drctable, row, &drc[row]);
+
 	/* Section Argentico (négatif argentique) — déplacée depuis l'onglet Basique :
 	 * c'est un traitement créatif, sa place est dans les Effets. */
 	GtkWidget *argentico_vbox = gtk_vbox_new(FALSE, 2);
@@ -1599,6 +1610,8 @@ new_effects_page(RSToolbox *toolbox, const gint snapshot)
 	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, argentico_vbox, "show_argentico", TRUE), FALSE, FALSE, 0); g_free(t); }
 	{ gchar *t = cs_stage_title(3, 2, _("Voile"));
 	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(dehazetable), "show_dehaze", TRUE), FALSE, FALSE, 0); g_free(t); }
+	{ gchar *t = cs_stage_title(3, 3, _("Plage dynamique"));
+	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(drctable), "show_drc", TRUE), FALSE, FALSE, 0); g_free(t); }
 	{ gchar *t = cs_stage_title(3, 8, _("Soft Light"));
 	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(softlighttable), "show_softlight", TRUE), FALSE, FALSE, 0); g_free(t); }
 	{ gchar *t = cs_stage_title(3, 9, _("Vignette"));
@@ -2703,6 +2716,8 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 		}
 		for(i=0;i<NDEHAZE;i++)
 			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->dehaze_slider[snapshot][i]), FALSE);
+		for(i=0;i<NDRC;i++)
+			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->drc_slider[snapshot][i]), FALSE);
 		for(i=0;i<NSOFTLIGHT;i++)
 		{
 			gtk_widget_set_sensitive(GTK_WIDGET(toolbox->softlight[snapshot][i]), FALSE);
@@ -2791,6 +2806,15 @@ toolbox_copy_from_photo(RSToolbox *toolbox, const gint snapshot, const RSSetting
 				gfloat value;
 				g_object_get(toolbox->photo->settings[snapshot], dehaze[i].property_name, &value, NULL);
 				gtk_range_set_value(toolbox->dehaze_slider[snapshot][i], value);
+			}
+
+		/* Update DRC (compresseur de plage dynamique) */
+		for(i=0;i<NDRC;i++)
+			if (mask)
+			{
+				gfloat value;
+				g_object_get(toolbox->photo->settings[snapshot], drc[i].property_name, &value, NULL);
+				gtk_range_set_value(toolbox->drc_slider[snapshot][i], value);
 			}
 
 		/* Update softlight */
@@ -3003,6 +3027,8 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->lens[snapshot][i]), TRUE);
 			for(i=0;i<NDEHAZE;i++)
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->dehaze_slider[snapshot][i]), TRUE);
+			for(i=0;i<NDRC;i++)
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->drc_slider[snapshot][i]), TRUE);
 			for(i=0;i<NSOFTLIGHT;i++)
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->softlight[snapshot][i]), TRUE);
 			for(i=0;i<NARTVIGNETTE;i++)

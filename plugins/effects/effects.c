@@ -32,6 +32,8 @@ typedef struct {
 	gfloat art_vignette_roundness;
 	gfloat dehaze_strength;
 	gfloat dehaze_saturation;
+	gfloat drc_amount;
+	gfloat drc_threshold;
 	gboolean bw_enabled;
 	gint bw_filter;
 	gfloat bw_red;
@@ -250,6 +252,8 @@ settings_changed(RSSettings *settings, RSSettingsMask mask, RSEffects *effects)
 {
 	g_object_get(settings,
 		"dehaze-strength",       &effects->dehaze_strength,
+		"drc-amount",            &effects->drc_amount,
+		"drc-threshold",         &effects->drc_threshold,
 		"dehaze-saturation",     &effects->dehaze_saturation,
 		"softlight-strength",    &effects->softlight_strength,
 		"art-vignette-strength", &effects->art_vignette_strength,
@@ -1008,6 +1012,138 @@ apply_rgb_curves(RS_IMAGE16 *img, RSEffects *e)
 	}
 }
 
+/* ------------------------------------------------------------------ */
+/* Compresseur de plage dynamique (DRC) — tone mapping LOCAL           */
+/* ------------------------------------------------------------------ */
+/*
+ * Décomposition base/détail en domaine LOG (approche Durand-Dorsey
+ * simplifiée, base gaussienne large au lieu du bilatéral) :
+ *   1. luminance → log
+ *   2. base = flou large (grande échelle d'éclairement)
+ *   3. détail = log − base  (micro-contraste, textures)
+ *   4. on COMPRIME la base vers sa moyenne (réduit l'écart clair/sombre :
+ *      remonte les ombres ET retient les hautes lumières = bidirectionnel)
+ *   5. on réinjecte le détail intact (éventuellement rehaussé) → local
+ *   6. exp() → on remet la luminance, la couleur est préservée (scale RGB)
+ *
+ * « Ampleur » = force de compression de la base. « Seuil » = rehaussement
+ * du micro-contraste (détail). Le rayon du flou est proportionnel à la
+ * taille d'image → rendu identique en aperçu et à pleine résolution.
+ */
+
+/* Flou « boîte » séparable par somme glissante (O(1) par pixel, rayon libre) */
+static void
+cs_box_blur_h(const float *src, float *dst, gint W, gint H, gint r)
+{
+	const float norm = 1.0f / (2 * r + 1);
+	for (gint y = 0; y < H; y++) {
+		const float *s = src + (gsize)y * W;
+		float *d = dst + (gsize)y * W;
+		float sum = 0.0f;
+		gint x;
+		for (x = -r; x <= r; x++) sum += s[CLAMP(x, 0, W - 1)];
+		for (x = 0; x < W; x++) {
+			d[x] = sum * norm;
+			sum += s[CLAMP(x + r + 1, 0, W - 1)] - s[CLAMP(x - r, 0, W - 1)];
+		}
+	}
+}
+
+static void
+cs_box_blur_v(const float *src, float *dst, gint W, gint H, gint r)
+{
+	const float norm = 1.0f / (2 * r + 1);
+	for (gint x = 0; x < W; x++) {
+		float sum = 0.0f;
+		gint y;
+		for (y = -r; y <= r; y++) sum += src[(gsize)CLAMP(y, 0, H - 1) * W + x];
+		for (y = 0; y < H; y++) {
+			dst[(gsize)y * W + x] = sum * norm;
+			sum += src[(gsize)CLAMP(y + r + 1, 0, H - 1) * W + x]
+			     - src[(gsize)CLAMP(y - r, 0, H - 1) * W + x];
+		}
+	}
+}
+
+static void
+apply_drc(RS_IMAGE16 *img, gfloat amount, gfloat threshold)
+{
+	if (amount < 0.001f) return;
+
+	const gint W  = img->w;
+	const gint H  = img->h;
+	const gint ps = img->pixelsize;
+	const gint rs = img->rowstride;
+	const gsize N = (gsize)W * H;
+
+	/* Force de compression de la base (0 → aucun, 1 → très fort) */
+	const float strength = (amount / 100.0f) * 0.85f;
+	/* Rehaussement du détail piloté par le Seuil (-100→0,5× ; 0→1× ; 300→2,5×) */
+	const float detail_gain = 1.0f + (threshold / 100.0f) * 0.5f;
+
+	/* Rayon du flou = échelle relative à l'image (indépendant de la résolution) */
+	gint radius = (gint)(0.06f * fminf((float)W, (float)H));
+	radius = CLAMP(radius, 8, 512);
+
+	float *loglum = g_new(float, N);   /* log-luminance */
+	float *base   = g_new(float, N);   /* base (flou) */
+	float *tmp    = g_new(float, N);
+	if (!loglum || !base || !tmp) { g_free(loglum); g_free(base); g_free(tmp); return; }
+
+	/* 1) log-luminance + moyenne globale de la base (approx = moyenne du log) */
+	double mean = 0.0;
+	for (gint y = 0; y < H; y++) {
+		const gushort *row = img->pixels + (gsize)y * rs;
+		for (gint x = 0; x < W; x++) {
+			const gushort *px = row + x * ps;
+			float r = to_linear((float)px[0]);
+			float g = to_linear((float)px[1]);
+			float b = to_linear((float)px[2]);
+			float lum = 0.2126f*r + 0.7152f*g + 0.0722f*b;
+			float ll = logf(fmaxf(lum, 1e-5f));
+			loglum[(gsize)y*W + x] = ll;
+			mean += ll;
+		}
+	}
+	mean /= (double)N;
+
+	/* 2) base = flou boîte 3× (H+V) ≈ gaussienne */
+	cs_box_blur_h(loglum, base, W, H, radius); cs_box_blur_v(base, tmp, W, H, radius);
+	cs_box_blur_h(tmp, base, W, H, radius);    cs_box_blur_v(base, tmp, W, H, radius);
+	cs_box_blur_h(tmp, base, W, H, radius);    cs_box_blur_v(base, tmp, W, H, radius);
+	/* 'tmp' contient désormais la base lissée */
+
+	/* 3-6) recomposition par pixel */
+	const float m = (float)mean;
+	for (gint y = 0; y < H; y++) {
+		gushort *row = img->pixels + (gsize)y * rs;
+		for (gint x = 0; x < W; x++) {
+			gushort *px = row + x * ps;
+			float b_log = tmp[(gsize)y*W + x];              /* base */
+			float d_log = loglum[(gsize)y*W + x] - b_log;   /* détail */
+
+			/* Compression de la base VERS la moyenne (bidirectionnel) */
+			float b_comp = m + (b_log - m) * (1.0f - strength);
+			/* Réinjection du détail (rehaussé) */
+			float l_new = b_comp + d_log * detail_gain;
+
+			float lum_old = expf(loglum[(gsize)y*W + x]);
+			float lum_new = expf(l_new);
+			float scale = (lum_old > 1e-6f) ? (lum_new / lum_old) : 1.0f;
+
+			float r = to_linear((float)px[0]) * scale;
+			float g = to_linear((float)px[1]) * scale;
+			float b = to_linear((float)px[2]) * scale;
+
+			px[0] = (gushort)CLAMP((gint)(to_srgb(CLAMP(r,0.f,1.f))+0.5f),0,65535);
+			px[1] = (gushort)CLAMP((gint)(to_srgb(CLAMP(g,0.f,1.f))+0.5f),0,65535);
+			px[2] = (gushort)CLAMP((gint)(to_srgb(CLAMP(b,0.f,1.f))+0.5f),0,65535);
+		}
+	}
+
+	g_free(loglum); g_free(base); g_free(tmp);
+}
+
 static RSFilterResponse *
 get_image(RSFilter *filter, const RSFilterRequest *request)
 {
@@ -1018,6 +1154,7 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 
 	const gboolean need_ar = effects->argentico_enabled;
 	const gboolean need_dh = (effects->dehaze_strength >= 0.001f || fabsf(effects->dehaze_saturation) >= 0.001f);
+	const gboolean need_drc = (effects->drc_amount >= 0.001f);
 	const gboolean need_te = effects->toneeq_enabled &&
 		(fabsf(effects->toneeq_band0) >= 0.5f || fabsf(effects->toneeq_band1) >= 0.5f ||
 		 fabsf(effects->toneeq_band2) >= 0.5f || fabsf(effects->toneeq_band3) >= 0.5f ||
@@ -1046,7 +1183,7 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 
 	const gboolean need_rgb = effects->rgb_active;
 
-	if (!need_ar && !need_dh && !need_te && !need_bw && !need_sl && !need_vg && !need_cc && !need_cz && !need_rgb)
+	if (!need_ar && !need_dh && !need_drc && !need_te && !need_bw && !need_sl && !need_vg && !need_cc && !need_cz && !need_rgb)
 		return previous;
 
 	RS_IMAGE16 *img = rs_filter_response_get_image(previous);
@@ -1067,6 +1204,9 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 
 	if (need_dh)
 		apply_dehaze(out, effects->dehaze_strength, effects->dehaze_saturation);
+
+	if (need_drc)
+		apply_drc(out, effects->drc_amount, effects->drc_threshold);
 
 	if (need_te)
 		apply_toneeq(out, effects->toneeq_band0, effects->toneeq_band1,
