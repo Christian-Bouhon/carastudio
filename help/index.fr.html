@@ -265,7 +265,7 @@
   <tr><td><span class="stagebadge" style="background:#7a8290">A</span>Géométrie</td><td>Correction d'objectif, rotation, recadrage. Traitée <b>en premier</b>, même si elle est plus bas à l'écran.</td><td>Objectif, Recadrer</td></tr>
   <tr><td><span class="stagebadge" style="background:#3d7fc4">B</span>Développement RAW</td><td>Le cœur du développement : balance des blancs, exposition, mixeur de canaux, saturation/teinte/contraste, puis la courbe <b>Valeur</b>.</td><td>Balance des blancs, Basique, Courbe (onglet Valeur)</td></tr>
   <tr><td><span class="stagebadge" style="background:#2fa39a">C</span>Réduction de bruit</td><td>Débruitage (luminance et couleur) et netteté.</td><td>Basique (Netteté, Anti-bruit)</td></tr>
-  <tr><td><span class="stagebadge" style="background:#9a6fc0">D</span>Effets</td><td>Tous les traitements créatifs, dans un ordre interne fixe : Argentico → Voile → Plage dynamique → Tone doctor → Color balance → Color scalpel → Courbes RVB → Noir &amp; Blanc → Lumière douce → Vignettage.</td><td>Effets, Tonalité, Courbe (onglets R/V/B)</td></tr>
+  <tr><td><span class="stagebadge" style="background:#9a6fc0">D</span>Effets</td><td>Tous les traitements créatifs, dans un ordre interne fixe : Argentico → Voile → DynaComp → Tone doctor → Color balance → Color scalpel → Courbes RVB → Noir &amp; Blanc → Lumière douce → Vignettage.</td><td>Effets, Tonalité, Courbe (onglets R/V/B)</td></tr>
   <tr><td><span class="stagebadge" style="background:#c8922e">E</span>Sortie</td><td>Conversion vers l'espace d'affichage et surcouches d'aide (masque d'exposition).</td><td>Affichage, export</td></tr>
 </table>
 
@@ -389,10 +389,10 @@
 
 <section id="effets">
 <h2 class="sec"><span class="stagebadge" style="background:#9a6fc0">D</span>Effets</h2>
-<p>L'onglet <b>Effets</b> rassemble les traitements créatifs. Ils forment l'étape <span class="stagebadge" style="background:#9a6fc0">D</span> du pipeline et s'enchaînent dans un <b>ordre interne fixe</b> (Argentico → Voile → Plage dynamique → Tone doctor → Color balance → Color scalpel → Courbes RVB → Noir &amp; Blanc → Lumière douce → Vignettage), toujours <i>après</i> le développement de base.</p>
+<p>L'onglet <b>Effets</b> rassemble les traitements créatifs. Ils forment l'étape <span class="stagebadge" style="background:#9a6fc0">D</span> du pipeline et s'enchaînent dans un <b>ordre interne fixe</b> (Argentico → Voile → DynaComp → Tone doctor → Color balance → Color scalpel → Courbes RVB → Noir &amp; Blanc → Lumière douce → Vignettage), toujours <i>après</i> le développement de base.</p>
 <h3>Voile (anti-brume)</h3>
 <p>Dissipe la brume et le voile atmosphérique pour gagner en clarté et en contraste local. Le curseur <b>Voile</b> dose l'effet, <b>Saturation</b> compense la couleur.</p>
-<h3>Plage dynamique (compresseur)</h3>
+<h3>DynaComp (compresseur de plage dynamique)</h3>
 <p>Une scène très contrastée — un contre-jour, un intérieur avec fenêtre ensoleillée, un sous-bois avec trouées de ciel — dépasse souvent ce qu'un écran ou un tirage peut montrer : soit les ombres se bouchent, soit les hautes lumières « crament ». Le <b>compresseur de plage dynamique</b> réduit cet écart en <b>rapprochant les deux extrêmes</b> : il <b>remonte les ombres</b> ET <b>retient les hautes lumières</b>, pour faire tenir toute l'information dans une plage visible.</p>
 <p>Sa force est d'agir <b>localement</b> : il compresse les grandes zones d'éclairement tout en <b>préservant le micro-contraste</b> (les textures, les détails fins), là où une simple courbe globale aplatirait l'image.</p>
 <table>

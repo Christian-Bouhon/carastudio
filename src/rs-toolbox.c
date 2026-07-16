@@ -1610,7 +1610,7 @@ new_effects_page(RSToolbox *toolbox, const gint snapshot)
 	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, argentico_vbox, "show_argentico", TRUE), FALSE, FALSE, 0); g_free(t); }
 	{ gchar *t = cs_stage_title(3, 2, _("Voile"));
 	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(dehazetable), "show_dehaze", TRUE), FALSE, FALSE, 0); g_free(t); }
-	{ gchar *t = cs_stage_title(3, 3, _("Plage dynamique"));
+	{ gchar *t = cs_stage_title(3, 3, _("DynaComp"));
 	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(drctable), "show_drc", TRUE), FALSE, FALSE, 0); g_free(t); }
 	{ gchar *t = cs_stage_title(3, 8, _("Soft Light"));
 	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(softlighttable), "show_softlight", TRUE), FALSE, FALSE, 0); g_free(t); }
