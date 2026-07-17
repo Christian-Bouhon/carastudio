@@ -1733,7 +1733,8 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	{
 		rs->toolbox = gtk_notebook_new();
 		toolbox_notebook = rs->toolbox;
-		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox), tools, gtk_label_new(_("Tools")));
+		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox),
+			rs_toolbox_get_tools_page(RS_TOOLBOX(tools)), gtk_label_new(_("Tools")));
 		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox),
 			rs_toolbox_get_effects_widget(RS_TOOLBOX(tools)),
 			gtk_label_new(_("Effects")));

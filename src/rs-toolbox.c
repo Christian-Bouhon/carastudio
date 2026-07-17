@@ -336,13 +336,10 @@ rs_toolbox_init (RSToolbox *self)
 	/* A box to hold everything */
 	self->toolbox = GTK_BOX(gtk_vbox_new (FALSE, 1));
 
-	/* Barre « Tout replier / Tout déplier » : plie ou déplie tous les modules d'un
-	 * clic. Confort immédiat (moins de défilement) et indispensable à mesure qu'on
-	 * ajoute des outils. Placée tout en haut ; le repli raccourcit la colonne, donc
-	 * on la retrouve aussitôt. Repli visuel non persistant (voir cs_toolbox_fold_*).
-	 * Ici : agit sur l'onglet Outils (self) ; Effets/Tonalité ont leur propre barre. */
-	gtk_box_pack_start(self->toolbox, cs_make_fold_bar(GTK_WIDGET(self)), FALSE, FALSE, 0);
-
+	/* NB : la barre « Tout replier / Tout déplier » de l'onglet Outils n'est PAS ici
+	 * (elle défilerait avec le contenu). Elle est ajoutée HORS du scroll, au-dessus de
+	 * cette fenêtre défilante, par rs_toolbox_get_tools_page() → toujours visible.
+	 * Effets/Tonalité ont leur propre barre fixe (cf. get_effects/tones_widget). */
 	self->selector = rs_profile_selector_new();
 	g_object_set(self->selector, "width-request", 75, NULL);
 	g_signal_connect(self->selector, "dcp-selected", G_CALLBACK(dcp_profile_selected), self);
@@ -2221,6 +2218,18 @@ new_tones_page(RSToolbox *toolbox, const gint snapshot)
 	return vbox;
 }
 
+/* Onglet Outils : enveloppe la fenêtre défilante (self) dans un vbox avec la barre
+ * « Tout replier / Tout déplier » FIXE au-dessus (hors scroll, toujours visible).
+ * À utiliser comme page de l'onglet Outils à la place de l'RSToolbox nue. */
+GtkWidget *
+rs_toolbox_get_tools_page(RSToolbox *self)
+{
+	GtkWidget *vbox = gtk_vbox_new(FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), cs_make_fold_bar(GTK_WIDGET(self)), FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), GTK_WIDGET(self), TRUE, TRUE, 0);
+	return vbox;
+}
+
 GtkWidget *
 rs_toolbox_get_tones_widget(RSToolbox *toolbox)
 {
@@ -2235,18 +2244,17 @@ rs_toolbox_get_tones_widget(RSToolbox *toolbox)
 	g_signal_connect(notebook, "switch-page", G_CALLBACK(notebook_switch_page), toolbox);
 
 	/* Barre « Tout replier / Tout déplier » propre à l'onglet Tonalité (agit sur ses
-	 * propres modules, via le notebook comme racine). Le tout est rendu DÉFILANT
-	 * (comme l'onglet Outils) : sinon la hauteur de ses modules force la fenêtre à
-	 * une hauteur minimale supérieure à l'écran → débordement (barre de titre/bas
-	 * hors champ). */
+	 * modules via le notebook comme racine). Elle est placée HORS du scroll (toujours
+	 * visible) ; seul le contenu (notebook) défile — sinon sa hauteur force la fenêtre
+	 * au-delà de l'écran. */
 	{
-		GtkWidget *vbox = gtk_vbox_new(FALSE, 1);
-		gtk_box_pack_start(GTK_BOX(vbox), cs_make_fold_bar(notebook), FALSE, FALSE, 0);
-		gtk_box_pack_start(GTK_BOX(vbox), notebook, TRUE, TRUE, 0);
 		GtkWidget *sw = gtk_scrolled_window_new(NULL, NULL);
 		gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-		gtk_container_add(GTK_CONTAINER(sw), vbox);
-		return sw;
+		gtk_container_add(GTK_CONTAINER(sw), notebook);
+		GtkWidget *vbox = gtk_vbox_new(FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(vbox), cs_make_fold_bar(notebook), FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(vbox), sw, TRUE, TRUE, 0);
+		return vbox;
 	}
 }
 
@@ -2263,17 +2271,16 @@ rs_toolbox_get_effects_widget(RSToolbox *toolbox)
 	toolbox->effects_notebook = notebook;
 	g_signal_connect(notebook, "switch-page", G_CALLBACK(notebook_switch_page), toolbox);
 
-	/* Barre « Tout replier / Tout déplier » propre à l'onglet Effets. Rendu DÉFILANT
-	 * comme l'onglet Outils (cf. onglet Tonalité) pour ne pas forcer la hauteur de la
-	 * fenêtre au-delà de l'écran. */
+	/* Barre « Tout replier / Tout déplier » propre à l'onglet Effets. Placée HORS du
+	 * scroll (toujours visible), cf. onglet Tonalité ; seul le notebook défile. */
 	{
-		GtkWidget *vbox = gtk_vbox_new(FALSE, 1);
-		gtk_box_pack_start(GTK_BOX(vbox), cs_make_fold_bar(notebook), FALSE, FALSE, 0);
-		gtk_box_pack_start(GTK_BOX(vbox), notebook, TRUE, TRUE, 0);
 		GtkWidget *sw = gtk_scrolled_window_new(NULL, NULL);
 		gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-		gtk_container_add(GTK_CONTAINER(sw), vbox);
-		return sw;
+		gtk_container_add(GTK_CONTAINER(sw), notebook);
+		GtkWidget *vbox = gtk_vbox_new(FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(vbox), cs_make_fold_bar(notebook), FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(vbox), sw, TRUE, TRUE, 0);
+		return vbox;
 	}
 }
 
