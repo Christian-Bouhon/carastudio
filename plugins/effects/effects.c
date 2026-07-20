@@ -944,19 +944,40 @@ cz_hsl2rgb(float h, float s, float l, float *r, float *g, float *b)
 static inline float
 cz_interp(const gfloat *xs, const gfloat *ys, gint n, float h)
 {
+	/* Interpolation LISSE par spline de Catmull-Rom (Hermite, tangentes = pente des
+	 * voisins), non uniforme et PÉRIODIQUE (la teinte boucle sur [0,1)). Remplace
+	 * l'ancienne interpolation linéaire qui formait des « pointes » aux nœuds. */
 	if (n <= 0) return 0.0f;
 	if (n == 1) return ys[0];
-	if (h >= xs[0] && h < xs[n-1])
-	{
-		gint i = 0;
-		while (i < n-1 && h >= xs[i+1]) i++;
-		float t = (h - xs[i]) / (xs[i+1] - xs[i]);
-		return ys[i]*(1.0f - t) + ys[i+1]*t;
+
+	/* Segment circulaire [i, i+1] contenant h. */
+	gint i;
+	if (h >= xs[0] && h < xs[n-1]) { i = 0; while (i < n-1 && h >= xs[i+1]) i++; }
+	else i = n-1; /* segment de bouclage : dernier nœud → premier (+1 tour) */
+
+	if (n == 2) { /* pas assez de points pour une spline → linéaire circulaire */
+		gint j = (i+1) % n;
+		float x1 = xs[i], x2 = xs[j] + (xs[j] <= x1 ? 1.0f : 0.0f);
+		float hh = (h < x1) ? h + 1.0f : h;
+		float t = (x2 > x1) ? (hh - x1) / (x2 - x1) : 0.0f;
+		return ys[i]*(1.0f - t) + ys[j]*t;
 	}
-	float seg = xs[0] + 1.0f - xs[n-1];
-	float pos = (h >= xs[n-1]) ? (h - xs[n-1]) : (h + 1.0f - xs[n-1]);
-	float t = (seg > 1e-6f) ? pos / seg : 0.0f;
-	return ys[n-1]*(1.0f - t) + ys[0]*t;
+
+	gint i0 = (i-1+n)%n, i1 = i, i2 = (i+1)%n, i3 = (i+2)%n;
+	float y0 = ys[i0], y1 = ys[i1], y2 = ys[i2], y3 = ys[i3];
+	float x1 = xs[i1];
+	float x0 = xs[i0]; if (x0 >= x1) x0 -= 1.0f;
+	float x2 = xs[i2]; if (x2 <= x1) x2 += 1.0f;
+	float x3 = xs[i3]; if (x3 <= x2) x3 += 1.0f;
+	float hh = (h < x1) ? h + 1.0f : h;
+	float dx = x2 - x1;
+	float t = (dx > 1e-6f) ? (hh - x1) / dx : 0.0f;
+	t = CLAMP(t, 0.0f, 1.0f);
+	float m1 = (x2 - x0 > 1e-6f) ? (y2 - y0) / (x2 - x0) * dx : 0.0f;
+	float m2 = (x3 - x1 > 1e-6f) ? (y3 - y1) / (x3 - x1) * dx : 0.0f;
+	float t2 = t*t, t3 = t2*t;
+	return (2*t3 - 3*t2 + 1)*y1 + (t3 - 2*t2 + t)*m1
+	     + (-2*t3 + 3*t2)*y2 + (t3 - t2)*m2;
 }
 
 static void
@@ -978,6 +999,24 @@ apply_colorzones(RS_IMAGE16 *img, RSEffects *e)
 			float dh = cz_interp(e->hsl_hx, e->hsl_hy, e->hsl_hn, h);
 			float ds = cz_interp(e->hsl_sx, e->hsl_sy, e->hsl_sn, h);
 			float dl = cz_interp(e->hsl_lx, e->hsl_ly, e->hsl_ln, h);
+			/* ANTI-HALOS : la correction est choisie par la TEINTE, or la teinte
+			 * d'un pixel désaturé (proche du blanc/gris) est numériquement instable
+			 * — deux voisins quasi blancs peuvent porter des teintes très
+			 * différentes et recevoir des corrections opposées → bavures/halos,
+			 * flagrant sur les couchers de soleil. On PONDÈRE donc par la
+			 * saturation (pixels neutres ≈ intouchés), comme Lightroom/ART. */
+			{
+				float w = s / (s + 0.15f);
+				dh *= w; ds *= w; dl *= w;
+			}
+			/* Et l'on efface la correction de luminance dans les TRÈS hautes
+			 * lumières : sinon « l » sature à 1,0 (CLAMP) et une arête franche
+			 * apparaît entre pixels écrêtés et non écrêtés. Fondu doux 0,85→1. */
+			if (l > 0.85f)
+			{
+				float t = (l - 0.85f) / 0.15f;
+				dl *= 1.0f - t * t * (3.0f - 2.0f * t); /* smoothstep */
+			}
 			h += dh * K_HUE; h -= floorf(h);
 			s *= (1.0f + ds * K_SAT); s = CLAMP(s, 0.0f, 1.0f);
 			l *= (1.0f + dl * K_LUM); l = CLAMP(l, 0.0f, 1.0f);

@@ -419,7 +419,15 @@
 <h3>Color balance (3-way wheels)</h3>
 <p>Three <b>colour wheels</b> — <b>Shadows</b>, <b>Midtones</b>, <b>Highlights</b> — to tint each tonal range (cinema-style colour grading). Each wheel sets the colour (X/Y) and luminance (lift / gamma / gain).</p>
 <h3>Color scalpel (per-hue curves)</h3>
-<p>Finely adjusts each <b>colour family</b> independently (hue, saturation, lightness by HSL bands). Perfect to, for instance, revive a sky without touching skin tones.</p>
+<p>Finely adjusts each <b>colour family</b> independently, on three curves (<b>Hue</b>, <b>Saturation</b>, <b>Luminance</b> tabs) drawn over the hue spectrum. Perfect to, for instance, revive a sky without touching skin tones. The curve is <b>smoothed</b> (soft transitions between points), and the adjustment <b>fades on low-saturation colours</b> (whites, greys) to avoid halos.</p>
+<table>
+  <tr><th>Gesture</th><th>Action</th></tr>
+  <tr><td>Left-click + drag</td><td>Moves the nearest point (raises/lowers the correction for that hue).</td></tr>
+  <tr><td><b>Ctrl</b> + left-click</td><td>Adds a point where you click.</td></tr>
+  <tr><td><b>Ctrl + Shift</b> + left-click</td><td>Deletes the nearest point.</td></tr>
+  <tr><td>Right-click</td><td>Resets the curve to <b>flat</b> (neutral) — handy to start over if you aimed at the wrong zone.</td></tr>
+</table>
+<div class="tip"><b>Halos in the highlights?</b> On a sunset or a very dense sky, pushing a hue's <b>Luminance</b> hard can create a faint bright ring (colours near white are unstable there). CaraStudio already limits the effect near white; if a halo persists, ease off or work the hue/saturation instead.</div>
 </section>
 
 <section id="styles">

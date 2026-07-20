@@ -1927,20 +1927,40 @@ hslcurve_store(HslCurve *hc)
 static inline float
 hslcurve_interp(const HslCurve *hc, float h)
 {
+	/* Spline de Catmull-Rom LISSE, non uniforme et périodique (identique à
+	 * cz_interp() du plugin effects : dessin et rendu doivent coïncider). */
+	const float *xs = hc->xs, *ys = hc->ys;
 	gint n = hc->n;
 	if (n <= 0) return 0.0f;
-	if (n == 1) return hc->ys[0];
-	if (h >= hc->xs[0] && h < hc->xs[n-1])
-	{
-		gint i = 0;
-		while (i < n-1 && h >= hc->xs[i+1]) i++;
-		float t = (h - hc->xs[i]) / (hc->xs[i+1] - hc->xs[i]);
-		return hc->ys[i]*(1.0f - t) + hc->ys[i+1]*t;
+	if (n == 1) return ys[0];
+
+	gint i;
+	if (h >= xs[0] && h < xs[n-1]) { i = 0; while (i < n-1 && h >= xs[i+1]) i++; }
+	else i = n-1;
+
+	if (n == 2) {
+		gint j = (i+1) % n;
+		float x1 = xs[i], x2 = xs[j] + (xs[j] <= x1 ? 1.0f : 0.0f);
+		float hh = (h < x1) ? h + 1.0f : h;
+		float t = (x2 > x1) ? (hh - x1) / (x2 - x1) : 0.0f;
+		return ys[i]*(1.0f - t) + ys[j]*t;
 	}
-	float seg = hc->xs[0] + 1.0f - hc->xs[n-1];
-	float pos = (h >= hc->xs[n-1]) ? (h - hc->xs[n-1]) : (h + 1.0f - hc->xs[n-1]);
-	float t = (seg > 1e-6f) ? pos / seg : 0.0f;
-	return hc->ys[n-1]*(1.0f - t) + hc->ys[0]*t;
+
+	gint i0 = (i-1+n)%n, i1 = i, i2 = (i+1)%n, i3 = (i+2)%n;
+	float y0 = ys[i0], y1 = ys[i1], y2 = ys[i2], y3 = ys[i3];
+	float x1 = xs[i1];
+	float x0 = xs[i0]; if (x0 >= x1) x0 -= 1.0f;
+	float x2 = xs[i2]; if (x2 <= x1) x2 += 1.0f;
+	float x3 = xs[i3]; if (x3 <= x2) x3 += 1.0f;
+	float hh = (h < x1) ? h + 1.0f : h;
+	float dx = x2 - x1;
+	float t = (dx > 1e-6f) ? (hh - x1) / dx : 0.0f;
+	t = CLAMP(t, 0.0f, 1.0f);
+	float m1 = (x2 - x0 > 1e-6f) ? (y2 - y0) / (x2 - x0) * dx : 0.0f;
+	float m2 = (x3 - x1 > 1e-6f) ? (y3 - y1) / (x3 - x1) * dx : 0.0f;
+	float t2 = t*t, t3 = t2*t;
+	return (2*t3 - 3*t2 + 1)*y1 + (t3 - 2*t2 + t)*m1
+	     + (-2*t3 + 3*t2)*y2 + (t3 - t2)*m2;
 }
 
 /* Insère un nœud (x,y) à sa position triée ; renvoie son index (ou -1 si plein). */
@@ -2054,7 +2074,19 @@ hslcurve_button(GtkWidget *widget, GdkEventButton *e, gpointer data)
 	if (!hc->toolbox->photo) return TRUE;
 	hslcurve_load(hc);
 
-	if (e->button == 1 && (e->state & GDK_CONTROL_MASK))
+	if (e->button == 1 && (e->state & GDK_CONTROL_MASK) && (e->state & GDK_SHIFT_MASK))
+	{
+		/* Ctrl+Maj + clic gauche = SUPPRIMER le nœud le plus proche (garder ≥ 1) */
+		gint idx = hslcurve_nearest(hc, widget, e->x);
+		if (idx >= 0 && hc->n > 1)
+		{
+			hslcurve_remove(hc, idx);
+			hslcurve_store(hc);
+		}
+		hc->dragging = -1;
+		gtk_widget_queue_draw(widget);
+	}
+	else if (e->button == 1 && (e->state & GDK_CONTROL_MASK))
 	{
 		/* Ctrl + clic gauche = ajouter un nœud à la teinte cliquée */
 		float x = CLAMP((float)(e->x / W), 0.0f, 0.9999f);
@@ -2070,13 +2102,12 @@ hslcurve_button(GtkWidget *widget, GdkEventButton *e, gpointer data)
 	}
 	else if (e->button == 3)
 	{
-		/* Clic droit = supprimer le nœud le plus proche (en garder au moins 1) */
-		gint idx = hslcurve_nearest(hc, widget, e->x);
-		if (idx >= 0 && hc->n > 1)
-		{
-			hslcurve_remove(hc, idx);
-			hslcurve_store(hc);
-		}
+		/* Clic droit n'importe où = remettre la courbe À PLAT (identité). Plus
+		 * pratique que l'ancien « supprime le point le plus proche » : si on s'est
+		 * trompé de zone (la teinte cliquée ne correspond pas toujours à la couleur
+		 * visée), on repart d'une courbe neutre en un clic. */
+		hslcurve_default(hc);
+		hslcurve_store(hc);
 		hc->dragging = -1;
 		gtk_widget_queue_draw(widget);
 	}
@@ -2106,7 +2137,12 @@ hslcurve_new(RSToolbox *toolbox, gint snapshot, const gchar *prop)
 	HslCurve *hc = g_new0(HslCurve, 1);
 	hc->toolbox = toolbox; hc->snapshot = snapshot; hc->prop = prop; hc->dragging = -1;
 	GtkWidget *da = gtk_drawing_area_new();
-	gtk_widget_set_size_request(da, 240, 90);
+	gtk_widget_set_size_request(da, 240, 150);
+	gtk_widget_set_tooltip_text(da,
+		_("Clic gauche : déplacer un point\n"
+		  "Ctrl + clic gauche : ajouter un point\n"
+		  "Ctrl + Maj + clic gauche : supprimer un point\n"
+		  "Clic droit : remettre la courbe à plat"));
 	gtk_widget_set_sensitive(da, FALSE);
 	gtk_widget_add_events(da, GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_BUTTON1_MOTION_MASK);
 	g_signal_connect(da, "draw", G_CALLBACK(hslcurve_draw), hc);

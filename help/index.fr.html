@@ -419,7 +419,15 @@
 <h3>Color balance (roues 3 voies)</h3>
 <p>Trois <b>roues chromatiques</b> — <b>Ombres</b>, <b>Tons moyens</b>, <b>Hautes lumières</b> — pour donner une teinte à chaque plage tonale (étalonnage couleur cinéma). Chaque roue règle la couleur (X/Y) et la luminance (lift / gamma / gain).</p>
 <h3>Color scalpel (courbes par teinte)</h3>
-<p>Ajuste finement chaque <b>famille de couleurs</b> indépendamment (teinte, saturation, luminosité par bandes TSL). Parfait pour, par exemple, raviver un ciel sans toucher aux peaux.</p>
+<p>Ajuste finement chaque <b>famille de couleurs</b> indépendamment, sur trois courbes (onglets <b>Teinte</b>, <b>Saturation</b>, <b>Luminance</b>) tracées sur le spectre des teintes. Parfait pour, par exemple, raviver un ciel sans toucher aux peaux. La courbe est <b>lissée</b> (transitions douces entre les points), et le réglage <b>s'atténue sur les couleurs peu saturées</b> (blancs, gris) pour éviter les halos.</p>
+<table>
+  <tr><th>Geste</th><th>Action</th></tr>
+  <tr><td>Clic gauche + glisser</td><td>Déplace le point le plus proche (monte/descend la correction pour cette teinte).</td></tr>
+  <tr><td><b>Ctrl</b> + clic gauche</td><td>Ajoute un point à l'endroit cliqué.</td></tr>
+  <tr><td><b>Ctrl + Maj</b> + clic gauche</td><td>Supprime le point le plus proche.</td></tr>
+  <tr><td>Clic droit</td><td>Remet la courbe <b>à plat</b> (neutre) — pratique pour repartir de zéro si on a visé la mauvaise zone.</td></tr>
+</table>
+<div class="tip"><b>Halos dans les hautes lumières ?</b> Sur un coucher de soleil ou un ciel très dense, pousser fort la <b>Luminance</b> d'une teinte peut faire apparaître un léger anneau lumineux (les couleurs proches du blanc y sont instables). CaraStudio limite déjà l'effet près du blanc ; si un halo persiste, dosez plus doucement ou travaillez plutôt la teinte/saturation.</div>
 </section>
 
 <section id="styles">
