@@ -61,3 +61,6 @@
 
 # Graphify (graphe de connaissance généré — ne pas versionner)
 graphify-out/
+
+# Supports promo / annonces (travail local, ne pas versionner)
+promo/
