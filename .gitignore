@@ -58,3 +58,6 @@
 /prefix
 /stamp-h1
 /carastudio-*.tar.*
+
+# Graphify (graphe de connaissance généré — ne pas versionner)
+graphify-out/
