@@ -92,18 +92,57 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
-* Mon Jul 06 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-1
-- Passage au versionnage par date (CalVer) : « 2026.07 ».
-- Barre du haut : nouveau bouton « Enfuse » (fusion d'expositions) avec garde
-  anti-plantage quand aucune photo n'est sélectionnée.
-- Bloc « Courbes » à 4 onglets (Valeur + courbes RVB par canal), avec courbes
+* Tue Jul 21 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-1
+- Passage au versionnage par date (CalVer) : « 2026.07 ». Le numéro de version
+  s'affiche désormais dans le titre et l'écran de démarrage.
+- Couleur & boîtiers récents : lecture de la balance des blancs boîtier via
+  LibRaw (toutes marques), application de la WB même quand l'espace d'entrée
+  est inconnu, rejet des multiplicateurs cam_mul non crédibles (fini les TIFF/
+  JPEG exportés verdis à la relecture), et correction du cast rouge sur les
+  8 bits à profil ICC exotique (PQ/HDR).
+- Profils DCP : les profils importés par l'utilisateur (« Ajouter profile »)
+  sont proposés pour tout boîtier, avec réglages par défaut par boîtier ;
+  correction d'une contamination de la chaîne partagée entre vignettes.
+- Vignettes : effets CaraStudio visibles dès l'ouverture + rafraîchissement
+  live ; extraction de la miniature embarquée des RAW via LibRaw (boîtiers
+  récents) ; repli gdk-pixbuf pour les fichiers sans miniature (TIFF exporté) ;
+  orientation EXIF appliquée aux fichiers non-RAW ; correction de la sauvegarde
+  JPEG des vignettes avec effets.
+- Nouvel effet « DynaComp » : compresseur de plage dynamique local
+  (tone mapping bidirectionnel), dans l'onglet Effets.
+- « Color scalpel » : courbes de teinte lissées (spline), atténuation des halos
+  dans les hautes lumières, bande de travail rehaussée et raccourcis
+  (Ctrl+clic ajouter, Ctrl+Maj+clic supprimer, clic droit remettre à plat).
+- Correction d'objectif (lensfun) : correction du plantage de sélection, cases
+  « Activer » / « Defish » fonctionnelles, bouton d'assignation toujours
+  disponible (mode forcé) ; objectifs manuels : focale/ouverture invalides non
+  transmises à lensfun.
+- Styles (CaraStyles) : capture sélective de réglages et copier/coller entre
+  photos, avec choix fin de ce qu'on garde (cases) et boutons dédiés.
+- Barre du haut : boutons « Enfuse » (fusion d'expositions) et « GIMP »
+  (ouverture avec orientation et effets), garde anti-plantage sur Enfuse.
+- Bloc « Courbes » à 4 onglets (Valeur + courbes RVB par canal), courbes
   préréglées et enregistrer/charger/supprimer.
 - Réglages de base : boutons Auto-exposition, Auto-niveaux et Réinitialiser.
 - Balance des blancs : bouton « Masque d'exposition ».
+- Recadrage : le bouton « OK » applique enfin le recadrage.
+- Boîte à outils : boutons « Tout replier / Tout déplier » fixes au-dessus du
+  défilement, sur les 3 onglets.
+- Fenêtre : tient dans l'écran (onglets Effets/Tonalité défilants, bornage sur
+  Wayland), maximisée au premier lancement (petits écrans).
+- Export : durcissement PNG/JPEG/TIFF (un plantage devient un échec propre),
+  respect du dossier de destination choisi, « Exporter sous » applique bien les
+  effets CaraStudio.
+- Fujifilm X-Trans (.RAF) : ouverture et développement (démosaïquage LibRaw).
 - Pédagogie du pipeline : bouton « Pipeline » (légende des 5 étapes) et badges
   A–E de couleur sur les modules.
-- Aide (F1) enrichie et illustrée (schéma du pipeline, nouvelles fonctions,
-  rubrique « À propos & communauté »), en français et en anglais.
+- Aide (F1) enrichie et illustrée (pipeline, DCP, correction d'objectif,
+  Styles, DynaComp, Color scalpel), en français et en anglais.
+- install.sh : initialisation des sous-modules Git, détection de distribution
+  via /etc/os-release, dépendances apt complétées, compat GLib récente,
+  enblend/enfuse optionnel.
+- AppImage : LibRaw récente compilée depuis les sources (boîtiers modernes),
+  construction sur Ubuntu 20.04 pour la portabilité glibc.
 
 * Sun Jul 05 2026 Carafife <carafife@users.noreply.github.com> - 1.0.1-3
 - Support des RAW Fujifilm X-Trans (.RAF) : ils s'ouvrent et se développent
