@@ -1301,9 +1301,9 @@ rs_preview_widget_crop_start(RSPreviewWidget *preview)
 	gtk_box_pack_start (GTK_BOX (aspect_hbox),
 		gui_confbox_get_widget(aspect_confbox), FALSE, TRUE, 4);
 
-	/* CaraStudio : OK = je masque la palette pour dégager l'image, puis je trace
-	 * mon recadrage (validation finale : Entrée / Échap). « Annuler le
-	 * recadrage » retire le recadrage existant et quitte (ancien « Don't crop »). */
+	/* CaraStudio : OK = applique le recadrage tracé et quitte le mode (comme
+	 * Entrée / clic droit). « Annuler le recadrage » retire le recadrage existant
+	 * et quitte (ancien « Don't crop »). */
 	button_box = gtk_hbox_new(FALSE, 0);
 	ok_button = gtk_button_new_with_label(_("OK"));
 	g_signal_connect (G_OBJECT(ok_button), "clicked", G_CALLBACK (crop_settings_ok_clicked), preview);
@@ -2486,16 +2486,16 @@ crop_ensure_css(void)
 	g_object_unref(provider);
 }
 
-/* CaraStudio : « OK » dans la palette = réglages choisis, on masque la palette
- * pour dégager l'image ; le mode recadrage reste actif (validation finale par
- * Entrée/Échap ou clic droit). */
+/* CaraStudio : « OK » APPLIQUE le recadrage et quitte le mode — comme la touche
+ * Entrée ou le clic droit à l'intérieur de la sélection. (Auparavant OK ne
+ * faisait que masquer la palette, ce qui était contre-intuitif : l'utilisateur
+ * cliquait OK et rien ne se passait.) Même motif que « Annuler le recadrage ». */
 static void
 crop_settings_ok_clicked(GtkButton *button, gpointer user_data)
 {
 	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
 
-	if (preview->tool)
-		gtk_widget_hide(preview->tool);
+	crop_end(preview, TRUE);
 }
 
 /* CaraStudio : « Annuler le recadrage » = retire le recadrage existant et quitte

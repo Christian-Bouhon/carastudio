@@ -1876,9 +1876,58 @@ tiff_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata 
 static gboolean
 tif_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *meta)
 {
+	/* load-libraw (priorité 5, exécuté AVANT ce loader) a pu pré-remplir cam_mul
+	 * avec la WB « as-shot » décodée par LibRaw — fiable pour toutes les marques,
+	 * y compris les boîtiers récents (Nikon Z5 II…). On la sauvegarde, car le
+	 * parseur MakerNote maison ci-dessous peut la ré-écrire avec une valeur
+	 * ABERRANTE quand il ne sait pas décoder le format (ex. Z5 II → cam_mul
+	 * négatif). On la restaurera dans ce cas. */
+	gdouble saved_cam_mul[4];
+	saved_cam_mul[0] = meta->cam_mul[0];
+	saved_cam_mul[1] = meta->cam_mul[1];
+	saved_cam_mul[2] = meta->cam_mul[2];
+	saved_cam_mul[3] = meta->cam_mul[3];
 
 	if (!tiff_load_meta(service, rawfile, offset, meta))
 		return FALSE;
+
+	/* LibRaw fait AUTORITÉ sur la balance des blancs : quand load-libraw a fourni un
+	 * cam_mul dans une plage physiquement saine, on l'impose, car le parseur MakerNote
+	 * maison ne sait pas décoder certains formats récents et produit des valeurs
+	 * ABERRANTES — pas forcément négatives (Nikon Z5 II : ~[0 / 1 / 7e23]), donc un
+	 * simple test « <= 0 » ne suffit pas. Un multiplicateur WB réel reste borné. */
+	/* Un cam_mul CRÉDIBLE : chaque composante dans une plage bornée, ET — critère
+	 * physique — une fois rapportés au vert, R et B sont >= ~1 (sur un capteur réel le
+	 * canal vert est toujours le plus sensible ; la WB compense en amplifiant R et B).
+	 * Un cam_mul « R<1 et B<1 » (ex. 0,256/1/0,300, MakerNote Z5 II mal décodé) est
+	 * impossible et produirait un cast vert massif. */
+	#define CS_WB_SANE(m) ((m)[0] > 0.05 && (m)[0] < 100.0 && \
+	                       (m)[1] > 0.05 && (m)[1] < 100.0 && \
+	                       (m)[2] > 0.05 && (m)[2] < 100.0 && \
+	                       ((m)[0] / (m)[1]) >= 0.8 && ((m)[2] / (m)[1]) >= 0.8)
+	if (CS_WB_SANE(saved_cam_mul))
+	{
+		/* LibRaw fait autorité : il décode la WB de toutes les marques. */
+		meta->cam_mul[0] = saved_cam_mul[0];
+		meta->cam_mul[1] = saved_cam_mul[1];
+		meta->cam_mul[2] = saved_cam_mul[2];
+		meta->cam_mul[3] = saved_cam_mul[3];
+	}
+	else if (!CS_WB_SANE(meta->cam_mul))
+	{
+		/* Ni valeur LibRaw fiable, ni valeur maison crédible : le parseur MakerNote a
+		 * produit un cam_mul faux. Cas typique : un TIFF/JPEG EXPORTÉ par CaraStudio
+		 * recopie l'EXIF (MakerNote) du NEF source ; à la ré-ouverture, ce MakerNote
+		 * récent (Z5 II) est mal décodé → cam_mul garbage ([0/1/7e23]) ou faussement
+		 * plausible (0,256/1/0,300) → appliqué comme WB « boîtier » à une image DÉJÀ
+		 * développée → cast vert (fichier pourtant correct). On marque « non renseignée »
+		 * (-1) → WB boîtier NEUTRE, plus de cast. */
+		meta->cam_mul[0] = -1.0;
+		meta->cam_mul[1] = 1.0;
+		meta->cam_mul[2] = 1.0;
+		meta->cam_mul[3] = 1.0;
+	}
+	#undef CS_WB_SANE
 
 	/* Phase One and Samsung doesn't set this */
 	if ((meta->make == MAKE_PHASEONE) || (meta->make == MAKE_SAMSUNG))
@@ -1892,10 +1941,28 @@ tif_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *
 	if (meta->lens_min_aperture < 0 && meta->aperture > 0)
 		meta->lens_min_aperture = meta->lens_max_aperture = meta->aperture;
 
-	/* Load thumbnail - try thumbnail first - then preview image - then decode the RAW image*/
-	if (!thumbnail_reader(service, rawfile, meta->thumbnail_start, meta->thumbnail_length, meta))
-		if (!thumbnail_reader(service, rawfile, meta->preview_start, meta->preview_length, meta))
-			thumbnail_store(raw_thumbnail_reader(service, meta), meta);
+	/* Load thumbnail - try thumbnail first - then preview image - then decode the RAW image.
+	 * Sauf si load-libraw (priorité 5) a DÉJÀ posé la vignette via LibRaw : elle prime
+	 * (le parseur maison ne localise pas l'aperçu des boîtiers récents → vignette noire). */
+	if (!meta->thumbnail)
+		if (!thumbnail_reader(service, rawfile, meta->thumbnail_start, meta->thumbnail_length, meta))
+			if (!thumbnail_reader(service, rawfile, meta->preview_start, meta->preview_length, meta))
+			{
+				/* Pas de miniature embarquée. Pour un vrai fichier image (TIFF/JPEG/PNG
+				 * EXPORTÉ, sans IFD miniature), on le rend DIRECTEMENT via gdk-pixbuf
+				 * (8 comme 16 bits) — sinon raw_thumbnail_reader sort une vignette NOIRE.
+				 * On ne garde le rendu RAW maison qu'en dernier recours (gdk échoue sur
+				 * un vrai RAW). */
+				GdkPixbuf *p = gdk_pixbuf_new_from_file_at_size(service, 256, 256, NULL);
+				if (p)
+				{
+					GdkPixbuf *o = gdk_pixbuf_apply_embedded_orientation(p);
+					g_object_unref(p);
+					meta->thumbnail = o;
+				}
+				else
+					thumbnail_store(raw_thumbnail_reader(service, meta), meta);
+			}
 
 	return TRUE;
 }

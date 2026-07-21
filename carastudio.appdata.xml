@@ -28,4 +28,16 @@
     </p>
   </description>
   <url type="homepage">https://github.com/carafife/CaraStudio</url>
+  <releases>
+    <release version="2026.07" date="2026-07-06">
+      <description>
+        <p>
+          New Enfuse button, a 4-tab Curves block with per-channel RGB curves and
+          curve presets, auto-exposure / auto-levels / reset in Basic, a white
+          balance exposure mask, the Pipeline legend with A-E stage badges, and a
+          richly illustrated in-app help (F1) in French and English.
+        </p>
+      </description>
+    </release>
+  </releases>
 </component>

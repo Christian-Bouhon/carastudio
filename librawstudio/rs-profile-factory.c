@@ -218,10 +218,12 @@ visible_func(GtkTreeModel *model, GtkTreeIter *iter, gpointer data)
 	gchar *model_needle = (gchar *) data;
 	gchar *model_haystack;
 	gint type;
+	gpointer profile = NULL;
 
 	gtk_tree_model_get(model, iter,
 		FACTORY_MODEL_COLUMN_MODEL, &model_haystack,
 		FACTORY_MODEL_COLUMN_TYPE, &type,
+		FACTORY_MODEL_COLUMN_PROFILE, &profile,
 		-1);
 
 	/* The only thing we need to hide is mismatched DCP profiles */
@@ -234,6 +236,22 @@ visible_func(GtkTreeModel *model, GtkTreeIter *iter, gpointer data)
 			if (g_str_has_suffix(model_haystack, model_needle))
 				visible = TRUE;
 		}
+
+	/* CaraStudio : un profil DCP importé PAR L'UTILISATEUR (« Ajouter profile… »,
+	 * rangé dans son dossier de profils) est TOUJOURS proposé, quel que soit le
+	 * boîtier. Sans cela, un boîtier récent absent de rawstudio-cameras.xml (ex.
+	 * Nikon Z5 II) ne pouvait JAMAIS voir un profil ajouté à la main : le modèle
+	 * interne du DCP (« Nikon Z f »…) ne correspond pas au modèle EXIF, et le
+	 * profil importé restait invisible. L'utilisateur l'a ajouté sciemment : on
+	 * lui fait confiance pour choisir (utile pour les capteurs cousins). */
+	/* NB : les colonnes du store sont des G_TYPE_POINTER (pointeurs BRUTS, non
+	 * référencés) — surtout ne pas g_object_unref() ce qu'on lit ici. */
+	if (!visible && type == FACTORY_MODEL_TYPE_DCP && profile && RS_IS_TIFF(profile))
+	{
+		const gchar *fn = rs_tiff_get_filename(RS_TIFF(profile));
+		if (fn && g_str_has_prefix(fn, rs_profile_factory_get_user_profile_directory()))
+			visible = TRUE;
+	}
 
 	if (type != FACTORY_MODEL_TYPE_DCP)
 		visible = TRUE;

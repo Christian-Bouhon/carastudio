@@ -39,7 +39,6 @@
 #include "gtk-interface.h"
 
 /* This will be written to XML files for making backward compatibility easier to implement */
-#define CACHEVERSION 5
 
 gchar *
 rs_cache_get_name(const gchar *src)
@@ -144,6 +143,63 @@ rs_cache_save(RS_PHOTO *photo, const RSSettingsMask mask)
 	return;
 }
 
+/* Écrit une courbe (nœuds x,y) sous l'élément <name> (pour les courbes RVB
+   CaraStudio ; même format que la courbe de tonalité). */
+static void
+cache_write_curve(xmlTextWriterPtr writer, const gchar *name, const gfloat *knots, gint nknots)
+{
+	gint i;
+	if (!knots || nknots <= 0)
+		return;
+	xmlTextWriterStartElement(writer, BAD_CAST name);
+	xmlTextWriterWriteFormatAttribute(writer, BAD_CAST "num", "%d", nknots);
+	for (i = 0; i < nknots; i++)
+	{
+		gchar bx[G_ASCII_DTOSTR_BUF_SIZE], by[G_ASCII_DTOSTR_BUF_SIZE];
+		gchar *knot_str = g_strdup_printf("%s %s",
+			g_ascii_dtostr(bx, sizeof(bx), knots[i*2+0]),
+			g_ascii_dtostr(by, sizeof(by), knots[i*2+1]));
+		xmlTextWriterWriteElement(writer, BAD_CAST "knot", BAD_CAST knot_str);
+		g_free(knot_str);
+	}
+	xmlTextWriterEndElement(writer);
+}
+
+/* Lit une courbe <num=…><knot>x y</knot>…> dans un tableau fraîchement alloué. */
+static void
+cache_read_curve(xmlDocPtr doc, xmlNodePtr node, gfloat **out_knots, gint *out_nknots)
+{
+	xmlChar *val = xmlGetProp(node, BAD_CAST "num");
+	gint num = val ? atoi((gchar *) val) : 0;
+	if (val) xmlFree(val);
+	if (num <= 0)
+		return;
+
+	gfloat *knots = g_new(gfloat, 2*num);
+	gint n = 0;
+	xmlNodePtr k = node->xmlChildrenNode;
+	while (k && n < num)
+	{
+		if (!xmlStrcmp(k->name, BAD_CAST "knot"))
+		{
+			val = xmlNodeListGetString(doc, k->xmlChildrenNode, 1);
+			gchar **vals = g_strsplit((gchar *) val, " ", 4);
+			if (vals[0] && vals[1])
+			{
+				knots[n*2+0] = rs_atof(vals[0]);
+				knots[n*2+1] = rs_atof(vals[1]);
+				n++;
+			}
+			g_strfreev(vals);
+			xmlFree(val);
+		}
+		k = k->next;
+	}
+	g_free(*out_knots);
+	*out_knots = knots;
+	*out_nknots = n;
+}
+
 void
 rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriterPtr writer)
 {
@@ -196,6 +252,12 @@ rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriter
 		xmlTextWriterEndElement(writer);
 	}
 
+	/* Courbes RVB par canal (CaraStudio) — écrites inconditionnellement, comme
+	   les effets ci-dessous (elles partagent le bit softlight). */
+	cache_write_curve(writer, "red_curve",   rss->red_curve_knots,   rss->red_curve_nknots);
+	cache_write_curve(writer, "green_curve", rss->green_curve_knots, rss->green_curve_nknots);
+	cache_write_curve(writer, "blue_curve",  rss->blue_curve_knots,  rss->blue_curve_nknots);
+
 	/* Réglages de l'onglet Effets CaraStudio. Écrits inconditionnellement : leurs
 	   masques partagent des bits (RSSettingsMask saturé, cf. rs-settings.h), donc
 	   non filtrables fiablement ; sur le chemin de persistance le masque vaut de
@@ -216,6 +278,8 @@ rs_cache_save_settings(RSSettings *rss, const RSSettingsMask mask, xmlTextWriter
 	RS_XML_WRITE_FLOAT(writer, "bw_violet",  rss->bw_violet);
 	RS_XML_WRITE_FLOAT(writer, "dehaze_strength",   rss->dehaze_strength);
 	RS_XML_WRITE_FLOAT(writer, "dehaze_saturation", rss->dehaze_saturation);
+	RS_XML_WRITE_FLOAT(writer, "drc_amount",    rss->drc_amount);
+	RS_XML_WRITE_FLOAT(writer, "drc_threshold", rss->drc_threshold);
 	RS_XML_WRITE_INT  (writer, "argentico_enabled",    rss->argentico_enabled);
 	RS_XML_WRITE_FLOAT(writer, "argentico_green_exp",  rss->argentico_green_exp);
 	RS_XML_WRITE_FLOAT(writer, "argentico_red_ratio",  rss->argentico_red_ratio);
@@ -410,6 +474,10 @@ rs_cache_load_setting(RSSettings *rss, xmlDocPtr doc, xmlNodePtr cur, gint versi
 			{ mask |= MASK_DEHAZE_STRENGTH;   target = &rss->dehaze_strength; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "dehaze_saturation")))
 			{ mask |= MASK_DEHAZE_SATURATION; target = &rss->dehaze_saturation; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "drc_amount")))
+			{ mask |= MASK_DRC_AMOUNT;    target = &rss->drc_amount; }
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "drc_threshold")))
+			{ mask |= MASK_DRC_THRESHOLD; target = &rss->drc_threshold; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_green_exp")))
 			{ mask |= MASK_ARGENTICO_GREEN_EXP;  target = &rss->argentico_green_exp; }
 		else if ((!xmlStrcmp(cur->name, BAD_CAST "argentico_red_ratio")))
@@ -544,6 +612,21 @@ rs_cache_load_setting(RSSettings *rss, xmlDocPtr doc, xmlNodePtr cur, gint versi
 				}
 				curve = curve->next;
 			}
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "red_curve")))
+		{
+			mask |= MASK_SOFTLIGHT_STRENGTH;
+			cache_read_curve(doc, cur, &rss->red_curve_knots, &rss->red_curve_nknots);
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "green_curve")))
+		{
+			mask |= MASK_SOFTLIGHT_STRENGTH;
+			cache_read_curve(doc, cur, &rss->green_curve_knots, &rss->green_curve_nknots);
+		}
+		else if ((!xmlStrcmp(cur->name, BAD_CAST "blue_curve")))
+		{
+			mask |= MASK_SOFTLIGHT_STRENGTH;
+			cache_read_curve(doc, cur, &rss->blue_curve_knots, &rss->blue_curve_nknots);
 		}
 
 		if (target)

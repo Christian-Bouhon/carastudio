@@ -222,7 +222,7 @@ msgstr "Activer cet objectif"
 
 #: librawstudio/rs-lens-db-editor.c:941
 msgid "Enable Defish"
-msgstr "Activer cet objectif"
+msgstr "Activer le Defish (correction fisheye)"
 
 #: librawstudio/rs-lens-db-editor.c:945
 msgid "Set lens"
@@ -1082,12 +1082,12 @@ msgid "Opening directory..."
 msgstr "Ouverture du répertoire..."
 
 #: src/gtk-interface.c:1423
-msgid "CaraStudio — Client Mode"
-msgstr "CaraStudio — Mode client"
+msgid "CaraStudio %s — Client Mode"
+msgstr "CaraStudio %s — Mode client"
 
 #: src/gtk-interface.c:1425
-msgid "CaraStudio — Powered by Carafife"
-msgstr "CaraStudio — Propulsé par Carafife"
+msgid "CaraStudio %s — Powered by Carafife"
+msgstr "CaraStudio %s — Propulsé par Carafife"
 
 #: src/gtk-interface.c:1496
 msgid "Passer l'interface en anglais ?"
@@ -2433,7 +2433,7 @@ msgid ""
 "Monitor recieved error %d, while waiting for camera.\n"
 "Error text is: %s\n"
 msgstr ""
-"Rawstudio a reçu une erreur %d en attendant le résultat de l'appareil.\n"
+"CaraStudio a reçu une erreur %d en attendant le résultat de l'appareil.\n"
 "Détail de l'erreur: %s\n"
 
 #: src/rs-tethered-shooting.c:674
@@ -2442,7 +2442,7 @@ msgid ""
 "Recieved error %d, while downloading image from camera.\n"
 "Error text is: %s\n"
 msgstr ""
-"Rawstudio a reçu une erreur %d en attendant le résultat de l'appareil.\n"
+"CaraStudio a reçu une erreur %d en attendant le résultat de l'appareil.\n"
 "Détail de l'erreur: %s\n"
 
 #: src/rs-tethered-shooting.c:678
@@ -2459,7 +2459,7 @@ msgid ""
 "Recieved error %d, while capturing image.\n"
 "Error text is: %s\n"
 msgstr ""
-"Rawstudio a reçu une erreur %d en attendant le résultat de l'appareil.\n"
+"CaraStudio a reçu une erreur %d en attendant le résultat de l'appareil.\n"
 "Détail de l'erreur: %s\n"
 
 #: src/rs-tethered-shooting.c:711
@@ -2624,8 +2624,8 @@ msgid "Blank Screen"
 msgstr "Écran noir"
 
 #: src/rs-tethered-shooting.c:1217
-msgid "Rawstudio Tethered Shooting"
-msgstr "Prise de vue pilotée par Rawstudio"
+msgid "CaraStudio Tethered Shooting"
+msgstr "Prise de vue pilotée par CaraStudio"
 
 #: src/rs-tethered-shooting.c:1240
 msgid ""

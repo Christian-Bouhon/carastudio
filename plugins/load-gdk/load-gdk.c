@@ -122,14 +122,19 @@ load_gdk(const gchar *filename)
 		rs_filter_response_set_height(response, image->h);
 		g_object_unref(image);
 		rs_filter_param_set_object(RS_FILTER_PARAM(response), "embedded-colorspace", input_space);
-		/* CaraStudio : on NE marque PLUS l'image 8 bits comme « WB déjà cuite »
-		 * (is-premultiplied=FALSE) → RSColorspaceTransform applique les
-		 * multiplicateurs WB (premul) en espace linéaire, rendant la balance des
-		 * blancs réglable sur les JPEG/TIFF. La neutralité au repos est assurée
-		 * en initialisant ces photos en WB boîtier (cam_mul=1,1,1 → tint=1 →
-		 * premul=(1,1,1)), cf. rs_photo. Toute la chaîne WB (pipette/curseur/auto)
-		 * reste cohérente car elle partage la même formule premul. */
-		rs_filter_param_set_boolean(RS_FILTER_PARAM(response), "is-premultiplied", FALSE);
+		/* CaraStudio : réglage de la balance des blancs sur les 8 bits (JPEG/TIFF).
+		 * En marquant l'image « non pré-multipliée » (is-premultiplied=FALSE),
+		 * RSColorspaceTransform applique les multiplicateurs WB (premul) en espace
+		 * linéaire → WB réglable. La neutralité au repos est assurée par l'init en
+		 * WB boîtier (cam_mul=1,1,1 → tint=1 → premul=(1,1,1)), cf. rs_photo.
+		 *
+		 * MAIS on ne le fait QUE pour les espaces STANDARD (sRGB/AdobeRGB built-in).
+		 * Pour un profil ICC embarqué custom — potentiellement exotique (Rec.2100
+		 * PQ / HDR, gamut large, courbe de transfert non standard) — l'hypothèse
+		 * « premul en espace linéaire » est fausse et produit un fort cast (rouge).
+		 * Dans ce cas on garde l'image telle quelle (is-premultiplied=TRUE). */
+		gboolean embedded_icc = (G_OBJECT_TYPE(input_space) == RS_TYPE_COLOR_SPACE_ICC);
+		rs_filter_param_set_boolean(RS_FILTER_PARAM(response), "is-premultiplied", embedded_icc ? TRUE : FALSE);
 	}
 	return response;
 }
@@ -138,7 +143,20 @@ load_gdk(const gchar *filename)
 static gboolean
 rs_gdk_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *meta)
 {
-	meta->thumbnail = gdk_pixbuf_new_from_file_at_size(service, 128, 128, NULL);
+	GdkPixbuf *thumb = gdk_pixbuf_new_from_file_at_size(service, 128, 128, NULL);
+	if (thumb)
+	{
+		/* Appliquer l'orientation EXIF : sinon les vignettes portrait (JPEG/TIFF)
+		   s'affichent couchées en paysage. gdk_pixbuf_new_from_file_at_size ne
+		   l'applique pas ; apply_embedded_orientation lit l'option « orientation »
+		   posée par le chargeur et renvoie une nouvelle pixbuf tournée. Isolé aux
+		   NON-RAW (ce plugin) → aucun risque de double-rotation des vignettes RAW,
+		   qui passent par d'autres loaders déjà orientés. */
+		meta->thumbnail = gdk_pixbuf_apply_embedded_orientation(thumb);
+		g_object_unref(thumb);
+	}
+	else
+		meta->thumbnail = NULL;
 	return FALSE;
 }
 

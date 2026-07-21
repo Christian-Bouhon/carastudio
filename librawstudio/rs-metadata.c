@@ -101,13 +101,19 @@ rs_metadata_init (RSMetadata *metadata)
 	metadata->preview_planar_config = 0;
 	metadata->preview_width = 0;
 	metadata->preview_height = 0;
-	metadata->cam_mul[0] = -1.0;
 	metadata->contrast = -1.0;
 	metadata->saturation = -1.0;
 	metadata->color_tone = -1.0;
 	metadata->focallength = -1;
-	for(i=0;i<4;i++)
-		metadata->cam_mul[i] = 1.0f;
+	/* cam_mul[0] = -1 est la SENTINELLE « balance des blancs boîtier non
+	 * renseignée » (testée par rs_photo_set_wb_from_camera). Une ancienne boucle
+	 * « for(i<4) cam_mul[i]=1.0 » écrasait cette sentinelle → cam_mul valait
+	 * toujours 1,1,1,1, la détection « WB absente » était cassée, et le metacache
+	 * stockait 1 1 1 1. On garde donc la sentinelle sur [0] et 1.0 (neutre) ailleurs. */
+	metadata->cam_mul[0] = -1.0;
+	metadata->cam_mul[1] = 1.0;
+	metadata->cam_mul[2] = 1.0;
+	metadata->cam_mul[3] = 1.0;
 	metadata->thumbnail = NULL;
 	metadata->thumbnail_rendered = FALSE;
 
@@ -127,7 +133,10 @@ rs_metadata_new (void)
 	return g_object_new (RS_TYPE_METADATA, NULL);
 }
 
-#define METACACHEVERSION 11
+/* 11→12 (10/07) : les vignettes non-RAW (JPEG/TIFF/PNG) appliquent désormais
+   l'orientation EXIF (load-gdk) ; bump pour invalider les anciennes vignettes en
+   cache (couchées en paysage) et forcer leur régénération orientée. */
+#define METACACHEVERSION 13
 void
 rs_metadata_cache_save(RSMetadata *metadata, const gchar *filename)
 {
@@ -216,7 +225,41 @@ rs_metadata_cache_save(RSMetadata *metadata, const gchar *filename)
 	if (metadata->thumbnail)
 	{
 		thumb_filename = rs_metadata_dotdir_helper(filename, DOTDIR_THUMB);
-		gdk_pixbuf_save(metadata->thumbnail, thumb_filename, "jpeg", NULL, "quality", "90", NULL);
+
+		/* JPEG ne gère pas l'alpha. Sur Fedora récent, gdk_pixbuf_save() délègue à
+		   glycin, dont l'encodeur JPEG REFUSE une pixbuf RGBA (« color type Rgba8
+		   not supported »). Les vignettes régénérées avec effets sortent en 4 canaux
+		   → la sauvegarde échouait → aucun .thumb.jpg → au rechargement, repli sur la
+		   vignette sans effets. Attention : gdk_pixbuf_composite_color_simple() NE
+		   retire PAS le canal alpha (elle le remplit). On crée donc une vraie pixbuf
+		   RGB à 3 canaux et on y compose (fond blanc pour d'éventuelles zones
+		   transparentes — ici l'alpha n'est qu'un remplissage opaque, rendu identique). */
+		GdkPixbuf *to_save = metadata->thumbnail;
+		GdkPixbuf *flat = NULL;
+		if (gdk_pixbuf_get_has_alpha(to_save))
+		{
+			gint tw = gdk_pixbuf_get_width(to_save);
+			gint th = gdk_pixbuf_get_height(to_save);
+			flat = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, tw, th);
+			if (flat)
+			{
+				gdk_pixbuf_fill(flat, 0xffffffff);
+				gdk_pixbuf_composite(to_save, flat, 0, 0, tw, th, 0, 0,
+					1.0, 1.0, GDK_INTERP_NEAREST, 255);
+				to_save = flat;
+			}
+		}
+
+		GError *terr = NULL;
+		if (!gdk_pixbuf_save(to_save, thumb_filename, "jpeg", &terr, "quality", "90", NULL))
+		{
+			g_warning("Échec de sauvegarde de la vignette %s : %s",
+				thumb_filename, terr ? terr->message : "erreur inconnue");
+			g_clear_error(&terr);
+		}
+
+		if (flat)
+			g_object_unref(flat);
 		g_free(thumb_filename);
 	}
 }

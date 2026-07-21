@@ -65,6 +65,17 @@ expander {
     color: @cs_fg;
 }
 
+/* Panneau « CaraStyles » à droite de la section Balance des blancs : même fond
+   que les sections (sinon la zone hors expander laisse voir le fond sombre). */
+.cs-styles-row {
+    background-color: @cs_bg_dark;
+}
+/* Barre verticale de séparation du panneau CaraStyles (bien visible). */
+.cs-styles-sep {
+    background-color: @cs_border_soft;
+    min-width: 1px;
+}
+
 expander > title {
     background-color: @cs_bg_dark;
     color: @cs_fg;
@@ -732,4 +743,38 @@ frame > label {
 /* Conteneur interne d'un GtkFrame */
 frame > box {
     background-color: transparent;
+}
+
+/* ------------------------------------------------------------------ */
+/* Boutons « Tout replier / Tout déplier » de la boîte à outils         */
+/* Colorés (accent bleu) pour se distinguer et rendre l'entête plus     */
+/* accueillant. Icône symbolique recolorée via la propriété color.      */
+/* ------------------------------------------------------------------ */
+.cs-fold-bar {
+    background-color: @cs_bg_dark;
+}
+
+button.cs-fold-btn {
+    background-image: none;
+    background-color: @cs_accent_dark;
+    color: @cs_fg;
+    border: 1px solid @cs_accent;
+    border-radius: 5px;
+    padding: 1px 7px;
+    font-weight: bold;
+    text-shadow: none;
+    box-shadow: none;
+}
+
+button.cs-fold-btn:hover {
+    background-color: @cs_accent;
+    border-color: @cs_fg_dim;
+}
+
+button.cs-fold-btn:active {
+    background-color: @cs_accent_dark;
+}
+
+button.cs-fold-btn label {
+    color: @cs_fg;
 }

@@ -17,43 +17,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-/* Accepts old DBUS (before 1.0) installations */
-#define DBUS_API_SUBJECT_TO_CHANGE
-
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include "application.h"
 #include "rs-photo.h"
-#include <dbus/dbus.h>
 
 
 static gboolean rs_has_gimp(gint major, gint minor, gint micro);
-
-#define EXPORT_TO_GIMP_TIMEOUT_SECONDS 30
-
-DBusHandlerResult
-dbus_gimp_opened (DBusConnection * connection, DBusMessage * message, void *user_data) {
-
-	/* Check if image has been opened by GIMP */
-	if (dbus_message_is_signal(message, "org.gimp.GIMP.UI", "Opened"))
-	{
-		gchar *argument = NULL;
-		gchar *filename = (gchar *) user_data;
-
-		dbus_message_get_args(message, NULL,
-				      DBUS_TYPE_STRING, &argument,
-				      DBUS_TYPE_INVALID);
-
-		/* Cleaning up */
-		dbus_connection_remove_filter(connection, dbus_gimp_opened, user_data);
-		unlink(filename); /*FIXME: filename should almost match argument - will cause error if user opens a photo in GIMP while exporting */
-
-		return DBUS_HANDLER_RESULT_HANDLED;
-	}
-	return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-}
 
 gboolean
 rs_external_editor_gimp(RS_PHOTO *photo, RSFilter *prior_to_resample, guint snapshot)
@@ -66,11 +38,7 @@ rs_external_editor_gimp(RS_PHOTO *photo, RSFilter *prior_to_resample, guint snap
 		return FALSE;
 	}
 
-	DBusConnection *bus;
-	DBusMessage *message, *reply;
 	GString *filename;
-
-	bus = dbus_bus_get (DBUS_BUS_SESSION, NULL);
 
 	gchar* org_name = g_path_get_basename(photo->filename);
 	gchar* org_name_noext = g_utf8_strchr(org_name, -1, '.');
@@ -84,17 +52,24 @@ rs_external_editor_gimp(RS_PHOTO *photo, RSFilter *prior_to_resample, guint snap
 
 	g_free(org_name);
 
-	/* Setup our filter chain for saving */
-				RSFilter *ftransform_input = rs_filter_new("RSColorspaceTransform", prior_to_resample);
-        RSFilter *fdcp = rs_filter_new("RSDcp", ftransform_input);
-        RSFilter *fdenoise= rs_filter_new("RSDenoise", fdcp);
-        RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", fdenoise);
-        RSFilter *fend = ftransform_display;
+	/* Chaîne de rendu COMPLÈTE, identique à l'export normal (rs_photo_save).
+	   L'ancienne chaîne sautait RSCrop, RSResample et RSEffects → ni l'orientation,
+	   ni le recadrage, ni les effets CaraStudio (courbes, argentico…) n'étaient
+	   appliqués : une photo portrait partait en paysage dans GIMP. RSCrop applique
+	   l'orientation/le recadrage via rs_photo_apply_to_filters. */
+	RSFilter *ftransform_input = rs_filter_new("RSColorspaceTransform", prior_to_resample);
+	RSFilter *fdcp = rs_filter_new("RSDcp", ftransform_input);
+	RSFilter *frotate = rs_filter_new("RSRotate", fdcp);       /* orientation + angle */
+	RSFilter *fcrop = rs_filter_new("RSCrop", frotate);        /* recadrage (après rotation) */
+	RSFilter *fresample = rs_filter_new("RSResample", fcrop);
+	RSFilter *fdenoise = rs_filter_new("RSDenoise", fresample);
+	RSFilter *feffects = rs_filter_new("RSEffects", fdenoise);
+	RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", feffects);
+	RSFilter *fend = ftransform_display;
 
-			GList *filters = g_list_append(NULL, fend);
-			rs_photo_apply_to_filters(photo, filters, snapshot);
-			g_list_free(filters);
-
+	GList *filters = g_list_append(NULL, fend);
+	rs_photo_apply_to_filters(photo, filters, snapshot);
+	g_list_free(filters);
 
 	output = rs_output_new("RSPngfile");
 	g_object_set(output, "filename", filename->str, NULL);
@@ -103,65 +78,37 @@ rs_external_editor_gimp(RS_PHOTO *photo, RSFilter *prior_to_resample, guint snap
 	rs_output_execute(output, fend);
 	g_object_unref(output);
 	g_object_unref(ftransform_input);
-	g_object_unref(ftransform_display);
-	g_object_unref(fdenoise);
 	g_object_unref(fdcp);
+	g_object_unref(frotate);
+	g_object_unref(fcrop);
+	g_object_unref(fresample);
+	g_object_unref(fdenoise);
+	g_object_unref(feffects);
+	g_object_unref(ftransform_display);
 
-	message = dbus_message_new_method_call("org.gimp.GIMP.UI",
-                                                "/org/gimp/GIMP/UI",
-                                                "org.gimp.GIMP.UI",
-                                                "OpenAsNew");
-	dbus_message_append_args (message,
-                                        DBUS_TYPE_STRING, &filename->str,
-					DBUS_TYPE_INVALID);
+	/* Ouvre le PNG rendu dans GIMP en le passant en ARGUMENT — méthode robuste,
+	   valable pour toutes les versions de GIMP (2.x comme 3.x). L'ancien mécanisme
+	   passait par D-Bus (org.gimp.GIMP.UI / OpenAsNew), interface qui a changé : GIMP
+	   s'ouvrait alors SANS la photo. Avec « gimp <fichier> », si GIMP tourne déjà il
+	   ouvre le fichier dans l'instance existante ; sinon il démarre et l'ouvre.
+	   Lancement ASYNCHRONE (on ne bloque pas l'interface). Le fichier temporaire est
+	   laissé dans /tmp — GIMP le lit ; le système nettoie /tmp. */
+	gchar *argv[] = { "gimp", filename->str, NULL };
+	GError *error = NULL;
+	gboolean launched = g_spawn_async(NULL, argv, NULL,
+		G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,
+		NULL, NULL, NULL, &error);
 
-	/* Send DBus message to GIMP */
-	reply = dbus_connection_send_with_reply_and_block (bus, message, -1, NULL);
-
-	/* If we didn't get a reply from GIMP - we try to start it and resend the message */
-	if (!reply) {
-		gint retval = system("gimp &");
-		if (retval != 0) {
-			g_warning("system(\"gimp &\") returned: %d\n", retval);
-			g_unlink(filename->str);
-			g_string_free(filename, TRUE);
-			dbus_message_unref (message);
-			return FALSE;
-		}
-	}
-
-	/* Allow GIMP to start - we send the message every one second */
-	while (!reply) {
-		gint i = 0;
-		if (i > EXPORT_TO_GIMP_TIMEOUT_SECONDS) {
-			g_warning("Never got a reply from GIMP - deleting temporary file");
-			g_unlink(filename->str);
-			g_string_free(filename, TRUE);
-			dbus_message_unref (message);
-			return FALSE;
-		}
-		sleep(1);
-		i++;
-		reply = dbus_connection_send_with_reply_and_block (bus, message, -1, NULL);
-	}
-
-	dbus_message_unref (message);
-
-	/* Depends on GIMP DBus signal: 'Opened' */
-	if (rs_has_gimp(2,6,2)) {
-		/* Connect to GIMP and listen for "Opened" signal */
-		dbus_bus_add_match (bus, "type='signal',interface='org.gimp.GIMP.UI'", NULL);
-		dbus_connection_add_filter(bus, dbus_gimp_opened, filename->str , NULL);
-		g_string_free(filename, FALSE);
-	} else {
-		/* Old sad way - GIMP doesn't let us know that it has opened the photo */
-		g_warning("You have an old version of GIMP and we suggest that you upgrade to at least 2.6.2");
-		g_warning("Rawstudio will stop responding for 10 seconds while it waits for GIMP to open the file");
-		sleep(10);
+	if (!launched)
+	{
+		g_warning("Impossible de lancer GIMP : %s", error ? error->message : "erreur inconnue");
+		g_clear_error(&error);
 		g_unlink(filename->str);
 		g_string_free(filename, TRUE);
+		return FALSE;
 	}
 
+	g_string_free(filename, TRUE);
 	return TRUE;
 }
 

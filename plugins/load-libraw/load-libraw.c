@@ -191,6 +191,94 @@ load_libraw_file(const gchar *filename)
 }
 
 /* ------------------------------------------------------------------ */
+/* Méta-loader : balance des blancs « as-shot » via LibRaw             */
+/* ------------------------------------------------------------------ */
+/*
+ * Renseigne meta->cam_mul (multiplicateurs WB du boîtier) en s'appuyant sur
+ * LibRaw, qui décode la WB de TOUTES les marques — y compris les MakerNotes
+ * récents/chiffrés que les parseurs maison (makernote_nikon/canon/…) ne savent
+ * pas lire (ex. Nikon Z5 II, dont la WB manquait → défaut faux → cast couleur).
+ *
+ * Enregistré en priorité 5 (< 10 de meta-tiff) : il s'exécute AVANT le parseur
+ * maison et renvoie FALSE pour laisser meta-tiff renseigner le reste (modèle,
+ * objectif, exposition…). Pour les boîtiers que meta-tiff sait gérer, celui-ci
+ * réécrira ensuite cam_mul (comportement inchangé) ; pour les autres, la valeur
+ * LibRaw comble le trou. libraw_open_file() suffit (pas de décodage complet).
+ */
+static gboolean
+libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *meta)
+{
+	libraw_data_t *raw;
+
+	if (!service || !meta)
+		return FALSE;
+
+	rs_io_lock();
+	raw = libraw_init(0);
+	if (raw)
+	{
+		if (libraw_open_file(raw, service) == LIBRAW_SUCCESS)
+		{
+			const float *cm = raw->color.cam_mul;
+			if (cm[0] > 0.0f && cm[1] > 0.0f && cm[2] > 0.0f)
+			{
+				meta->cam_mul[0] = (gdouble) cm[0];               /* R  */
+				meta->cam_mul[1] = (gdouble) cm[1];               /* G1 */
+				meta->cam_mul[2] = (gdouble) cm[2];               /* B  */
+				meta->cam_mul[3] = (gdouble)((cm[3] > 0.0f) ? cm[3] : cm[1]); /* G2 */
+			}
+
+			/* Vignette : miniature embarquée décodée par LibRaw. Le parseur maison
+			 * (meta-tiff) ne sait pas localiser l'aperçu des boîtiers récents (Z5 II)
+			 * → vignette NOIRE à l'ouverture. LibRaw la fournit pour toutes les
+			 * marques. On ne pose que le cas JPEG (quasi universel) ; meta-tiff ne
+			 * réécrira pas meta->thumbnail s'il est déjà renseigné (garde ajoutée). */
+			if (!meta->thumbnail && libraw_unpack_thumb(raw) == LIBRAW_SUCCESS)
+			{
+				int errc = 0;
+				libraw_processed_image_t *timg = libraw_dcraw_make_mem_thumb(raw, &errc);
+				if (timg)
+				{
+					if (errc == 0 && timg->type == LIBRAW_IMAGE_JPEG &&
+					    timg->data_size > 0)
+					{
+						GdkPixbufLoader *ldr = gdk_pixbuf_loader_new();
+						if (gdk_pixbuf_loader_write(ldr, (const guchar *) timg->data,
+						                            timg->data_size, NULL) &&
+						    gdk_pixbuf_loader_close(ldr, NULL))
+						{
+							GdkPixbuf *p = gdk_pixbuf_loader_get_pixbuf(ldr);
+							if (p)
+							{
+								GdkPixbuf *o = gdk_pixbuf_apply_embedded_orientation(p);
+								/* Réduire les gros aperçus (certains font plusieurs
+								   milliers de px) à une taille de vignette raisonnable. */
+								gint w = gdk_pixbuf_get_width(o);
+								gint h = gdk_pixbuf_get_height(o);
+								gint m = MAX(w, h);
+								if (m > 256)
+								{
+									GdkPixbuf *s = gdk_pixbuf_scale_simple(
+										o, w * 256 / m, h * 256 / m, GDK_INTERP_BILINEAR);
+									if (s) { g_object_unref(o); o = s; }
+								}
+								meta->thumbnail = o;
+							}
+						}
+						g_object_unref(ldr);
+					}
+					libraw_dcraw_clear_mem(timg);
+				}
+			}
+		}
+		libraw_close(raw);
+	}
+	rs_io_unlock();
+
+	return FALSE; /* passer la main à meta-tiff pour le reste des métadonnées */
+}
+
+/* ------------------------------------------------------------------ */
 /* Enregistrement des formats                                          */
 /* ------------------------------------------------------------------ */
 
@@ -199,6 +287,8 @@ reg(const gchar *ext, const gchar *desc)
 {
 	rs_filetype_register_loader(ext, desc, load_libraw_file,
 	                            LIBRAW_PRIORITY, RS_LOADER_FLAGS_RAW);
+	/* Même extension → aussi le méta-loader WB LibRaw (priorité 5, cf. ci-dessus) */
+	rs_filetype_register_meta_loader(ext, desc, libraw_load_meta, 5, RS_LOADER_FLAGS_RAW);
 }
 
 G_MODULE_EXPORT void

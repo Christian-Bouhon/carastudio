@@ -82,6 +82,8 @@ enum {
 	PROP_BW_VIOLET,
 	PROP_DEHAZE_STRENGTH,
 	PROP_DEHAZE_SATURATION,
+	PROP_DRC_AMOUNT,
+	PROP_DRC_THRESHOLD,
 	/* Argentico (négatif argentique) */
 	PROP_ARGENTICO_ENABLED,
 	PROP_ARGENTICO_GREEN_EXP,
@@ -315,6 +317,16 @@ rs_settings_class_init (RSSettingsClass *klass)
 			-100.0, 100.0, 0.0, G_PARAM_READWRITE)
 	);
 	g_object_class_install_property(object_class,
+		PROP_DRC_AMOUNT, g_param_spec_float(
+			"drc-amount", _("Ampleur"), _("Dynamic Range Compression Amount"),
+			0.0, 100.0, 0.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
+		PROP_DRC_THRESHOLD, g_param_spec_float(
+			"drc-threshold", _("Seuil"), _("Dynamic Range Compression Threshold"),
+			-100.0, 300.0, 30.0, G_PARAM_READWRITE)
+	);
+	g_object_class_install_property(object_class,
 		PROP_ARGENTICO_ENABLED, g_param_spec_boolean(
 			"argentico-enabled", _("Argentico"), _("Activer le négatif argentique"),
 			FALSE, G_PARAM_READWRITE)
@@ -484,6 +496,12 @@ rs_settings_init (RSSettings *self)
 	self->commit = 0;
 	self->commit_todo = 0;
 	self->curve_knots = NULL;
+	self->red_curve_knots = NULL;
+	self->green_curve_knots = NULL;
+	self->blue_curve_knots = NULL;
+	self->red_curve_nknots = 0;
+	self->green_curve_nknots = 0;
+	self->blue_curve_nknots = 0;
 	self->wb_ascii = NULL;
 	self->hsl_hue_curve = NULL;
 	self->hsl_sat_curve = NULL;
@@ -534,6 +552,8 @@ get_property(GObject *object, guint property_id, GValue *value, GParamSpec *pspe
 		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
 		CASE(DEHAZE_STRENGTH, dehaze_strength);
 		CASE(DEHAZE_SATURATION, dehaze_saturation);
+		CASE(DRC_AMOUNT, drc_amount);
+		CASE(DRC_THRESHOLD, drc_threshold);
 		CASE(ARGENTICO_GREEN_EXP, argentico_green_exp);
 		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
 		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
@@ -672,6 +692,8 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 		CASE(ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
 		CASE(DEHAZE_STRENGTH, dehaze_strength);
 		CASE(DEHAZE_SATURATION, dehaze_saturation);
+		CASE(DRC_AMOUNT, drc_amount);
+		CASE(DRC_THRESHOLD, drc_threshold);
 		CASE(ARGENTICO_GREEN_EXP, argentico_green_exp);
 		CASE(ARGENTICO_RED_RATIO, argentico_red_ratio);
 		CASE(ARGENTICO_BLUE_RATIO, argentico_blue_ratio);
@@ -914,6 +936,8 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 	rs_object_class_property_reset(object, "bw-violet");
 	rs_object_class_property_reset(object, "dehaze-strength");
 	rs_object_class_property_reset(object, "dehaze-saturation");
+	rs_object_class_property_reset(object, "drc-amount");
+	rs_object_class_property_reset(object, "drc-threshold");
 	rs_object_class_property_reset(object, "argentico-enabled");
 	rs_object_class_property_reset(object, "argentico-green-exp");
 	rs_object_class_property_reset(object, "argentico-red-ratio");
@@ -955,6 +979,20 @@ rs_settings_reset(RSSettings *settings, const RSSettingsMask mask)
 		settings->curve_knots[3] = 1.0;
 		settings->curve_nknots = 2;
 		settings->commit_todo |= MASK_CURVE;
+
+		/* Courbes RVB par canal → linéaire (0,0)-(1,1). */
+		gfloat **rgb_knots[3] = { &settings->red_curve_knots, &settings->green_curve_knots, &settings->blue_curve_knots };
+		gint *rgb_nknots[3] = { &settings->red_curve_nknots, &settings->green_curve_nknots, &settings->blue_curve_nknots };
+		gint ch;
+		for (ch = 0; ch < 3; ch++)
+		{
+			g_free(*rgb_knots[ch]);
+			*rgb_knots[ch] = g_new(gfloat, 4);
+			(*rgb_knots[ch])[0] = 0.0; (*rgb_knots[ch])[1] = 0.0;
+			(*rgb_knots[ch])[2] = 1.0; (*rgb_knots[ch])[3] = 1.0;
+			*rgb_nknots[ch] = 2;
+		}
+		settings->commit_todo |= MASK_SOFTLIGHT_STRENGTH; /* bit « effets » (RSEffects) */
 	}
 	rs_settings_commit_stop(settings);
 }
@@ -1066,6 +1104,8 @@ do { \
 	SETTINGS_COPY(BW_VIOLET, bw_violet);
 	SETTINGS_COPY(DEHAZE_STRENGTH, dehaze_strength);
 	SETTINGS_COPY(DEHAZE_SATURATION, dehaze_saturation);
+	SETTINGS_COPY(DRC_AMOUNT, drc_amount);
+	SETTINGS_COPY(DRC_THRESHOLD, drc_threshold);
 	if (mask & MASK_ARGENTICO_ENABLED)
 		target->argentico_enabled = source->argentico_enabled;
 	SETTINGS_COPY(ARGENTICO_GREEN_EXP, argentico_green_exp);
@@ -1139,11 +1179,207 @@ do { \
 		}
 	}
 
+	/* Courbes RVB par canal (CaraStudio) — copiées avec la courbe. */
+	if (mask & MASK_CURVE)
+	{
+		gfloat *src_knots[3] = { source->red_curve_knots, source->green_curve_knots, source->blue_curve_knots };
+		gint src_nknots[3] = { source->red_curve_nknots, source->green_curve_nknots, source->blue_curve_nknots };
+		gfloat **tgt_knots[3] = { &target->red_curve_knots, &target->green_curve_knots, &target->blue_curve_knots };
+		gint *tgt_nknots[3] = { &target->red_curve_nknots, &target->green_curve_nknots, &target->blue_curve_nknots };
+		gint ch;
+		for (ch = 0; ch < 3; ch++)
+		{
+			gboolean diff = (*tgt_nknots[ch] != src_nknots[ch]);
+			if (!diff && src_knots[ch] && *tgt_knots[ch])
+				diff = (memcmp(src_knots[ch], *tgt_knots[ch], sizeof(gfloat)*2*src_nknots[ch]) != 0);
+			if (diff && src_knots[ch])
+			{
+				g_free(*tgt_knots[ch]);
+				*tgt_knots[ch] = g_memdup(src_knots[ch], sizeof(gfloat)*2*src_nknots[ch]);
+				*tgt_nknots[ch] = src_nknots[ch];
+				changed_mask |= MASK_SOFTLIGHT_STRENGTH; /* bit effets → RSEffects recalcule */
+			}
+		}
+	}
+
 	/* Emit seignal if needed */
 	if (changed_mask > 0)
 		rs_settings_update_settings(target, changed_mask);
 
 	return changed_mask;
+}
+
+/**
+ * Copie sélective par GROUPES de style (granularité 64 bits).
+ * Voir le commentaire de RSStyleGroups dans rs-settings.h : contrairement à
+ * rs_settings_copy() dont le masque 32 bits ne peut pas séparer les 6 modules
+ * couleur récents (ils partagent le bit softlight), cette variante prend un
+ * RSStyleGroups où chaque module a son propre bit. Le rafraîchissement des
+ * curseurs passe toujours par le signal 32 bits « settings-changed » : on
+ * accumule donc un changed_mask 32 bits classique (les modules modernes se
+ * rafraîchissent tous via MASK_SOFTLIGHT_STRENGTH, comme partout ailleurs).
+ */
+void
+rs_settings_copy_partial(RSSettings *source, const RSStyleGroups groups, RSSettings *target)
+{
+	RSSettingsMask changed_mask = 0;
+
+	g_return_if_fail(RS_IS_SETTINGS(source));
+	g_return_if_fail(RS_IS_SETTINGS(target));
+
+	/* Copie un champ scalaire si son groupe est coché ET la valeur diffère.
+	 * refresh = bit MASK_* 32 bits utilisé pour le signal de rafraîchissement. */
+#define GRP_COPY(grp, refresh, lower) \
+do { \
+	if ((groups & (grp)) && (target->lower != source->lower)) \
+	{ \
+		target->lower = source->lower; \
+		changed_mask |= (refresh); \
+	} \
+} while(0)
+
+	/* Exposition */
+	GRP_COPY(STYLE_EXPOSURE, MASK_EXPOSURE, exposure);
+	GRP_COPY(STYLE_EXPOSURE, MASK_SATURATION, saturation);
+	GRP_COPY(STYLE_EXPOSURE, MASK_HUE, hue);
+	GRP_COPY(STYLE_EXPOSURE, MASK_CONTRAST, contrast);
+
+	/* Balance des blancs */
+	if ((groups & STYLE_WB) && (g_strcmp0(target->wb_ascii, source->wb_ascii) != 0))
+	{
+		g_free(target->wb_ascii);
+		target->wb_ascii = g_strdup(source->wb_ascii);
+		changed_mask |= MASK_WB;
+	}
+	GRP_COPY(STYLE_WB, MASK_WB, warmth);
+	GRP_COPY(STYLE_WB, MASK_WB, tint);
+	GRP_COPY(STYLE_WB, MASK_WB, dcp_temp);
+	GRP_COPY(STYLE_WB, MASK_WB, dcp_tint);
+	if (groups & STYLE_WB)
+		target->recalc_temp = source->recalc_temp;
+
+	/* Netteté / débruitage / TCA / mixeur de canaux / vignettage optique */
+	GRP_COPY(STYLE_SHARPEN, MASK_SHARPEN, sharpen);
+	GRP_COPY(STYLE_DENOISE, MASK_DENOISE_LUMA, denoise_luma);
+	GRP_COPY(STYLE_DENOISE, MASK_DENOISE_CHROMA, denoise_chroma);
+	GRP_COPY(STYLE_TCA, MASK_TCA_KR, tca_kr);
+	GRP_COPY(STYLE_TCA, MASK_TCA_KB, tca_kb);
+	GRP_COPY(STYLE_CHANNELMIXER, MASK_CHANNELMIXER_RED, channelmixer_red);
+	GRP_COPY(STYLE_CHANNELMIXER, MASK_CHANNELMIXER_GREEN, channelmixer_green);
+	GRP_COPY(STYLE_CHANNELMIXER, MASK_CHANNELMIXER_BLUE, channelmixer_blue);
+	GRP_COPY(STYLE_VIGNETTING, MASK_VIGNETTING, vignetting);
+
+	/* Lumière douce + vignettage artistique */
+	GRP_COPY(STYLE_SOFTLIGHT, MASK_SOFTLIGHT_STRENGTH, softlight_strength);
+	GRP_COPY(STYLE_ART_VIGNETTE, MASK_ART_VIGNETTE_STRENGTH, art_vignette_strength);
+	GRP_COPY(STYLE_ART_VIGNETTE, MASK_ART_VIGNETTE_FEATHER, art_vignette_feather);
+	GRP_COPY(STYLE_ART_VIGNETTE, MASK_ART_VIGNETTE_ROUNDNESS, art_vignette_roundness);
+
+	/* Noir & blanc (booléen + filtre entier + mélange par teinte) */
+	if (groups & STYLE_BW)
+	{
+		if (target->bw_enabled != source->bw_enabled)
+		{ target->bw_enabled = source->bw_enabled; changed_mask |= MASK_BW_ENABLED; }
+		if (target->bw_filter != source->bw_filter)
+		{ target->bw_filter = source->bw_filter; changed_mask |= MASK_BW_FILTER; }
+	}
+	GRP_COPY(STYLE_BW, MASK_BW_RED, bw_red);
+	GRP_COPY(STYLE_BW, MASK_BW_ORANGE, bw_orange);
+	GRP_COPY(STYLE_BW, MASK_BW_YELLOW, bw_yellow);
+	GRP_COPY(STYLE_BW, MASK_BW_GREEN, bw_green);
+	GRP_COPY(STYLE_BW, MASK_BW_CYAN, bw_cyan);
+	GRP_COPY(STYLE_BW, MASK_BW_BLUE, bw_blue);
+	GRP_COPY(STYLE_BW, MASK_BW_VIOLET, bw_violet);
+
+	/* Voile / anti-brume (bit de rafraîchissement partagé softlight) */
+	GRP_COPY(STYLE_DEHAZE, MASK_SOFTLIGHT_STRENGTH, dehaze_strength);
+	GRP_COPY(STYLE_DEHAZE, MASK_SOFTLIGHT_STRENGTH, dehaze_saturation);
+
+	/* Argentico */
+	if ((groups & STYLE_ARGENTICO) && (target->argentico_enabled != source->argentico_enabled))
+	{ target->argentico_enabled = source->argentico_enabled; changed_mask |= MASK_SOFTLIGHT_STRENGTH; }
+	GRP_COPY(STYLE_ARGENTICO, MASK_SOFTLIGHT_STRENGTH, argentico_green_exp);
+	GRP_COPY(STYLE_ARGENTICO, MASK_SOFTLIGHT_STRENGTH, argentico_red_ratio);
+	GRP_COPY(STYLE_ARGENTICO, MASK_SOFTLIGHT_STRENGTH, argentico_blue_ratio);
+	GRP_COPY(STYLE_ARGENTICO, MASK_SOFTLIGHT_STRENGTH, argentico_exposure);
+	GRP_COPY(STYLE_ARGENTICO, MASK_SOFTLIGHT_STRENGTH, argentico_ref_r);
+	GRP_COPY(STYLE_ARGENTICO, MASK_SOFTLIGHT_STRENGTH, argentico_ref_g);
+	GRP_COPY(STYLE_ARGENTICO, MASK_SOFTLIGHT_STRENGTH, argentico_ref_b);
+
+	/* Égaliseur de tons */
+	if ((groups & STYLE_TONEEQ) && (target->toneeq_enabled != source->toneeq_enabled))
+	{ target->toneeq_enabled = source->toneeq_enabled; changed_mask |= MASK_SOFTLIGHT_STRENGTH; }
+	GRP_COPY(STYLE_TONEEQ, MASK_SOFTLIGHT_STRENGTH, toneeq_band0);
+	GRP_COPY(STYLE_TONEEQ, MASK_SOFTLIGHT_STRENGTH, toneeq_band1);
+	GRP_COPY(STYLE_TONEEQ, MASK_SOFTLIGHT_STRENGTH, toneeq_band2);
+	GRP_COPY(STYLE_TONEEQ, MASK_SOFTLIGHT_STRENGTH, toneeq_band3);
+	GRP_COPY(STYLE_TONEEQ, MASK_SOFTLIGHT_STRENGTH, toneeq_band4);
+	GRP_COPY(STYLE_TONEEQ, MASK_SOFTLIGHT_STRENGTH, toneeq_pivot);
+
+	/* Roues chromatiques 3 voies */
+	if ((groups & STYLE_COLORWHEELS) && (target->colorwheels_enabled != source->colorwheels_enabled))
+	{ target->colorwheels_enabled = source->colorwheels_enabled; changed_mask |= MASK_SOFTLIGHT_STRENGTH; }
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_shadows_x);
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_shadows_y);
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_shadows_lum);
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_mid_x);
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_mid_y);
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_mid_lum);
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_high_x);
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_high_y);
+	GRP_COPY(STYLE_COLORWHEELS, MASK_SOFTLIGHT_STRENGTH, cw_high_lum);
+
+	/* Color zones / égaliseur de couleurs (3 courbes stockées en chaîne) */
+	if ((groups & STYLE_HSL) && (target->hsl_enabled != source->hsl_enabled))
+	{ target->hsl_enabled = source->hsl_enabled; changed_mask |= MASK_SOFTLIGHT_STRENGTH; }
+	if ((groups & STYLE_HSL) && (g_strcmp0(target->hsl_hue_curve, source->hsl_hue_curve) != 0))
+	{ g_free(target->hsl_hue_curve); target->hsl_hue_curve = g_strdup(source->hsl_hue_curve); changed_mask |= MASK_SOFTLIGHT_STRENGTH; }
+	if ((groups & STYLE_HSL) && (g_strcmp0(target->hsl_sat_curve, source->hsl_sat_curve) != 0))
+	{ g_free(target->hsl_sat_curve); target->hsl_sat_curve = g_strdup(source->hsl_sat_curve); changed_mask |= MASK_SOFTLIGHT_STRENGTH; }
+	if ((groups & STYLE_HSL) && (g_strcmp0(target->hsl_lum_curve, source->hsl_lum_curve) != 0))
+	{ g_free(target->hsl_lum_curve); target->hsl_lum_curve = g_strdup(source->hsl_lum_curve); changed_mask |= MASK_SOFTLIGHT_STRENGTH; }
+
+#undef GRP_COPY
+
+	/* Courbe tonale + courbes RVB par canal (noeuds en mémoire) */
+	if (groups & STYLE_CURVE)
+	{
+		gboolean curve_changed = FALSE;
+		if (target->curve_nknots != source->curve_nknots)
+			curve_changed = TRUE;
+		else if (source->curve_knots && target->curve_knots)
+			curve_changed = (memcmp(source->curve_knots, target->curve_knots,
+			                        sizeof(gfloat)*2*source->curve_nknots) != 0);
+		if (curve_changed && source->curve_knots)
+		{
+			g_free(target->curve_knots);
+			target->curve_knots = g_memdup(source->curve_knots, sizeof(gfloat)*2*source->curve_nknots);
+			target->curve_nknots = source->curve_nknots;
+			changed_mask |= MASK_CURVE;
+		}
+
+		gfloat *src_knots[3] = { source->red_curve_knots, source->green_curve_knots, source->blue_curve_knots };
+		gint src_nknots[3] = { source->red_curve_nknots, source->green_curve_nknots, source->blue_curve_nknots };
+		gfloat **tgt_knots[3] = { &target->red_curve_knots, &target->green_curve_knots, &target->blue_curve_knots };
+		gint *tgt_nknots[3] = { &target->red_curve_nknots, &target->green_curve_nknots, &target->blue_curve_nknots };
+		gint ch;
+		for (ch = 0; ch < 3; ch++)
+		{
+			gboolean diff = (*tgt_nknots[ch] != src_nknots[ch]);
+			if (!diff && src_knots[ch] && *tgt_knots[ch])
+				diff = (memcmp(src_knots[ch], *tgt_knots[ch], sizeof(gfloat)*2*src_nknots[ch]) != 0);
+			if (diff && src_knots[ch])
+			{
+				g_free(*tgt_knots[ch]);
+				*tgt_knots[ch] = g_memdup(src_knots[ch], sizeof(gfloat)*2*src_nknots[ch]);
+				*tgt_nknots[ch] = src_nknots[ch];
+				changed_mask |= MASK_SOFTLIGHT_STRENGTH; /* bit effets → RSEffects recalcule */
+			}
+		}
+	}
+
+	if (changed_mask > 0)
+		rs_settings_update_settings(target, changed_mask);
 }
 
 /**
@@ -1206,6 +1442,62 @@ rs_settings_get_curve_nknots(RSSettings *settings)
 	g_return_val_if_fail(RS_IS_SETTINGS(settings), 0);
 
 	return settings->curve_nknots;
+}
+
+/* Courbes RVB par canal (CaraStudio). Helper : renvoie les pointeurs vers les
+ * champs du canal (0=rouge, 1=vert, 2=bleu), ou FALSE si canal invalide. */
+static gboolean
+rgb_curve_fields(RSSettings *settings, const gint channel, gfloat ***knots, gint **nknots)
+{
+	switch (channel)
+	{
+		case 0: *knots = &settings->red_curve_knots;   *nknots = &settings->red_curve_nknots;   return TRUE;
+		case 1: *knots = &settings->green_curve_knots; *nknots = &settings->green_curve_nknots; return TRUE;
+		case 2: *knots = &settings->blue_curve_knots;  *nknots = &settings->blue_curve_nknots;  return TRUE;
+		default: return FALSE;
+	}
+}
+
+void
+rs_settings_set_rgb_curve_knots(RSSettings *settings, const gint channel, const gfloat *knots, const gint nknots)
+{
+	g_return_if_fail(RS_IS_SETTINGS(settings));
+	g_return_if_fail(nknots > 0);
+	g_return_if_fail(knots != NULL);
+
+	gfloat **kf; gint *nf;
+	if (!rgb_curve_fields(settings, channel, &kf, &nf))
+		return;
+
+	g_free(*kf);
+	*kf = g_memdup(knots, sizeof(gfloat)*2*nknots);
+	*nf = nknots;
+
+	rs_settings_update_settings(settings, MASK_SOFTLIGHT_STRENGTH); /* bit effets → RSEffects */
+}
+
+gfloat *
+rs_settings_get_rgb_curve_knots(RSSettings *settings, const gint channel)
+{
+	g_return_val_if_fail(RS_IS_SETTINGS(settings), NULL);
+
+	gfloat **kf; gint *nf;
+	if (!rgb_curve_fields(settings, channel, &kf, &nf) || !*kf)
+		return NULL;
+
+	return g_memdup(*kf, sizeof(gfloat)*2*(*nf));
+}
+
+gint
+rs_settings_get_rgb_curve_nknots(RSSettings *settings, const gint channel)
+{
+	g_return_val_if_fail(RS_IS_SETTINGS(settings), 0);
+
+	gfloat **kf; gint *nf;
+	if (!rgb_curve_fields(settings, channel, &kf, &nf))
+		return 0;
+
+	return *nf;
 }
 
 /**

@@ -40,6 +40,7 @@
 #include "rs-photo.h"
 #include "rs-external-editor.h"
 #include "rs-actions.h"
+#include "cs-pipeline.h"
 #include "rs-dir-selector.h"
 #include "rs-toolbox.h"
 #include "rs-library.h"
@@ -1209,16 +1210,43 @@ gui_window_make(RS_BLOB *rs)
 	rs_conf_get_boolean_with_default(CONF_MAIN_WINDOW_MAXIMIZED, &maximized, DEFAULT_CONF_MAIN_WINDOW_MAXIMIZED);
 
 	rawstudio_window = GTK_WINDOW(gtk_window_new (GTK_WINDOW_TOPLEVEL));
-	if (!maximized)
+
+	/* TOUJOURS borner la taille initiale à une valeur qui tient à l'écran, PUIS
+	 * maximiser si demandé. Sur Wayland, gtk_window_maximize() avant l'affichage
+	 * n'est pas toujours honoré à temps par le compositeur (comportement racy) :
+	 * sans taille par défaut, la fenêtre s'ouvre alors à sa taille NATURELLE (somme
+	 * des hauteurs minimales des panneaux), qui peut dépasser l'écran → barre de
+	 * titre hors champ, croix de fermeture inatteignable (bug remonté par Philippe
+	 * et un utilisateur du forum). En posant une taille par défaut, le pire cas
+	 * devient une fenêtre à la dernière taille connue (attrapable) plutôt qu'un
+	 * débordement. La position (pos_x/pos_y) reste ignorée : Wayland interdit à
+	 * l'application de se positionner elle-même. */
+	/* Borner à la ZONE DE TRAVAIL du moniteur (écran moins les barres système),
+	 * automatiquement : si la maximisation n'est pas honorée à temps (Wayland), la
+	 * fenêtre de repli ne doit JAMAIS dépasser l'écran. S'adapte à toute résolution
+	 * (1920×1080, 16:10, écran externe…) sans aucun réglage utilisateur. On retranche
+	 * une marge pour la barre de titre (décorations côté client). */
 	{
-//		gtk_window_set_position((GtkWindow *) rawstudio_window, GTK_WIN_POS_NONE);
-//		gtk_window_move((GtkWindow *) rawstudio_window, pos_x, pos_y);
-		gtk_window_resize((GtkWindow *) rawstudio_window, width, height);
+		GdkDisplay *display = gdk_display_get_default();
+		GdkMonitor *mon = NULL;
+		if (display)
+		{
+			mon = gdk_display_get_primary_monitor(display);
+			if (!mon && gdk_display_get_n_monitors(display) > 0)
+				mon = gdk_display_get_monitor(display, 0);
+		}
+		if (mon)
+		{
+			GdkRectangle wa;
+			gdk_monitor_get_workarea(mon, &wa);
+			if (wa.width  > 0 && width  > wa.width)       width  = wa.width;
+			if (wa.height > 0 && height > wa.height - 40)  height = wa.height - 40;
+		}
 	}
-	else
-	{
+
+	gtk_window_set_default_size((GtkWindow *) rawstudio_window, width, height);
+	if (maximized)
 		gtk_window_maximize((GtkWindow *) rawstudio_window);
-	}
 
 	rs_window_set_title(NULL);
 	gtk_window_set_icon_name(rawstudio_window, "carastudio");
@@ -1418,11 +1446,14 @@ void
 rs_window_set_title(const char *str)
 {
 	gboolean client_mode;
+	gchar *title;
 	rs_conf_get_boolean("client-mode", &client_mode);
 	if (client_mode)
-		gtk_window_set_title(GTK_WINDOW(rawstudio_window), _("CaraStudio — Client Mode"));
+		title = g_strdup_printf(_("CaraStudio %s — Client Mode"), VERSION);
 	else
-		gtk_window_set_title(GTK_WINDOW(rawstudio_window), _("CaraStudio — Powered by Carafife"));
+		title = g_strdup_printf(_("CaraStudio %s — Powered by Carafife"), VERSION);
+	gtk_window_set_title(GTK_WINDOW(rawstudio_window), title);
+	g_free(title);
 }
 
 /* CaraStudio: callbacks pour les boutons de zoom variable */
@@ -1455,6 +1486,38 @@ cs_icon_label_button(const gchar *icon_name, const gchar *label_text)
 	gtk_box_pack_start(GTK_BOX(box), gtk_label_new(label_text), FALSE, FALSE, 0);
 	gtk_container_add(GTK_CONTAINER(btn), box);
 	return btn;
+}
+
+/* CaraStudio : clic sur le bouton Enfuse de la barre du haut. On garde le bouton
+ * toujours cliquable, mais on vérifie d'abord qu'au moins une photo est
+ * sélectionnée : sinon l'action « Enfuse » plantait (g_assert sur une sélection
+ * vide). Dans ce cas on affiche un message d'invite au lieu de lancer la fusion. */
+static void
+cs_enfuse_button_clicked(GtkButton *button, gpointer user_data)
+{
+	RS_BLOB *rs = (RS_BLOB *) user_data;
+	GList *selected = rs_store_get_selected_names(rs->store);
+	gint num_selected = g_list_length(selected);
+	g_list_free_full(selected, g_free);
+
+	if (num_selected < 1)
+	{
+		GtkWidget *dialog = gtk_message_dialog_new(
+			GTK_WINDOW(rs->window),
+			GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+			GTK_MESSAGE_INFO, GTK_BUTTONS_OK,
+			_("Sélectionnez d'abord des photos à fusionner"));
+		gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
+			_("Enfuse combine plusieurs prises d'une même scène en une seule image. "
+			  "Sélectionnez au moins deux vignettes (idéalement bracketées à des "
+			  "expositions différentes) avant de lancer la fusion."));
+		gtk_window_set_title(GTK_WINDOW(dialog), _("Enfuse"));
+		gtk_dialog_run(GTK_DIALOG(dialog));
+		gtk_widget_destroy(dialog);
+		return;
+	}
+
+	rs_core_action_group_activate("Enfuse");
 }
 
 /* — Bascule de langue FR/EN (s'applique au redémarrage) — */
@@ -1510,6 +1573,63 @@ cs_language_clicked(GtkWidget *button, RS_BLOB *rs)
 	rs_conf_set_string("ui-language", next);
 	cs_relaunch_requested = TRUE;
 	rs_core_action_group_activate("Quit"); /* sauvegarde des réglages + gtk_main_quit */
+}
+
+/* Charte des 5 étapes du pipeline (lettre + couleur + rappel). Référence unique :
+   ces couleurs/lettres servent au popover « Pipeline » et (à venir) aux badges
+   posés sur les en-têtes de modules. Ordre = ordre RÉEL de traitement. */
+static const struct { const gchar *letter; const gchar *name; const gchar *hint; const gchar *color; }
+cs_pipeline_stages[] = {
+	{ "A", N_("Géométrie"),          N_("objectif, rotation, recadrage"),                  "#7a8290" },
+	{ "B", N_("Développement RAW"),  N_("balance des blancs, exposition, courbe « Valeur »"), "#3d7fc4" },
+	{ "C", N_("Réduction de bruit"), N_("débruitage luminance et couleur"),                "#2fa39a" },
+	{ "D", N_("Effets"),             N_("voile, tonalité, courbes RVB, N&B, vignette"),     "#9a6fc0" },
+	{ "E", N_("Sortie"),             N_("affichage, masque d'exposition"),                 "#c8922e" },
+};
+
+static void
+cs_pipeline_button_clicked(GtkWidget *btn, gpointer popover)
+{
+	gtk_popover_popup(GTK_POPOVER(popover));
+}
+
+/* Bouton « Pipeline » (barre du haut) : popover-légende rappelant les 5 étapes
+   de traitement A→E avec leurs couleurs, consultable pendant le développement.
+   Construit avec le même helper que les autres boutons de la barre (icône +
+   libellé, fond harmonisé). */
+static GtkWidget *
+cs_make_pipeline_button(void)
+{
+	GtkWidget *btn = cs_icon_label_button("cs-pipeline", _("Pipeline"));
+	gtk_widget_set_tooltip_text(btn, _("Ordre de traitement des modules (A→E)"));
+
+	GtkWidget *pop = gtk_popover_new(btn);
+	GtkWidget *box = gtk_vbox_new(FALSE, 6);
+	gtk_container_set_border_width(GTK_CONTAINER(box), 10);
+
+	GtkWidget *title = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(title), _("<b>Pipeline de traitement</b>"));
+	gtk_widget_set_halign(title, GTK_ALIGN_START);
+	gtk_box_pack_start(GTK_BOX(box), title, FALSE, FALSE, 0);
+
+	guint i;
+	for (i = 0; i < G_N_ELEMENTS(cs_pipeline_stages); i++)
+	{
+		gchar *m = g_markup_printf_escaped(
+			"<span background=\"%s\" foreground=\"#ffffff\"><b> %s </b></span>  <b>%s</b> — %s",
+			cs_pipeline_stages[i].color, cs_pipeline_stages[i].letter,
+			_(cs_pipeline_stages[i].name), _(cs_pipeline_stages[i].hint));
+		GtkWidget *row = gtk_label_new(NULL);
+		gtk_label_set_markup(GTK_LABEL(row), m);
+		gtk_widget_set_halign(row, GTK_ALIGN_START);
+		gtk_box_pack_start(GTK_BOX(box), row, FALSE, FALSE, 0);
+		g_free(m);
+	}
+
+	gtk_container_add(GTK_CONTAINER(pop), box);
+	gtk_widget_show_all(box);
+	g_signal_connect(btn, "clicked", G_CALLBACK(cs_pipeline_button_clicked), pop);
+	return btn;
 }
 
 int
@@ -1606,12 +1726,15 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	gtk_box_pack_start (GTK_BOX(open_box), library_expander, FALSE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX(open_box), directory_expander, TRUE, TRUE, 0);
 
+	GtkWidget *toolbox_notebook = NULL; /* le vrai notebook (rs->toolbox est réassigné à un vbox plus bas) */
 	if (client_mode)
 		rs->toolbox = tools;
 	else
 	{
 		rs->toolbox = gtk_notebook_new();
-		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox), tools, gtk_label_new(_("Tools")));
+		toolbox_notebook = rs->toolbox;
+		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox),
+			rs_toolbox_get_tools_page(RS_TOOLBOX(tools)), gtk_label_new(_("Tools")));
 		gtk_notebook_append_page(GTK_NOTEBOOK(rs->toolbox),
 			rs_toolbox_get_effects_widget(RS_TOOLBOX(tools)),
 			gtk_label_new(_("Effects")));
@@ -1705,6 +1828,25 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_toolbox,    FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_fullscreen, FALSE, FALSE, 0);
 
+		/* CaraStudio : bouton Enfuse (fusion d'expositions / focus stacking),
+		 * déclenche l'action « Enfuse » (Ctrl+Alt+E, toujours active). Placé à
+		 * droite du trio d'escamotage pour l'avoir sous la main sans fouiller les
+		 * menus ; l'action reste insensible tant qu'aucune image n'est sélectionnée. */
+		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
+		GtkWidget *btn_enfuse = cs_icon_label_button("cs-enfuse", _("Enfuse"));
+		gtk_widget_set_tooltip_text(btn_enfuse, _("Fusionner les expositions sélectionnées (Enfuse — Ctrl+Alt+E)"));
+		g_signal_connect(btn_enfuse, "clicked", G_CALLBACK(cs_enfuse_button_clicked), rs);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_enfuse, FALSE, FALSE, 0);
+
+		/* CaraStudio : bouton « GIMP » juste à côté d'Enfuse — deux outils EXTERNES
+		 * regroupés. Envoie la photo développée vers GIMP (action ExportToGimp /
+		 * Ctrl+G, qui se garde elle-même si aucune photo n'est ouverte). Icône =
+		 * logo GIMP du thème (présent dès que GIMP est installé). */
+		GtkWidget *btn_gimp = cs_icon_label_button("gimp", _("GIMP"));
+		gtk_widget_set_tooltip_text(btn_gimp, _("Envoyer la photo vers GIMP pour retouche (Ctrl+G)"));
+		g_signal_connect_swapped(btn_gimp, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "ExportToGimp");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_gimp, FALSE, FALSE, 0);
+
 		/* Séparateur + boutons de zoom (icône seule) */
 		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
 		GtkWidget *btn_zoom_out = gtk_button_new_from_icon_name("zoom-out",        GTK_ICON_SIZE_LARGE_TOOLBAR);
@@ -1735,6 +1877,21 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		g_signal_connect_swapped(btn_split, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Split");
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_split, FALSE, FALSE, 0);
 
+		/* CaraStudio : deux bascules d'affichage sorties des menus, placées en FIN
+		 * de barre (après Recadrer / Séparer les vues).
+		 * — « Infos vignettes » : affiche/masque le texte sous les vignettes (toggle ShowFilenames).
+		 * — « Non-RAW » : charge ou non les JPEG/TIFF/PNG à côté des RAW (toggle Load8Bit). */
+		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
+		GtkWidget *btn_thumbinfo = cs_icon_label_button("cs-thumb-info", _("Infos vignettes"));
+		gtk_widget_set_tooltip_text(btn_thumbinfo, _("Afficher/masquer les infos sous les vignettes"));
+		g_signal_connect_swapped(btn_thumbinfo, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "ShowFilenames");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_thumbinfo, FALSE, FALSE, 0);
+
+		GtkWidget *btn_nonraw = cs_icon_label_button("cs-load-nonraw", _("Non-RAW"));
+		gtk_widget_set_tooltip_text(btn_nonraw, _("Charger aussi les images non-RAW (JPEG, TIFF, PNG)"));
+		g_signal_connect_swapped(btn_nonraw, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Load8Bit");
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_nonraw, FALSE, FALSE, 0);
+
 		/* CaraStudio : bouton de langue FR/EN, calé à droite de la barre. Le
 		 * libellé montre la langue CIBLE (ce que le clic appliquera). */
 		{
@@ -1747,6 +1904,9 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 			gtk_box_pack_end(GTK_BOX(view_toolbar), btn_lang, FALSE, FALSE, 0);
 			g_free(cur);
 		}
+
+		/* CaraStudio : bouton « Pipeline » (légende des 5 étapes), à gauche du bouton de langue. */
+		gtk_box_pack_end(GTK_BOX(view_toolbar), cs_make_pipeline_button(), FALSE, FALSE, 0);
 
 		gtk_box_pack_start(GTK_BOX(vbox), view_toolbar, FALSE, TRUE, 0);
 	}
@@ -1778,6 +1938,11 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 	gdk_threads_enter();
 	GTK_CATCHUP();
 	gdk_threads_leave();
+
+	/* Démarrer sur l'onglet Outils (page 0). rs->toolbox a été réassigné à un
+	   vbox : on cible le vrai notebook capturé plus haut. */
+	if (toolbox_notebook)
+		gtk_notebook_set_current_page(GTK_NOTEBOOK(toolbox_notebook), 0);
 
 	if (fullscreen)
 	{

@@ -30,6 +30,7 @@
 #include "rs-batch.h"
 #include "conf_interface.h"
 #include "gettext.h"
+#include "cs-pipeline.h"
 #include "gtk-helper.h"
 #include "gtk-interface.h"
 #include "filename.h"
@@ -788,10 +789,12 @@ static void
 chooser_changed(GtkFileChooser *chooser, gpointer user_data)
 {
 	RS_QUEUE *queue = (RS_QUEUE *) user_data;
+	gchar *dir = gtk_file_chooser_get_filename(chooser);
+	if (!dir)   /* sélection vide / transitoire : ne pas écraser avec NULL */
+		return;
 	g_free(queue->directory);
-	queue->directory = gtk_file_chooser_get_filename(chooser);
+	queue->directory = dir;
 	rs_conf_set_string(CONF_BATCH_DIRECTORY, queue->directory);
-	return;
 }
 
 static void
@@ -1037,7 +1040,13 @@ make_batch_options(RS_QUEUE *queue)
 		GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);
 	if (g_path_is_absolute(queue->directory))
 		gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(chooser), queue->directory);
-	g_signal_connect (chooser, "current_folder_changed",
+	/* « file-set » est LE signal émis quand l'utilisateur choisit un dossier via un
+	   GtkFileChooserButton ; « current-folder-changed » ne se déclenchait pas à la
+	   sélection → le dossier choisi était ignoré et l'export tombait dans le défaut
+	   ~/batch_exports. On branche les deux (le handler est idempotent). */
+	g_signal_connect (chooser, "file-set",
+		G_CALLBACK (chooser_changed), queue);
+	g_signal_connect (chooser, "current-folder-changed",
 		G_CALLBACK (chooser_changed), queue);
 	gtk_box_pack_start (GTK_BOX (vbox), gui_framed(chooser,
 		_("Output Directory:"), GTK_SHADOW_NONE), FALSE, FALSE, 0);
@@ -1080,6 +1089,19 @@ make_batchbox(RS_QUEUE *queue)
 	GtkWidget *batchbox;
 
 	batchbox = gtk_vbox_new(FALSE,4);
+
+	/* En-tête d'étape pipeline : l'export = étape E (Sortie). */
+	{
+		GtkWidget *hdr = gtk_label_new(NULL);
+		gchar *m = cs_stage_title(4, 1, _("Sortie / Export"));
+		gtk_label_set_markup(GTK_LABEL(hdr), m);
+		g_free(m);
+		gtk_widget_set_halign(hdr, GTK_ALIGN_START);
+		gtk_widget_set_margin_top(hdr, 4);
+		gtk_widget_set_margin_start(hdr, 4);
+		gtk_box_pack_start(GTK_BOX(batchbox), hdr, FALSE, FALSE, 0);
+	}
+
 	gtk_box_pack_start (GTK_BOX (batchbox), make_batch_options(queue), FALSE, FALSE, 0);
 	gtk_box_pack_start (GTK_BOX (batchbox), make_batchview(queue), TRUE, TRUE, 0);
 	gtk_box_pack_start (GTK_BOX (batchbox), make_batchbuttons(queue), FALSE, FALSE, 0);

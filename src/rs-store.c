@@ -2872,6 +2872,17 @@ rs_store_update_thumbnail(RSStore *store, const gchar *filename, GdkPixbuf *pixb
 			PIXBUF_COLUMN, pixbuf,
 			PIXBUF_CLEAN_COLUMN, pixbuf_clean,
 			-1);
+
+		/* Forcer le redessin des vues : gtk_list_store_set met bien à jour le
+		   modèle, mais l'IconView ne repeint la cellule qu'au prochain expose (ex.
+		   changement de sélection) → la vignette éditée « n'apparaissait » qu'après
+		   avoir cliqué une autre photo. On invalide explicitement les vues. */
+		{
+			gint _v;
+			for (_v = 0; _v < NUM_VIEWS; _v++)
+				if (store->iconview[_v])
+					gtk_widget_queue_draw(store->iconview[_v]);
+		}
 		gdk_threads_leave();
 
 		g_object_unref(pixbuf);

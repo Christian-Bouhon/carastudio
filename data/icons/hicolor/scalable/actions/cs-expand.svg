@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- « Tout déplier » : deux chevrons qui DIVERGENT du centre -->
+  <g fill="none" stroke="#f0f0f0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 7 L8 4 L12 7"/>
+    <path d="M4 9 L8 12 L12 9"/>
+  </g>
+</svg>

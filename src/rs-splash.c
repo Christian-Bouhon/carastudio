@@ -1,3 +1,4 @@
+#include <config.h>
 #include "rs-splash.h"
 #include <gtk/gtk.h>
 #include <math.h>
@@ -109,6 +110,19 @@ splash_draw(GtkWidget *w, cairo_t *cr, gpointer data)
         cairo_set_source_rgba(cr, 0.90, 0.90, 0.90, tp);
         cairo_show_text(cr, tag);
         cairo_restore(cr);
+
+        /* ── Numéro de version (centré, juste sous la tagline) ───────── */
+        const char *ver = VERSION;
+        cairo_select_font_face(cr, "P052",
+                               CAIRO_FONT_SLANT_NORMAL,
+                               CAIRO_FONT_WEIGHT_NORMAL);
+        cairo_set_font_size(cr, 15.0);
+        cairo_text_extents_t vext;
+        cairo_text_extents(cr, ver, &vext);
+        cairo_move_to(cr, SPLASH_W / 2.0 - vext.width / 2.0 - vext.x_bearing,
+                          TEXT_Y + 26.0);
+        cairo_set_source_rgba(cr, 0.72, 0.72, 0.72, tp * 0.85);
+        cairo_show_text(cr, ver);
     }
 
     return FALSE;
