@@ -64,3 +64,7 @@ graphify-out/
 
 # Supports promo / annonces (travail local, ne pas versionner)
 promo/
+
+# Binaires AppImage construits localement (ne pas versionner)
+/*.AppImage
+/*.txt
