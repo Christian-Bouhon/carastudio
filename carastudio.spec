@@ -1,7 +1,7 @@
 
 Name:           carastudio
 Version:        2026.07
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
 License:        GPLv3+
@@ -92,6 +92,12 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Wed Jul 22 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-2
+- Traduction anglaise complétée pour les ajouts récents (styles/CaraStyles,
+  boutons « Tout replier / déplier », DynaComp, Color scalpel, masque
+  d'exposition, Auto niveaux, Réinitialiser, courbes…), qui s'affichaient encore
+  en français lorsque l'interface était en anglais.
+
 * Tue Jul 21 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-1
 - Passage au versionnage par date (CalVer) : « 2026.07 ». Le numéro de version
   s'affiche désormais dans le titre et l'écran de démarrage.

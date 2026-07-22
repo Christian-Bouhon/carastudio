@@ -151,6 +151,17 @@ HOOK
 echo "== Bundling (linuxdeploy + plugin gtk) =="
 export LD_LIBRARY_PATH="$A/usr/lib:$A/usr/lib/carastudio/plugins"
 LIBS=(); for f in "$A"/usr/lib/carastudio/plugins/*.so; do LIBS+=(--library="$f"); done
+# Étage texte cohérent : le plugin gtk bundle glib+pango (1.44, Ubuntu 20.04) mais
+# EXCLUT fontconfig/freetype/harfbuzz (jugés « intégration système »). Résultat :
+# pango 1.44 bundlé + fontconfig/harfbuzz RÉCENTS de l'hôte → SEGV FcFontSetSort au
+# lancement sur certains bureaux (Fedora 44 KDE, issue #6). On force donc le bundling
+# de tout l'étage texte pour qu'il matche le glib/pango bundlé (linuxdeploy tire aussi
+# leurs dépendances : expat, brotli, png…). Les polices restent lues depuis l'hôte
+# (/etc/fonts par défaut), seul le CODE de la pile texte devient déterministe.
+for L in libfontconfig.so.1 libfreetype.so.6 libharfbuzz.so.0; do
+    P=$(find /usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu -name "$L" 2>/dev/null | head -1)
+    [ -n "$P" ] && LIBS+=(--library="$P")
+done
 linuxdeploy.AppImage --appdir "$A" \
     --executable "$A/usr/bin/carastudio" \
     --desktop-file /root/carastudio.desktop \
