@@ -70,6 +70,13 @@ export APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 DEPLOY_GTK_VERSION=3 NO_STRIP=1
 export DEBIAN_FRONTEND=noninteractive PATH=/root/tools:$PATH
 
 echo "== Dépendances de build =="
+# Robustesse réseau : archive.ubuntu.com pend souvent en IPv6 dans un conteneur
+# (apt-get update bloqué plusieurs minutes) → on force l'IPv4, un timeout court et
+# des retries. Évite les builds figés sur un miroir capricieux.
+printf 'Acquire::ForceIPv4 "true";\nAcquire::http::Timeout "20";\nAcquire::https::Timeout "20";\nAcquire::Retries "5";\n' \
+    > /etc/apt/apt.conf.d/99robust
+# archive.ubuntu.com pend/rame régulièrement → miroir français (fiable et proche).
+sed -i 's|http://archive.ubuntu.com|http://fr.archive.ubuntu.com|g' /etc/apt/sources.list
 apt-get update -qq
 apt-get install -y -qq \
     build-essential autoconf automake libtool pkg-config intltool gettext \
@@ -146,7 +153,19 @@ cat > "$A/apprun-hooks/carastudio.sh" <<'HOOK'
 export LD_LIBRARY_PATH="${APPDIR}/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LENSFUN_DB_PATH="${APPDIR}/usr/share/lensfun"
 export LIBOVERLAY_SCROLLBAR=0
+# Isolation des modules GIO de l'HÔTE. Notre GLib bundlée (ancienne, base
+# Ubuntu 20.04) a pour dossier de modules GIO compilé /usr/lib/x86_64-linux-gnu/
+# gio/modules — LE MÊME chemin que l'hôte sur Ubuntu/Debian. Sur une distro
+# récente (Ubuntu 24.04+/26.04) elle y charge donc les modules GIO RÉCENTS de
+# l'hôte (gvfs, gnutls, proxy, dconf…), compilés pour une GLib neuve → symboles
+# manquants « undefined symbol: g_task_set_static_name… » + cascade « Failed to
+# load module » (signalé sur Ubuntu 26.04). On force GIO à ne regarder QUE notre
+# dossier bundlé (vide) : aucun module hôte n'est chargé, plus de collision. Un
+# éditeur RAW n'a pas besoin de ces modules (TLS/gvfs/dconf). Marchait « par
+# chance » sur Fedora (chemin de modules différent, donc rien n'était chargé).
+export GIO_MODULE_DIR="${APPDIR}/usr/lib/gio/modules"
 HOOK
+mkdir -p "$A/usr/lib/gio/modules"   # dossier de modules GIO bundlé, laissé VIDE
 
 echo "== Bundling (linuxdeploy + plugin gtk) =="
 export LD_LIBRARY_PATH="$A/usr/lib:$A/usr/lib/carastudio/plugins"

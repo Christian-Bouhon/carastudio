@@ -1,7 +1,7 @@
 
 Name:           carastudio
 Version:        2026.07
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
 License:        GPLv3+
@@ -92,6 +92,11 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Wed Jul 22 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-3
+- Couleur : correction d'une dominante verte apparue en 2026.07 sur les RAW
+  Fujifilm X-Trans (.raf), en particulier les ciels et la mer. La balance des
+  blancs boîtier lue via LibRaw ne s'applique plus à tort à ces fichiers.
+
 * Wed Jul 22 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-2
 - Traduction anglaise complétée pour les ajouts récents (styles/CaraStyles,
   boutons « Tout replier / déplier », DynaComp, Color scalpel, masque
