@@ -570,6 +570,7 @@ main(int argc, char **argv)
 	gboolean print_version = FALSE;
 	gchar *debug = NULL;
     gchar *client_mode_dest = NULL;
+	gchar *render_avg = NULL;   /* diagnostic couleur headless : RGB moyen d'un rendu */
 
 	GError *error = NULL;
 	GOptionContext *option_context;
@@ -578,6 +579,7 @@ main(int argc, char **argv)
 		{ "debug", 'd', 0, G_OPTION_ARG_STRING, &debug, "Debug flags to use", "flags" },
 		{ "do-tests", 't', G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_NONE, &do_test, "Do internal tests", NULL },
 		{ "version", 'V', 0, G_OPTION_ARG_NONE, &print_version, "Output version information and exit", NULL },
+		{ "render-avg", 0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_STRING, &render_avg, "Render a photo headless and print average sRGB (diagnostic)", "file" },
 		{ NULL }
 	};
 
@@ -715,6 +717,66 @@ main(int argc, char **argv)
 	rs->post_open_event = NULL;
 	rs_stock_init();
 	rs_lens_fix_init();
+
+	/* Diagnostic couleur headless (--render-avg <fichier>) : bâtit la chaîne
+	 * complète, rend en sRGB 8 bits, imprime le RGB moyen puis quitte. Sert de
+	 * boucle de validation automatique (comparaison à une référence LibRaw) sans
+	 * passer par l'interface. */
+	if (render_avg)
+	{
+		RS_PHOTO *photo = rs_photo_load_from_file(render_avg);
+		if (!photo)
+		{
+			g_print("RENDER_AVG: échec de chargement de %s\n", render_avg);
+			_exit(2);
+		}
+		RSFilter *finput = rs_filter_new("RSInputImage16", NULL);
+		rs_filter_set_recursive(finput, "color-space", rs_color_space_new_singleton("RSProphoto"), NULL);
+		RSFilter *fdemosaic = rs_filter_new("RSDemosaic", finput);
+		RSFilter *ffuji = rs_filter_new("RSFujiRotate", fdemosaic);
+		RSFilter *fcache = rs_filter_new("RSCache", ffuji);
+		RSFilter *ftransform_input = rs_filter_new("RSColorspaceTransform", fcache);
+		RSFilter *fdcp = rs_filter_new("RSDcp", ftransform_input);
+		RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", fdcp);
+		RSFilter *fend = ftransform_display;
+
+		GList *filters = g_list_append(NULL, fend);
+		rs_photo_apply_to_filters(photo, filters, 0);
+		g_list_free(filters);
+
+		rs_filter_set_recursive(fend,
+			"image", photo->input_response,
+			"filename", photo->filename,
+			NULL);
+
+		RSFilterRequest *request = rs_filter_request_new();
+		rs_filter_request_set_quick(RS_FILTER_REQUEST(request), FALSE);
+		rs_filter_param_set_object(RS_FILTER_PARAM(request), "colorspace", rs_color_space_new_singleton("RSSrgb"));
+		RSFilterResponse *resp = rs_filter_get_image8(fend, request);
+		GdkPixbuf *pixbuf = resp ? rs_filter_response_get_image8(resp) : NULL;
+		if (pixbuf)
+		{
+			gint w = gdk_pixbuf_get_width(pixbuf);
+			gint h = gdk_pixbuf_get_height(pixbuf);
+			gint rs2 = gdk_pixbuf_get_rowstride(pixbuf);
+			gint nch = gdk_pixbuf_get_n_channels(pixbuf);
+			guchar *px = gdk_pixbuf_get_pixels(pixbuf);
+			gdouble R=0,G=0,B=0; gdouble n = (gdouble)w*h;
+			gint x,y;
+			for (y=0;y<h;y++)
+				for (x=0;x<w;x++)
+				{
+					guchar *p = px + y*rs2 + x*nch;
+					R+=p[0]; G+=p[1]; B+=p[2];
+				}
+			g_print("RENDER_AVG %dx%d R=%.1f G=%.1f B=%.1f  R/G=%.3f B/G=%.3f\n",
+				w, h, R/n, G/n, B/n, R/G, B/G);
+			g_object_unref(pixbuf);
+		}
+		else
+			g_print("RENDER_AVG: rendu vide\n");
+		_exit(0);
+	}
 
 //	g_log_set_always_fatal(G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_ERROR);
 	if (do_test)
