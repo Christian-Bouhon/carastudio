@@ -219,8 +219,16 @@ libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 	{
 		if (libraw_open_file(raw, service) == LIBRAW_SUCCESS)
 		{
+			/* X-Trans (filters==9) EXCLU : la WB de ces fichiers est déjà
+			 * gérée comme en 1.0.1 (démosaïquage LibRaw en linéaire + parseur
+			 * maison). Écrire ici le cam_mul LibRaw introduisait une dominante
+			 * verte sur les .raf (ciels/mer) apparue en 2026.07 (signalé par
+			 * al186) : on laisse donc le chemin Fuji strictement identique à
+			 * 1.0.1. Le cam_mul LibRaw ne sert qu'aux boîtiers Bayer récents
+			 * dont le parseur maison ne lit pas la WB (ex. Nikon Z5 II). */
 			const float *cm = raw->color.cam_mul;
-			if (cm[0] > 0.0f && cm[1] > 0.0f && cm[2] > 0.0f)
+			if (raw->idata.filters != 9 &&
+			    cm[0] > 0.0f && cm[1] > 0.0f && cm[2] > 0.0f)
 			{
 				meta->cam_mul[0] = (gdouble) cm[0];               /* R  */
 				meta->cam_mul[1] = (gdouble) cm[1];               /* G1 */

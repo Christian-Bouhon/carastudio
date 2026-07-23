@@ -1,7 +1,7 @@
 
 Name:           carastudio
 Version:        2026.07
-Release:        3%{?dist}
+Release:        4%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
 License:        GPLv3+
@@ -92,6 +92,11 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Thu Jul 23 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-4
+- Rebuild : le correctif de dominante verte sur les RAW Fujifilm X-Trans (.raf),
+  annoncé en 2026.07-3, était absent du binaire par erreur. Il est bien inclus
+  cette fois.
+
 * Wed Jul 22 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-3
 - Couleur : correction d'une dominante verte apparue en 2026.07 sur les RAW
   Fujifilm X-Trans (.raf), en particulier les ciels et la mer. La balance des
