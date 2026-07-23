@@ -737,16 +737,33 @@ main(int argc, char **argv)
 		RSFilter *fcache = rs_filter_new("RSCache", ffuji);
 		RSFilter *ftransform_input = rs_filter_new("RSColorspaceTransform", fcache);
 		RSFilter *fdcp = rs_filter_new("RSDcp", ftransform_input);
-		RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", fdcp);
+		RSFilter *fcrop = rs_filter_new("RSCrop", fdcp);
+		RSFilter *fresample = rs_filter_new("RSResample", fcrop);
+		RSFilter *fdenoise = rs_filter_new("RSDenoise", fresample);
+		RSFilter *feffects = rs_filter_new("RSEffects", fdenoise);
+		RSFilter *ftransform_display = rs_filter_new("RSColorspaceTransform", feffects);
 		RSFilter *fend = ftransform_display;
+
+		rs_photo_set_wb_from_camera(photo, 0);   /* WB boîtier, comme le GUI */
+		g_object_set(photo->settings[0], "recalc-temp", TRUE, NULL);  /* force le recalc profil, comme le GUI */
 
 		GList *filters = g_list_append(NULL, fend);
 		rs_photo_apply_to_filters(photo, filters, 0);
 		g_list_free(filters);
 
+		{
+			gfloat w1=0,t1=0,dt=0,dtn=0;
+			g_object_get(photo->settings[0], "warmth", &w1, "tint", &t1,
+				"dcp-temp", &dt, "dcp-tint", &dtn, NULL);
+			g_print("RENDER_WB premul(warmth=%.2f tint=%.2f)  DCP(temp=%.0f tint=%.2f)\n", w1,t1,dt,dtn);
+		}
+
 		rs_filter_set_recursive(fend,
 			"image", photo->input_response,
 			"filename", photo->filename,
+			"bounding-box", TRUE,
+			"width", 1400,
+			"height", 1400,
 			NULL);
 
 		RSFilterRequest *request = rs_filter_request_new();
@@ -771,6 +788,32 @@ main(int argc, char **argv)
 				}
 			g_print("RENDER_AVG %dx%d R=%.1f G=%.1f B=%.1f  R/G=%.3f B/G=%.3f\n",
 				w, h, R/n, G/n, B/n, R/G, B/G);
+			/* Patch neutre : tarmac au premier plan (~13-27% largeur, 92-98% hauteur). */
+			{
+				gint x0=w*13/100, x1=w*27/100, y0=h*92/100, y1=h*98/100;
+				gdouble pr=0,pg=0,pb=0; gdouble pn=0; gint xx,yy;
+				for (yy=y0;yy<y1;yy++) for (xx=x0;xx<x1;xx++)
+				{ guchar *p=px+yy*rs2+xx*nch; pr+=p[0]; pg+=p[1]; pb+=p[2]; pn++; }
+				g_print("RENDER_NEUTRAL(tarmac) R=%.1f G=%.1f B=%.1f  R/G=%.3f B/G=%.3f\n",
+					pr/pn,pg/pn,pb/pn, pr/pg, pb/pg);
+			}
+			/* Sauve une version réduite pour inspection visuelle directe. */
+			{
+				gint mx = MAX(w, h);
+				gdouble sc = (mx > 900) ? 900.0 / mx : 1.0;
+				GdkPixbuf *small = gdk_pixbuf_scale_simple(pixbuf,
+					(gint)(w*sc), (gint)(h*sc), GDK_INTERP_BILINEAR);
+				if (small)
+				{
+					GError *serr = NULL;
+					if (!gdk_pixbuf_save(small, "/tmp/carastudio-render.png", "png", &serr, NULL))
+						g_print("RENDER_IMG_FAIL: %s\n", serr ? serr->message : "?");
+					else
+						g_print("RENDER_IMG /tmp/carastudio-render.png\n");
+					g_clear_error(&serr);
+					g_object_unref(small);
+				}
+			}
 			g_object_unref(pixbuf);
 		}
 		else
