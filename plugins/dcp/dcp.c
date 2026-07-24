@@ -214,10 +214,14 @@ settings_changed(RSSettings *settings, RSSettingsMask mask, RSDcp *dcp)
 			neutral.z = neutral.z / max;
 			whitepoint = neutral_to_xy(dcp, &neutral);
 
-			if (dcp->use_profile)
+			if (dcp->use_profile && !dcp->has_matrix_fallback)
 			{
 				rs_color_whitepoint_to_temp(&whitepoint, &dcp->warmth, &dcp->tint);
 			} else {
+				/* Profil de secours matrice : la WB est intégrée à la matrice
+				 * (compute_matrix_fallback_pcs), donc on affiche Temp/Teinte NEUTRES
+				 * et on ne stocke JAMAIS la teinte déviante (~16 magenta) qui, si le
+				 * fallback était momentanément perdu, contaminerait le rendu. */
 				dcp->warmth = 5000;
 				dcp->tint = 0;
 			}
@@ -1634,7 +1638,11 @@ set_matrix_only_profile(RSDcp *dcp, const RS_MATRIX3 *color_matrix)
 	dcp->huesatmap2 = NULL;
 	dcp->huesatmap = 0;
 	dcp->use_profile = TRUE;
-	/* camera_to_pcs sera posé par compute_matrix_fallback_pcs dès la première WB. */
+	/* camera_to_pcs sera posé par compute_matrix_fallback_pcs au prochain MASK_WB.
+	 * Dans apply_to_filters, la propriété « settings » est TOUJOURS appliquée juste
+	 * après « color-matrix » → settings_changed(MASK_ALL) → recalcul garanti avec le
+	 * BON pre_mul. Ne PAS calculer ici : à ce point pre_mul est encore celui de la
+	 * photo précédente (ex. JPEG neutre 1,1,1) → blanc scène faux → cast magenta. */
 }
 
 /* Calcule camera_to_pcs (camera -> XYZ D50) pour le profil de secours, directement :

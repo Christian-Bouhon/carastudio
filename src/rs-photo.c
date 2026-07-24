@@ -421,6 +421,18 @@ rs_photo_apply_to_filters(RS_PHOTO *photo, GList *filters, const gint snapshot)
 		else
 			rs_filter_set_recursive(filter, "use-profile", FALSE, NULL);
 
+		/* Espace couleur d'ENTRÉE, posé PAR PHOTO : le filtre d'entrée est PARTAGÉ
+		 * entre les chaînes (éditeur, navigateur, régénération de vignettes). Sans
+		 * cela, il gardait l'espace de la photo précédente : une photo JPEG (sRGB
+		 * embarqué) laissait son sRGB, puis un RAW rendu par le DCP était converti
+		 * sRGB→ProPhoto AVANT le DCP → double matrice couleur → cast magenta au
+		 * retour sur le RAW. Un RAW n'a pas de profil embarqué → ProPhoto, ce qui
+		 * neutralise le RSColorspaceTransform (le DCP fait toute la couleur). */
+		if (photo->embedded_profile)
+			rs_filter_set_recursive(filter, "color-space", photo->embedded_profile, NULL);
+		else
+			rs_filter_set_recursive(filter, "color-space", rs_color_space_new_singleton("RSProphoto"), NULL);
+
 		if (g_strcmp0(photo->settings[snapshot]->wb_ascii, PRESET_WB_CAMERA) == 0)
 			rs_photo_set_wb_from_camera(photo, snapshot);
 
