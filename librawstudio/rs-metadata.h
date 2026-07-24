@@ -80,6 +80,10 @@ struct _RSMetadata {
 	guint preview_height;
 	guint16 preview_bits [3];
 	gdouble cam_mul[4];
+	/* Matrice couleur XYZ->camera (cam_xyz de LibRaw), profil de secours quand
+	 * aucun DCP boîtier n'existe (boîtiers récents). has_color_matrix=FALSE sinon. */
+	gboolean has_color_matrix;
+	gdouble color_matrix[9];   /* row-major : coeff[i][j] = [i*3+j] */
 	gdouble contrast;
 	gdouble saturation;
 	gdouble color_tone;

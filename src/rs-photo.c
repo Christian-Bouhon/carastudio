@@ -406,8 +406,32 @@ rs_photo_apply_to_filters(RS_PHOTO *photo, GList *filters, const gint snapshot)
 
 		if (dcp_profile != NULL)
 			rs_filter_set_recursive(filter, "profile", dcp_profile, NULL);
+		else if (photo->metadata && photo->metadata->has_color_matrix)
+		{
+			/* Aucun DCP pour ce boîtier : profil de secours depuis la matrice
+			 * couleur du décodeur (LibRaw). Corrige les boîtiers récents absents
+			 * de la base DCP (ex. Canon EOS R10 rendu rougeâtre). */
+			RS_MATRIX3 cm;
+			gint r, c;
+			for (r = 0; r < 3; r++)
+				for (c = 0; c < 3; c++)
+					cm.coeff[r][c] = photo->metadata->color_matrix[r*3+c];
+			rs_filter_set_recursive(filter, "color-matrix", &cm, NULL);
+		}
 		else
 			rs_filter_set_recursive(filter, "use-profile", FALSE, NULL);
+
+		/* Espace couleur d'ENTRÉE, posé PAR PHOTO : le filtre d'entrée est PARTAGÉ
+		 * entre les chaînes (éditeur, navigateur, régénération de vignettes). Sans
+		 * cela, il gardait l'espace de la photo précédente : une photo JPEG (sRGB
+		 * embarqué) laissait son sRGB, puis un RAW rendu par le DCP était converti
+		 * sRGB→ProPhoto AVANT le DCP → double matrice couleur → cast magenta au
+		 * retour sur le RAW. Un RAW n'a pas de profil embarqué → ProPhoto, ce qui
+		 * neutralise le RSColorspaceTransform (le DCP fait toute la couleur). */
+		if (photo->embedded_profile)
+			rs_filter_set_recursive(filter, "color-space", photo->embedded_profile, NULL);
+		else
+			rs_filter_set_recursive(filter, "color-space", rs_color_space_new_singleton("RSProphoto"), NULL);
 
 		if (g_strcmp0(photo->settings[snapshot]->wb_ascii, PRESET_WB_CAMERA) == 0)
 			rs_photo_set_wb_from_camera(photo, snapshot);

@@ -567,6 +567,28 @@ dialog .titlebar {
     background-color: @cs_bg_dark;
 }
 
+/* Contenu des dialogues (ex. Préférences) : garantir fond gris + texte clair
+ * ENSEMBLE. Sur certains thèmes système (constaté Mint 21.3 / GTK 3.24), le
+ * blanc du thème traversait la page du notebook → labels gris peu lisibles
+ * (retour Almifoto). On force le fond gris studio ET la couleur de texte en
+ * paire : aucun risque de texte foncé sur fond foncé, et rien ne change là où
+ * l'affichage était déjà correct (c'était déjà gris). */
+dialog,
+dialog notebook,
+dialog notebook stack,
+dialog notebook stack > box,
+dialog box,
+dialog .view,
+dialog viewport {
+    background-color: @cs_bg;
+}
+
+dialog label,
+dialog checkbutton label,
+dialog radiobutton label {
+    color: @cs_fg;
+}
+
 /* ------------------------------------------------------------------ */
 /* Barre de titre (Client-Side Decorations Wayland)                    */
 /* ------------------------------------------------------------------ */

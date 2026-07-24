@@ -114,6 +114,7 @@ rs_metadata_init (RSMetadata *metadata)
 	metadata->cam_mul[1] = 1.0;
 	metadata->cam_mul[2] = 1.0;
 	metadata->cam_mul[3] = 1.0;
+	metadata->has_color_matrix = FALSE;
 	metadata->thumbnail = NULL;
 	metadata->thumbnail_rendered = FALSE;
 
@@ -136,7 +137,7 @@ rs_metadata_new (void)
 /* 11→12 (10/07) : les vignettes non-RAW (JPEG/TIFF/PNG) appliquent désormais
    l'orientation EXIF (load-gdk) ; bump pour invalider les anciennes vignettes en
    cache (couchées en paysage) et forcer leur régénération orientée. */
-#define METACACHEVERSION 13
+#define METACACHEVERSION 14
 void
 rs_metadata_cache_save(RSMetadata *metadata, const gchar *filename)
 {
@@ -195,6 +196,17 @@ rs_metadata_cache_save(RSMetadata *metadata, const gchar *filename)
 				g_ascii_dtostr(b3, sizeof(b3), metadata->cam_mul[3]));
 			xmlTextWriterWriteElement(writer, BAD_CAST "cam_mul", BAD_CAST mul_str);
 			g_free(mul_str);
+		}
+		if (metadata->has_color_matrix)
+		{
+			GString *s = g_string_new(NULL);
+			gchar bb[G_ASCII_DTOSTR_BUF_SIZE];
+			gint k;
+			for (k = 0; k < 9; k++)
+				g_string_append_printf(s, "%s%s", (k ? " " : ""),
+					g_ascii_dtostr(bb, sizeof(bb), metadata->color_matrix[k]));
+			xmlTextWriterWriteElement(writer, BAD_CAST "color_matrix", BAD_CAST s->str);
+			g_string_free(s, TRUE);
 		}
 		if (metadata->contrast > -1.0)
 			RS_XML_WRITE_FLOAT(writer, "contrast", metadata->contrast);
@@ -389,6 +401,23 @@ rs_metadata_cache_load(RSMetadata *metadata, const gchar *filename)
 								metadata->cam_mul[3] = rs_atof((gchar *) vals[3]);
 						}
 					}
+				}
+				g_strfreev(vals);
+				xmlFree(val);
+			}
+			else if ((!xmlStrcmp(cur->name, BAD_CAST "color_matrix")))
+			{
+				gchar **vals;
+				val = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+				vals = g_strsplit((gchar *)val, " ", 9);
+				gint k, ok = 1;
+				for (k = 0; k < 9; k++)
+					if (!vals[k]) { ok = 0; break; }
+				if (ok)
+				{
+					for (k = 0; k < 9; k++)
+						metadata->color_matrix[k] = rs_atof((gchar *) vals[k]);
+					metadata->has_color_matrix = TRUE;
 				}
 				g_strfreev(vals);
 				xmlFree(val);

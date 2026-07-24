@@ -68,6 +68,12 @@ struct _RSDcp {
 
 	gboolean use_profile;
 
+	/* Profil de SECOURS « matrice » (boîtier sans DCP) : color_matrix1 contient la
+	 * cam_xyz LibRaw et camera_to_pcs est calculé directement par adaptation Bradford
+	 * (pas via la machinerie temp/teinte, qui déviait). Voir set_matrix_only_profile /
+	 * compute_matrix_fallback_pcs. */
+	gboolean has_matrix_fallback;
+
 	RSSpline *tone_curve;
 	gfloat *tone_curve_lut;
 

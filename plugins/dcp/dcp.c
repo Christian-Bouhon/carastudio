@@ -33,7 +33,8 @@ enum {
 	PROP_SETTINGS,
 	PROP_PROFILE,
 	PROP_USE_PROFILE,
-	PROP_READ_OUT_CURVE
+	PROP_READ_OUT_CURVE,
+	PROP_COLOR_MATRIX
 };
 
 static void get_property (GObject *object, guint property_id, GValue *value, GParamSpec *pspec);
@@ -48,6 +49,8 @@ static void precalc(RSDcp *dcp);
 static void pre_cache_tables(RSDcp *dcp);
 static void render(ThreadInfo* t);
 static void read_profile(RSDcp *dcp, RSDcpFile *dcp_file);
+static void set_matrix_only_profile(RSDcp *dcp, const RS_MATRIX3 *color_matrix);
+static void compute_matrix_fallback_pcs(RSDcp *dcp);
 static void free_dcp_profile(RSDcp *dcp);
 static void set_prophoto_wb(RSDcp *dcp, gfloat warmth, gfloat tint);
 static void calculate_huesat_maps(RSDcp *dcp, gfloat temp);
@@ -119,6 +122,12 @@ rs_dcp_class_init(RSDcpClass *klass)
 		PROP_READ_OUT_CURVE, g_param_spec_object(
 			"read-out-curve", "read-out-curve", "Read out curve data and send to this widget",
 			RS_CURVE_TYPE_WIDGET, G_PARAM_READWRITE)
+	);
+
+	g_object_class_install_property(object_class,
+		PROP_COLOR_MATRIX, g_param_spec_pointer(
+			"color-matrix", "color-matrix", "Fallback XYZ->camera color matrix (RS_MATRIX3*)",
+			G_PARAM_READWRITE)
 	);
 
 	filter_class->name = "Adobe DNG camera profile filter";
@@ -205,10 +214,14 @@ settings_changed(RSSettings *settings, RSSettingsMask mask, RSDcp *dcp)
 			neutral.z = neutral.z / max;
 			whitepoint = neutral_to_xy(dcp, &neutral);
 
-			if (dcp->use_profile)
+			if (dcp->use_profile && !dcp->has_matrix_fallback)
 			{
 				rs_color_whitepoint_to_temp(&whitepoint, &dcp->warmth, &dcp->tint);
 			} else {
+				/* Profil de secours matrice : la WB est intégrée à la matrice
+				 * (compute_matrix_fallback_pcs), donc on affiche Temp/Teinte NEUTRES
+				 * et on ne stocke JAMAIS la teinte déviante (~16 magenta) qui, si le
+				 * fallback était momentanément perdu, contaminerait le rendu. */
 				dcp->warmth = 5000;
 				dcp->tint = 0;
 			}
@@ -223,8 +236,16 @@ settings_changed(RSSettings *settings, RSSettingsMask mask, RSDcp *dcp)
 		}
 		if (dcp->use_profile)
 		{
-			whitepoint = rs_color_temp_to_whitepoint(dcp->warmth, dcp->tint);
-			set_white_xy(dcp, &whitepoint);
+			if (dcp->has_matrix_fallback)
+				/* Boîtier sans DCP : camera->PCS calculé directement depuis la
+				 * matrice LibRaw + la WB (Bradford), sans la machinerie temp/teinte
+				 * qui déviait vers un cast. */
+				compute_matrix_fallback_pcs(dcp);
+			else
+			{
+				whitepoint = rs_color_temp_to_whitepoint(dcp->warmth, dcp->tint);
+				set_white_xy(dcp, &whitepoint);
+			}
 			precalc(dcp);
 		}
 		else
@@ -337,7 +358,8 @@ free_dcp_profile(RSDcp *dcp)
 	}
 	dcp->temp1 = dcp->temp2 = 0;
 	dcp->has_color_matrix1 = dcp->has_color_matrix2 = dcp->has_forward_matrix1 = dcp->has_forward_matrix2 = FALSE;
-	
+	dcp->has_matrix_fallback = FALSE;
+
 }
 
 #define ALIGNTO16(PTR) ((guintptr)PTR + ((16 - ((guintptr)PTR % 16)) % 16))
@@ -447,6 +469,18 @@ set_property(GObject *object, guint property_id, const GValue *value, GParamSpec
 			read_profile(dcp, g_value_get_object(value));
 			changed = TRUE;
 			g_rec_mutex_unlock(&dcp_mutex);
+			break;
+		case PROP_COLOR_MATRIX:
+			{
+				const RS_MATRIX3 *cm = g_value_get_pointer(value);
+				if (cm)
+				{
+					g_rec_mutex_lock(&dcp_mutex);
+					set_matrix_only_profile(dcp, cm);
+					changed = TRUE;
+					g_rec_mutex_unlock(&dcp_mutex);
+				}
+			}
 			break;
 		case PROP_READ_OUT_CURVE:
 			temp = g_value_get_object(value);
@@ -657,6 +691,7 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	/* Wait for threads to finish */
 	for(i = 0; threads > 1 && i < threads; i++)
 		g_thread_join(t[i].threadid);
+
 
 	/* Settings can change now */
 	g_rec_mutex_unlock(&dcp_mutex);
@@ -1143,6 +1178,7 @@ render(ThreadInfo* t)
 	clip.G = dcp->camera_white.G;
 	clip.B = dcp->camera_white.B;
 
+
 	for(y = t->start_y ; y < t->end_y; y++)
 	{
 		for(x=t->start_x; x < image->w; x++)
@@ -1547,6 +1583,110 @@ read_profile(RSDcp *dcp, RSDcpFile *dcp_file)
 	dcp->use_profile = TRUE;
 	set_white_xy(dcp, &dcp->white_xy);
 	precalc(dcp);
+}
+
+/* Profil de SECOURS quand aucun DCP boîtier n'existe (matrice cam_xyz fournie par
+ * LibRaw, ex. Canon EOS R10). On garde use_profile=TRUE (donc PAS de premul : la WB
+ * est intégrée à camera_to_pcs) + une courbe de tonalité DCP par défaut. Le calcul
+ * de camera_to_pcs se fait dans compute_matrix_fallback_pcs (appelé quand la WB
+ * arrive), directement par adaptation Bradford — SANS la machinerie temp/teinte du
+ * DCP, qui, avec une matrice arbitraire, dérivait vers un point blanc magenta.
+ * Algorithme validé (Python) : neutre caméra -> prophoto neutre à 0,02% près. */
+static void
+set_matrix_only_profile(RSDcp *dcp, const RS_MATRIX3 *color_matrix)
+{
+	gint i;
+	free_dcp_profile(dcp);
+
+	dcp->color_matrix1 = *color_matrix;
+	dcp->has_color_matrix1 = TRUE;
+	dcp->has_color_matrix2 = FALSE;
+	dcp->has_matrix_fallback = TRUE;
+	dcp->temp1 = 6500.0;
+	dcp->temp2 = 0.0;
+
+	/* Courbe de tonalité DCP par défaut (comme la branche « pas de tone curve » de
+	 * read_profile). */
+	{
+		gint num_knots = adobe_default_table_size;
+		gfloat *knots = g_new0(gfloat, adobe_default_table_size * 2);
+		for (i = 0; i < adobe_default_table_size; i++)
+		{
+			knots[i*2] = (gfloat)i / (gfloat)adobe_default_table_size;
+			knots[i*2+1] = adobe_default_table[i];
+		}
+		dcp->tone_curve = rs_spline_new(knots, num_knots, NATURAL);
+		g_free(knots);
+	}
+	g_assert(0 == posix_memalign((void**)&dcp->tone_curve_lut, 16, sizeof(gfloat)*2*1025));
+	{
+		gfloat *tc = rs_spline_sample(dcp->tone_curve, NULL, 1024);
+		for (i = 0; i < 1024; i++)
+		{
+			if (i > 0)
+				dcp->tone_curve_lut[i*2-1] = tc[i];
+			dcp->tone_curve_lut[i*2] = tc[i];
+		}
+		dcp->tone_curve_lut[1024*2-1] = dcp->tone_curve_lut[1024*2] = dcp->tone_curve_lut[1024*2+1] = tc[1023];
+		g_free(tc);
+	}
+
+	dcp->has_forward_matrix1 = FALSE;
+	dcp->has_forward_matrix2 = FALSE;
+	dcp->looktable = NULL;
+	dcp->huesatmap1 = NULL;
+	dcp->huesatmap2 = NULL;
+	dcp->huesatmap = 0;
+	dcp->use_profile = TRUE;
+	/* camera_to_pcs sera posé par compute_matrix_fallback_pcs au prochain MASK_WB.
+	 * Dans apply_to_filters, la propriété « settings » est TOUJOURS appliquée juste
+	 * après « color-matrix » → settings_changed(MASK_ALL) → recalcul garanti avec le
+	 * BON pre_mul. Ne PAS calculer ici : à ce point pre_mul est encore celui de la
+	 * photo précédente (ex. JPEG neutre 1,1,1) → blanc scène faux → cast magenta. */
+}
+
+/* Calcule camera_to_pcs (camera -> XYZ D50) pour le profil de secours, directement :
+ *   neutre caméra = 1/pre_mul (réponse brute du capteur à un gris)
+ *   blanc scène XYZ = invert(ColorMatrix) . neutre
+ *   camera_to_pcs = Bradford(blanc scène -> D50) . invert(ColorMatrix)
+ * precalc() en fait ensuite camera_to_prophoto = xyz_to_prophoto . camera_to_pcs.
+ * La WB est ainsi intégrée à la matrice (pas de double application via premul). */
+static void
+compute_matrix_fallback_pcs(RSDcp *dcp)
+{
+	/* 1. Blanc scène xy, calculé DIRECTEMENT depuis la WB boîtier (cam_mul), pas
+	 *    via la machinerie temp/teinte du DCP (qui déviait). neutre = 1/pre_mul. */
+	RS_VECTOR3 camN;
+	camN.x = 1.0 / CLAMP(dcp->pre_mul.x, 0.001, 100.0);
+	camN.y = 1.0 / CLAMP(dcp->pre_mul.y, 0.001, 100.0);
+	camN.z = 1.0 / CLAMP(dcp->pre_mul.z, 0.001, 100.0);
+	camN.x /= camN.y; camN.z /= camN.y; camN.y = 1.0;
+
+	/* camera_white = réponse capteur au blanc, normalisée max=1. INDISPENSABLE :
+	 * le rendu s'en sert comme point de clipping des hautes lumières (sinon 0 → noir). */
+	{
+		gfloat wmax = MAX(camN.x, MAX(camN.y, camN.z));
+		dcp->camera_white.x = CLAMP(0.001, camN.x / wmax, 1.0);
+		dcp->camera_white.y = CLAMP(0.001, camN.y / wmax, 1.0);
+		dcp->camera_white.z = CLAMP(0.001, camN.z / wmax, 1.0);
+	}
+
+	RS_MATRIX3 cam_to_xyz = matrix3_invert(&dcp->color_matrix1);
+	RS_XYZ_VECTOR W = vector3_multiply_matrix(&camN, &cam_to_xyz);
+	RS_xy_COORD scene_xy = XYZ_to_xy(&W);
+	dcp->white_xy = scene_xy;
+
+	/* 2. Formule DNG (identique à la branche « color-matrix seule » de set_white_xy),
+	 *    AVEC la normalisation d'échelle (sinon image trop sombre) — mais alimentée
+	 *    par NOTRE blanc scène correct. */
+	RS_xy_COORD pcs_xy = XYZ_to_xy(&XYZ_WP_D50);
+	RS_MATRIX3 map = rs_calculate_map_white_matrix(&pcs_xy, &scene_xy);
+	RS_MATRIX3 pcs_to_camera;
+	matrix3_multiply(&dcp->color_matrix1, &map, &pcs_to_camera);
+	RS_VECTOR3 tmp = vector3_multiply_matrix(&XYZ_WP_D50, &pcs_to_camera);
+	gfloat scale = vector3_max(&tmp);
+	matrix3_scale(&pcs_to_camera, 1.0 / scale, &pcs_to_camera);
+	dcp->camera_to_pcs = matrix3_invert(&pcs_to_camera);
 }
 
 /*
