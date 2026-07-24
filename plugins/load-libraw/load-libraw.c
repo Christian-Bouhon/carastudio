@@ -169,14 +169,44 @@ load_libraw_file(const gchar *filename)
 	 */
 	image->filters = (guint)raw->idata.filters;
 
-	/* Copie des pixels Bayer depuis le buffer LibRaw */
-	guint y;
+	/* Copie des pixels Bayer, en SOUSTRAYANT le niveau de noir de la caméra.
+	 * LibRaw laisse un offset dans raw_image (black global + cblack par canal ;
+	 * ex. Canon EOS R10 : black=511). Sans cette soustraction, l'offset — constant
+	 * et NON linéaire vis-à-vis de la balance des blancs — fausse les ratios de
+	 * couleur (surtout dans les tons sombres) et AUCUN réglage de WB ne peut le
+	 * rattraper : d'où un rendu déséquilibré des boîtiers récents à niveau de noir
+	 * non nul. On ne touche PAS à l'échelle (pas de rescale) pour ne pas changer la
+	 * luminosité des boîtiers à black=0 (comportement inchangé pour eux). */
+	guint y, x;
+	const gint black = (gint) raw->color.black;
+	const gint cbl[4] = {
+		(gint) raw->color.cblack[0], (gint) raw->color.cblack[1],
+		(gint) raw->color.cblack[2], (gint) raw->color.cblack[3] };
+	const guint fltr = (guint) raw->idata.filters;
+	/* Recalage sur le niveau de BLANC : (raw - noir) / (max - noir) * 65535. Sans
+	 * ça les données ne montent pas jusqu'à la saturation → image sombre ET point
+	 * de clipping des hautes lumières mal placé (le vert sature au capteur pendant
+	 * que R/B non → volets/blancs magenta). Le max effectif est data_maximum (réel,
+	 * mesuré) si dispo, sinon maximum (théorique). */
+	gint wl = (gint) raw->color.maximum - black;
+	if (raw->color.data_maximum > black && raw->color.data_maximum < (int) raw->color.maximum)
+		wl = (gint) raw->color.data_maximum - black;
+	if (wl < 1) wl = 1;
+	const gdouble wscale = 65535.0 / (gdouble) wl;
 	for (y = 0; y < height; y++) {
 		gushort *dst        = GET_PIXEL(image, 0, y);
 		const uint16_t *src = raw_pixels
 		                      + (top_margin + y) * raw_width
 		                      + left_margin;
-		memcpy(dst, src, width * sizeof(gushort));
+		const guint rrow = top_margin + y;
+		for (x = 0; x < width; x++) {
+			const guint rcol = left_margin + x;
+			const gint fc = (fltr >> ((((rrow << 1) & 14) + (rcol & 1)) << 1)) & 3;
+			gint v = (gint) src[x] - black - cbl[fc];
+			if (v < 0) v = 0;
+			gdouble sv = v * wscale;
+			dst[x] = (sv > 65535.0) ? 65535 : (gushort) (sv + 0.5);
+		}
 	}
 
 	libraw_close(raw);
@@ -234,6 +264,26 @@ libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 				meta->cam_mul[1] = (gdouble) cm[1];               /* G1 */
 				meta->cam_mul[2] = (gdouble) cm[2];               /* B  */
 				meta->cam_mul[3] = (gdouble)((cm[3] > 0.0f) ? cm[3] : cm[1]); /* G2 */
+			}
+
+			/* Matrice couleur XYZ->camera (cam_xyz) : profil de secours quand aucun
+			 * DCP boîtier n'existe (base DCP figée ~2013 → boîtiers récents rendus
+			 * faux, ex. Canon EOS R10). Toutes marques SAUF X-Trans (WB/rendu Fuji
+			 * gérés à part, ne pas perturber). cam_xyz est exactement un ColorMatrix1. */
+			if (raw->idata.filters != 9)
+			{
+				const float (*xyz)[3] = raw->color.cam_xyz;
+				int i, j, nonzero = 0;
+				for (i = 0; i < 3; i++)
+					for (j = 0; j < 3; j++)
+						if (xyz[i][j] != 0.0f) nonzero = 1;
+				if (nonzero)
+				{
+					for (i = 0; i < 3; i++)
+						for (j = 0; j < 3; j++)
+							meta->color_matrix[i*3+j] = (gdouble) xyz[i][j];
+					meta->has_color_matrix = TRUE;
+				}
 			}
 
 			/* Vignette : miniature embarquée décodée par LibRaw. Le parseur maison

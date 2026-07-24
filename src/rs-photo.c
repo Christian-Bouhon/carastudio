@@ -406,6 +406,18 @@ rs_photo_apply_to_filters(RS_PHOTO *photo, GList *filters, const gint snapshot)
 
 		if (dcp_profile != NULL)
 			rs_filter_set_recursive(filter, "profile", dcp_profile, NULL);
+		else if (photo->metadata && photo->metadata->has_color_matrix)
+		{
+			/* Aucun DCP pour ce boîtier : profil de secours depuis la matrice
+			 * couleur du décodeur (LibRaw). Corrige les boîtiers récents absents
+			 * de la base DCP (ex. Canon EOS R10 rendu rougeâtre). */
+			RS_MATRIX3 cm;
+			gint r, c;
+			for (r = 0; r < 3; r++)
+				for (c = 0; c < 3; c++)
+					cm.coeff[r][c] = photo->metadata->color_matrix[r*3+c];
+			rs_filter_set_recursive(filter, "color-matrix", &cm, NULL);
+		}
 		else
 			rs_filter_set_recursive(filter, "use-profile", FALSE, NULL);
 
