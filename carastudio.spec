@@ -1,7 +1,7 @@
 
 Name:           carastudio
 Version:        2026.07
-Release:        4%{?dist}
+Release:        5%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
 License:        GPLv3+
@@ -92,6 +92,15 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Fri Jul 24 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-5
+- Couleur des boîtiers récents sans profil DCP (ex. Canon EOS R10) : rendu
+  correct via la matrice couleur LibRaw (issue #10).
+- Correction du cast magenta apparaissant sur les RAW après navigation
+  (espace couleur d'entrée fixé par photo).
+- CR3 : lecture de l'EXIF complet et de l'orientation via LibRaw — panneau
+  Infos renseigné, vignettes orientées (issue #11).
+- Lisibilité du contenu des dialogues (Préférences) sur thèmes système clairs.
+
 * Thu Jul 23 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-4
 - Rebuild : le correctif de dominante verte sur les RAW Fujifilm X-Trans (.raf),
   annoncé en 2026.07-3, était absent du binaire par erreur. Il est bien inclus
