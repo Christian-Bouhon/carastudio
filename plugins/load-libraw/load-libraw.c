@@ -14,6 +14,7 @@
 #include <rawstudio.h>
 #include <libraw/libraw.h>
 #include <string.h>
+#include <time.h>
 
 /* Priorité supérieure à rawspeed (5) pour être essayé en premier */
 #define LIBRAW_PRIORITY 10
@@ -239,6 +240,7 @@ static gboolean
 libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *meta)
 {
 	libraw_data_t *raw;
+	gboolean fully_handled = FALSE; /* TRUE pour .cr3 : LibRaw fournit tout l'EXIF */
 
 	if (!service || !meta)
 		return FALSE;
@@ -283,6 +285,81 @@ libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 						for (j = 0; j < 3; j++)
 							meta->color_matrix[i*3+j] = (gdouble) xyz[i][j];
 					meta->has_color_matrix = TRUE;
+				}
+			}
+
+			/* EXIF complet pour le CR3 (conteneur Canon récent, type BMFF, PAS du
+			 * TIFF) : aucun lecteur maison ne le parse (meta-tiff n'enregistre pas
+			 * .cr3) → panneau Infos vide + orientation absente (vignette non
+			 * tournée, signalé issue #11). LibRaw expose tout l'EXIF ; on le
+			 * recopie ici. CIBLÉ .cr3 : sur les formats gérés par meta-tiff
+			 * (cr2/nef…), on ne touche à rien — meta-tiff s'exécute juste après
+			 * (priorité 10 > 5) et reste la source de référence testée. */
+			{
+				const gchar *ext = service ? strrchr(service, '.') : NULL;
+				if (ext && g_ascii_strcasecmp(ext, ".cr3") == 0)
+				{
+					fully_handled = TRUE; /* meta-tiff ne gère pas .cr3 → on assume l'EXIF */
+					if (!meta->make_ascii && raw->idata.make[0])
+						meta->make_ascii = g_strstrip(g_strdup(raw->idata.make));
+					if (!meta->model_ascii && raw->idata.model[0])
+						meta->model_ascii = g_strstrip(g_strdup(raw->idata.model));
+					if (meta->make == MAKE_UNKNOWN && meta->make_ascii)
+					{
+						if (g_ascii_strncasecmp(meta->make_ascii, "Canon", 5) == 0)
+							meta->make = MAKE_CANON;
+						else if (g_ascii_strncasecmp(meta->make_ascii, "Nikon", 5) == 0)
+							meta->make = MAKE_NIKON;
+						else if (g_ascii_strncasecmp(meta->make_ascii, "Sony", 4) == 0)
+							meta->make = MAKE_SONY;
+					}
+
+					if (meta->aperture <= 0.0 && raw->other.aperture > 0.0f)
+						meta->aperture = raw->other.aperture;
+					if (meta->iso == 0 && raw->other.iso_speed > 0.0f)
+						meta->iso = (gushort) raw->other.iso_speed;
+					if (meta->shutterspeed <= 0.0 && raw->other.shutter > 0.0f)
+						meta->shutterspeed = 1.0f / raw->other.shutter; /* stocké = 1/temps */
+					if (meta->focallength < 1 && raw->other.focal_len > 0.0f)
+						meta->focallength = (gshort) raw->other.focal_len;
+
+					if (meta->timestamp <= 0 && raw->other.timestamp != 0)
+					{
+						meta->timestamp = (GTime) raw->other.timestamp;
+						if (!meta->time_ascii)
+						{
+							struct tm tmv;
+							time_t t = (time_t) raw->other.timestamp;
+							char buf[32];
+							if (localtime_r(&t, &tmv) &&
+							    strftime(buf, sizeof(buf), "%Y:%m:%d %H:%M:%S", &tmv) > 0)
+								meta->time_ascii = g_strdup(buf);
+						}
+					}
+
+					/* Orientation : LibRaw sizes.flip → degrés attendus par
+					 * rs_photo (0 / 90 / 180 / 270). flip 3=180, 5=90 CCW=270,
+					 * 6=90 CW=90. Corrige la vignette portrait non tournée. */
+					if (meta->orientation == 0)
+					{
+						switch (raw->sizes.flip)
+						{
+							case 3: meta->orientation = 180; break;
+							case 5: meta->orientation = 270; break;
+							case 6: meta->orientation = 90;  break;
+							default: break; /* 0 = pas de rotation */
+						}
+					}
+
+					/* Objectif */
+					if (!meta->lens_identifier && raw->lens.Lens[0])
+						meta->lens_identifier = g_strstrip(g_strdup(raw->lens.Lens));
+					if (meta->lens_min_focal <= 0.0 && raw->lens.MinFocal > 0.0f)
+						meta->lens_min_focal = raw->lens.MinFocal;
+					if (meta->lens_max_focal <= 0.0 && raw->lens.MaxFocal > 0.0f)
+						meta->lens_max_focal = raw->lens.MaxFocal;
+					if (meta->lens_max_aperture <= 0.0 && raw->lens.EXIF_MaxAp > 0.0f)
+						meta->lens_max_aperture = raw->lens.EXIF_MaxAp;
 				}
 			}
 
@@ -333,7 +410,10 @@ libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 	}
 	rs_io_unlock();
 
-	return FALSE; /* passer la main à meta-tiff pour le reste des métadonnées */
+	/* .cr3 : entièrement renseigné ici (aucun autre loader ne gère ce format) →
+	 * TRUE pour que rs_metadata_load sauve le cache ET applique l'orientation.
+	 * Autres formats : FALSE → meta-tiff prend la main pour l'EXIF (chemin testé). */
+	return fully_handled;
 }
 
 /* ------------------------------------------------------------------ */
