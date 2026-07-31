@@ -78,6 +78,33 @@ rs_raf_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 		meta->thumbnail = rs_raf_load_thumb(rawfile);
 		rs_filetype_meta_load(".tiff", meta, rawfile, meta->preview_start+12);
 
+		/* La vignette embarquée Fuji n'est PAS orientée (cf. commentaire dans
+		 * rs_raf_load_thumb), mais meta->orientation vient d'être renseigné par le
+		 * parseur TIFF ci-dessus (ex. X-T2 portrait = 90). Sans cette rotation, la
+		 * vignette reste couchée dans le navigateur alors que l'éditeur, lui, est
+		 * bien redressé (retour Philippe sur DSCF1337.RAF). On tourne donc la
+		 * vignette dans le même sens que la photo. */
+		if (meta->thumbnail && meta->orientation)
+		{
+			GdkPixbufRotation rot = GDK_PIXBUF_ROTATE_NONE;
+			switch (meta->orientation)
+			{
+				case 90:  rot = GDK_PIXBUF_ROTATE_CLOCKWISE;        break;
+				case 180: rot = GDK_PIXBUF_ROTATE_UPSIDEDOWN;       break;
+				case 270: rot = GDK_PIXBUF_ROTATE_COUNTERCLOCKWISE; break;
+				default: break;
+			}
+			if (rot != GDK_PIXBUF_ROTATE_NONE)
+			{
+				GdkPixbuf *rotated = gdk_pixbuf_rotate_simple(meta->thumbnail, rot);
+				if (rotated)
+				{
+					g_object_unref(meta->thumbnail);
+					meta->thumbnail = rotated;
+				}
+			}
+		}
+
 		return TRUE;
 	}
 	return FALSE;

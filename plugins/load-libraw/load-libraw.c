@@ -81,6 +81,12 @@ load_libraw_file(const gchar *filename)
 		raw->params.user_mul[0] = raw->params.user_mul[1] = raw->params.user_mul[2] = raw->params.user_mul[3] = 1.0f;
 		raw->params.no_auto_scale  = 0;    /* normaliser sur toute la plage 16 bits (gain uniforme, pas de WB car user_mul=1) — sinon image trop sombre */
 		raw->params.highlight      = 0;
+		raw->params.user_flip      = 0;    /* NE PAS orienter : sinon LibRaw tourne déjà la
+		                                    * sortie via sizes.flip, PUIS CaraStudio réapplique
+		                                    * meta->orientation → DOUBLE rotation (X-Trans
+		                                    * portrait couché dans l'éditeur, retour Philippe).
+		                                    * En 0 on livre l'orientation CAPTEUR comme un Bayer
+		                                    * → une seule rotation (celle de CaraStudio). */
 
 		rs_io_lock();
 		ret = libraw_dcraw_process(raw);
