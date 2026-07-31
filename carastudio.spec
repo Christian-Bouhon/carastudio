@@ -1,7 +1,7 @@
 
 Name:           carastudio
 Version:        2026.07
-Release:        5%{?dist}
+Release:        6%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
 License:        GPLv3+
@@ -92,6 +92,16 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Fri Jul 31 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-6
+- Couleur : corriger le cast cyan/turquoise des RAF Fujifilm X-Trans
+  (matrice couleur du boîtier désormais appliquée) — issue #8.
+- Orientation : les RAF X-Trans et les CR3 en mode portrait ne
+  s'affichent plus couchés (éditeur et vignettes) — issue #11.
+- Stabilité : correction d'un plantage (segfault) survenant après
+  plusieurs changements de dossier de photos — issue #14.
+- Export vers GIMP : fonctionne désormais depuis l'AppImage et gère
+  aussi GIMP installé via Flatpak — issue #12.
+
 * Fri Jul 24 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-5
 - Couleur des boîtiers récents sans profil DCP (ex. Canon EOS R10) : rendu
   correct via la matrice couleur LibRaw (issue #10).
