@@ -3088,16 +3088,23 @@ got_metadata(RSMetadata *metadata, gpointer user_data)
 	g_assert(pixbuf != NULL);
 	g_assert(pixbuf_clean != NULL);
 
-	/* Add the new thumbnail to the store */
+	/* Add the new thumbnail to the store.
+	 * GARDE ANTI-CRASH (#14, al186 : segfault après plusieurs changements de
+	 * dossier) : ce callback asynchrone peut s'exécuter APRÈS que l'utilisateur a
+	 * changé de dossier (le store a été vidé par rs_store_remove). job->iter
+	 * pointe alors une ligne supprimée → gtk_list_store_set planterait. On ne
+	 * l'écrit que si l'iter est encore valide ; sinon on saute juste la mise à
+	 * jour (le reste du nettoyage reste identique). */
 	gdk_threads_enter();
-	gtk_list_store_set(GTK_LIST_STORE(job->model), &job->iter,
-		METADATA_COLUMN, metadata,
-		PIXBUF_COLUMN, pixbuf,
-		PIXBUF_CLEAN_COLUMN, pixbuf_clean,
-		PRIORITY_COLUMN, priority,
-		EXPORTED_COLUMN, exported,
-		ENFUSE_COLUMN, enfuse,
-		-1);
+	if (gtk_list_store_iter_is_valid(GTK_LIST_STORE(job->model), &job->iter))
+		gtk_list_store_set(GTK_LIST_STORE(job->model), &job->iter,
+			METADATA_COLUMN, metadata,
+			PIXBUF_COLUMN, pixbuf,
+			PIXBUF_CLEAN_COLUMN, pixbuf_clean,
+			PRIORITY_COLUMN, priority,
+			EXPORTED_COLUMN, exported,
+			ENFUSE_COLUMN, enfuse,
+			-1);
 	gdk_threads_leave();
 
 	/* Vignette périmée ? On régénère en fond (effets inclus) si la photo a des

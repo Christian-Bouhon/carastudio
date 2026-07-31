@@ -81,6 +81,12 @@ load_libraw_file(const gchar *filename)
 		raw->params.user_mul[0] = raw->params.user_mul[1] = raw->params.user_mul[2] = raw->params.user_mul[3] = 1.0f;
 		raw->params.no_auto_scale  = 0;    /* normaliser sur toute la plage 16 bits (gain uniforme, pas de WB car user_mul=1) — sinon image trop sombre */
 		raw->params.highlight      = 0;
+		raw->params.user_flip      = 0;    /* NE PAS orienter : sinon LibRaw tourne déjà la
+		                                    * sortie via sizes.flip, PUIS CaraStudio réapplique
+		                                    * meta->orientation → DOUBLE rotation (X-Trans
+		                                    * portrait couché dans l'éditeur, retour Philippe).
+		                                    * En 0 on livre l'orientation CAPTEUR comme un Bayer
+		                                    * → une seule rotation (celle de CaraStudio). */
 
 		rs_io_lock();
 		ret = libraw_dcraw_process(raw);
@@ -270,9 +276,10 @@ libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 
 			/* Matrice couleur XYZ->camera (cam_xyz) : profil de secours quand aucun
 			 * DCP boîtier n'existe (base DCP figée ~2013 → boîtiers récents rendus
-			 * faux, ex. Canon EOS R10). Toutes marques SAUF X-Trans (WB/rendu Fuji
-			 * gérés à part, ne pas perturber). cam_xyz est exactement un ColorMatrix1. */
-			if (raw->idata.filters != 9)
+			 * faux, ex. Canon EOS R10). Y COMPRIS X-Trans : sans matrice, le RGB
+			 * camera-natif Fuji (vert large) est interprété tel quel → cast
+			 * cyan/turquoise sur ciels/mer (retour al186/sickboy) ; la WB reste
+			 * celle du parseur maison raf-meta. cam_xyz = un ColorMatrix1. */
 			{
 				const float (*xyz)[3] = raw->color.cam_xyz;
 				int i, j, nonzero = 0;
