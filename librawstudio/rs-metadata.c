@@ -136,8 +136,13 @@ rs_metadata_new (void)
 
 /* 11→12 (10/07) : les vignettes non-RAW (JPEG/TIFF/PNG) appliquent désormais
    l'orientation EXIF (load-gdk) ; bump pour invalider les anciennes vignettes en
-   cache (couchées en paysage) et forcer leur régénération orientée. */
-#define METACACHEVERSION 14
+   cache (couchées en paysage) et forcer leur régénération orientée.
+   14→15 (31/07) : orientation CR3 (via LibRaw flip) et RAF X-Trans (fin de la
+   double rotation) ; les metacaches écrits AVANT ces correctifs figeaient
+   orientation=0 (photo couchée) et étaient réutilisés car la version n'avait pas
+   changé (signalé par Guillaume sur img_1826.cr3). Bump = re-parse forcé → la
+   bonne orientation est relue et les vignettes régénérées droites. */
+#define METACACHEVERSION 15
 void
 rs_metadata_cache_save(RSMetadata *metadata, const gchar *filename)
 {
