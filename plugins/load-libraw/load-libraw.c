@@ -270,9 +270,10 @@ libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 
 			/* Matrice couleur XYZ->camera (cam_xyz) : profil de secours quand aucun
 			 * DCP boîtier n'existe (base DCP figée ~2013 → boîtiers récents rendus
-			 * faux, ex. Canon EOS R10). Toutes marques SAUF X-Trans (WB/rendu Fuji
-			 * gérés à part, ne pas perturber). cam_xyz est exactement un ColorMatrix1. */
-			if (raw->idata.filters != 9)
+			 * faux, ex. Canon EOS R10). Y COMPRIS X-Trans : sans matrice, le RGB
+			 * camera-natif Fuji (vert large) est interprété tel quel → cast
+			 * cyan/turquoise sur ciels/mer (retour al186/sickboy) ; la WB reste
+			 * celle du parseur maison raf-meta. cam_xyz = un ColorMatrix1. */
 			{
 				const float (*xyz)[3] = raw->color.cam_xyz;
 				int i, j, nonzero = 0;
