@@ -25,7 +25,8 @@
 #include "rs-photo.h"
 
 
-static gboolean rs_has_gimp(gint major, gint minor, gint micro);
+static gchar **find_gimp_command(void);
+static gchar **external_editor_environ(void);
 
 gboolean
 rs_external_editor_gimp(RS_PHOTO *photo, RSFilter *prior_to_resample, guint snapshot)
@@ -33,8 +34,12 @@ rs_external_editor_gimp(RS_PHOTO *photo, RSFilter *prior_to_resample, guint snap
 	RSOutput *output = NULL;
 	g_assert(RS_IS_PHOTO(photo));
 
-	// We need at least GIMP 2.4.0 to export photo
-	if (!rs_has_gimp(2,4,0)) {
+	/* GIMP disponible ? On cherche AVANT de rendre, quel que soit le mode
+	 * d'installation (paquet distro ou Flatpak). Le fichier est passé en
+	 * ARGUMENT → toutes les versions 2.x/3.x l'ouvrent, pas de test de version. */
+	gchar **gimp_cmd = find_gimp_command();
+	if (!gimp_cmd) {
+		g_warning("GIMP introuvable (ni dans le PATH, ni en Flatpak org.gimp.GIMP)");
 		return FALSE;
 	}
 
@@ -93,11 +98,27 @@ rs_external_editor_gimp(RS_PHOTO *photo, RSFilter *prior_to_resample, guint snap
 	   ouvre le fichier dans l'instance existante ; sinon il démarre et l'ouvre.
 	   Lancement ASYNCHRONE (on ne bloque pas l'interface). Le fichier temporaire est
 	   laissé dans /tmp — GIMP le lit ; le système nettoie /tmp. */
-	gchar *argv[] = { "gimp", filename->str, NULL };
+	/* argv = préfixe de commande GIMP (« gimp », ou « flatpak run org.gimp.GIMP »)
+	 * suivi du fichier PNG. */
+	guint pfx = g_strv_length(gimp_cmd);
+	gchar **argv = g_new0(gchar *, pfx + 2);
+	guint k;
+	for (k = 0; k < pfx; k++)
+		argv[k] = gimp_cmd[k];            /* pointeurs partagés, libérés via gimp_cmd */
+	argv[pfx] = filename->str;
+	argv[pfx + 1] = NULL;
+
+	/* Environnement NETTOYÉ : sous AppImage, ne pas transmettre à GIMP notre
+	 * LD_LIBRARY_PATH / modules bundlés, sinon il charge nos libs (versions
+	 * incompatibles) et plante (issue #12, sickboy). */
+	gchar **child_env = external_editor_environ();
 	GError *error = NULL;
-	gboolean launched = g_spawn_async(NULL, argv, NULL,
+	gboolean launched = g_spawn_async(NULL, argv, child_env,
 		G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,
 		NULL, NULL, NULL, &error);
+	g_free(argv);                 /* tableau seul ; éléments = gimp_cmd + filename */
+	g_strfreev(child_env);
+	g_strfreev(gimp_cmd);
 
 	if (!launched)
 	{
@@ -112,67 +133,76 @@ rs_external_editor_gimp(RS_PHOTO *photo, RSFilter *prior_to_resample, guint snap
 	return TRUE;
 }
 
-static gboolean
-rs_has_gimp(gint major, gint minor, gint micro) {
-	FILE *fp;
-	char line[128];
-	int _major, _minor, _micro;
-	gboolean retval = FALSE;
-
-	fp = popen("gimp -v","r");
-	if (fgets( line, sizeof line, fp) == NULL)
+/* Environnement à transmettre à un programme EXTERNE (GIMP). Sous AppImage, on
+ * RETIRE les variables injectées par le runtime qui, héritées par GIMP, le
+ * feraient charger NOS bibliothèques bundlées (versions incompatibles → plantage,
+ * issue #12). Hors AppImage (APPDIR non défini), l'environnement est inchangé.
+ * L'appelant libère avec g_strfreev(). */
+static gchar **
+external_editor_environ(void)
+{
+	gchar **env = g_get_environ();
+	if (g_getenv("APPDIR"))   /* on tourne dans une AppImage */
 	{
-		g_warning("fgets returned: %d\n", retval);
-		return FALSE;
+		static const gchar * const strip[] = {
+			"LD_LIBRARY_PATH", "LD_PRELOAD",
+			"GTK_PATH", "GTK_IM_MODULE_FILE", "GTK_EXE_PREFIX", "GTK_DATA_PREFIX",
+			"GDK_PIXBUF_MODULE_FILE", "GDK_PIXBUF_MODULEDIR",
+			"GIO_MODULE_DIR", "GSETTINGS_SCHEMA_DIR",
+			"FONTCONFIG_FILE", "FONTCONFIG_PATH",
+			"GI_TYPELIB_PATH", "PANGO_LIBDIR", NULL };
+		gint i;
+		for (i = 0; strip[i]; i++)
+			env = g_environ_unsetenv(env, strip[i]);
 	}
-	pclose(fp);
+	return env;
+}
 
-	GRegex *regex;
-	gchar **tokens;
-	
-	regex = g_regex_new(".*([0-9])\x2E([0-9]+)\x2E([0-9]+).*", 0, 0, NULL);
-	tokens = g_regex_split(regex, line, 0);
-	g_regex_unref(regex);
-
-	if (tokens[1])
-		_major = atoi(tokens[1]);
-	else
+/* Trouve comment lancer GIMP, quel que soit le mode d'installation, et renvoie un
+ * argv NULL-terminé (préfixe de commande, à libérer par g_strfreev) ou NULL si
+ * GIMP est absent :
+ *   - paquet distro : { "<chemin>/gimp", NULL }   (gimp-2.10 / gimp en repli)
+ *   - Flatpak       : { "<chemin>/flatpak", "run", "org.gimp.GIMP", NULL }
+ * Les binaires hôte (flatpak) sont testés avec l'environnement nettoyé, sinon la
+ * détection elle-même échouerait sous AppImage. */
+static gchar **
+find_gimp_command(void)
+{
+	const gchar *candidates[] = { "gimp", "gimp-2.10", "gimp-3.0", NULL };
+	gint i;
+	for (i = 0; candidates[i]; i++)
 	{
-		g_strfreev(tokens);
-		return FALSE;
-	}
-
-	if (_major > major) {
-		retval = TRUE;
-	} else if (_major == major) {
-
-		if (tokens[2])
-			_minor = atoi(tokens[2]);
-		else
+		gchar *path = g_find_program_in_path(candidates[i]);
+		if (path)
 		{
-			g_strfreev(tokens);
-			return FALSE;
-		}
-
-		if (_minor > minor) {
-			retval = TRUE;
-		} else if (_minor == minor) {
-	
-			if (tokens[3])
-				_micro = atoi(tokens[3]);
-			else
-			{
-				g_strfreev(tokens);
-				return FALSE;
-			}
-
-			if (_micro >= micro) {
-				retval = TRUE;
-			}
+			gchar **argv = g_new0(gchar *, 2);
+			argv[0] = path;   /* chemin absolu, déjà alloué */
+			return argv;
 		}
 	}
-	g_strfreev(tokens);
 
-	return retval;
+	/* Repli Flatpak : flatpak présent ET org.gimp.GIMP installé. */
+	gchar *fp = g_find_program_in_path("flatpak");
+	if (fp)
+	{
+		gchar *check_argv[] = { fp, "info", "org.gimp.GIMP", NULL };
+		gchar **env = external_editor_environ();
+		gint status = -1;
+		gboolean ok = g_spawn_sync(NULL, check_argv, env,
+			G_SPAWN_STDOUT_TO_DEV_NULL | G_SPAWN_STDERR_TO_DEV_NULL,
+			NULL, NULL, NULL, NULL, &status, NULL);
+		g_strfreev(env);
+		if (ok && status == 0)
+		{
+			gchar **argv = g_new0(gchar *, 4);
+			argv[0] = fp;                        /* chemin flatpak (alloué) */
+			argv[1] = g_strdup("run");
+			argv[2] = g_strdup("org.gimp.GIMP");
+			return argv;
+		}
+		g_free(fp);
+	}
+
+	return NULL;
 }
 
