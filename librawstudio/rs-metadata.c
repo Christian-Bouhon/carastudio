@@ -141,8 +141,13 @@ rs_metadata_new (void)
    double rotation) ; les metacaches écrits AVANT ces correctifs figeaient
    orientation=0 (photo couchée) et étaient réutilisés car la version n'avait pas
    changé (signalé par Guillaume sur img_1826.cr3). Bump = re-parse forcé → la
-   bonne orientation est relue et les vignettes régénérées droites. */
-#define METACACHEVERSION 15
+   bonne orientation est relue et les vignettes régénérées droites.
+   15→16 (01/08) : taille des vignettes ramenée à la boîte STANDARD de 128 px.
+   Les chemins récents (load-libraw pour boîtiers récents, repli meta-tiff pour
+   TIFF/JPEG exporté) écrivaient des .thumb.jpg à 256 px → bandeau hétérogène,
+   certaines vignettes 2x trop grosses (régression signalée). Bump = régénération
+   des vignettes déjà mises en cache à 256 par la 2026.07-6. */
+#define METACACHEVERSION 16
 void
 rs_metadata_cache_save(RSMetadata *metadata, const gchar *filename)
 {

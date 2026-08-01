@@ -1953,7 +1953,7 @@ tif_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadata *
 				 * (8 comme 16 bits) — sinon raw_thumbnail_reader sort une vignette NOIRE.
 				 * On ne garde le rendu RAW maison qu'en dernier recours (gdk échoue sur
 				 * un vrai RAW). */
-				GdkPixbuf *p = gdk_pixbuf_new_from_file_at_size(service, 256, 256, NULL);
+				GdkPixbuf *p = gdk_pixbuf_new_from_file_at_size(service, 128, 128, NULL);
 				if (p)
 				{
 					GdkPixbuf *o = gdk_pixbuf_apply_embedded_orientation(p);

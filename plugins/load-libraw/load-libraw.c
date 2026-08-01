@@ -394,14 +394,16 @@ libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 							{
 								GdkPixbuf *o = gdk_pixbuf_apply_embedded_orientation(p);
 								/* Réduire les gros aperçus (certains font plusieurs
-								   milliers de px) à une taille de vignette raisonnable. */
+								   milliers de px) à la taille STANDARD du bandeau (128 px,
+									   comme meta-tiff/load-gdk) : sinon les RAW via LibRaw
+									   sortaient 2x trop gros → bandeau hétérogène (régression). */
 								gint w = gdk_pixbuf_get_width(o);
 								gint h = gdk_pixbuf_get_height(o);
 								gint m = MAX(w, h);
-								if (m > 256)
+								if (m > 128)
 								{
 									GdkPixbuf *s = gdk_pixbuf_scale_simple(
-										o, w * 256 / m, h * 256 / m, GDK_INTERP_BILINEAR);
+										o, w * 128 / m, h * 128 / m, GDK_INTERP_BILINEAR);
 									if (s) { g_object_unref(o); o = s; }
 								}
 								meta->thumbnail = o;
