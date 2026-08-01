@@ -1,7 +1,7 @@
 
 Name:           carastudio
 Version:        2026.07
-Release:        6%{?dist}
+Release:        7%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
 License:        GPLv3+
@@ -92,6 +92,19 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Sat Aug 01 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-7
+- Vignettes : taille d'affichage homogène (128 px) — certaines sortaient
+  deux fois trop grosses.
+- Vignettes : correction du cast magenta des RAW à la régénération
+  (balance des blancs boîtier désormais appliquée).
+- Vignettes RAF : décodage de l'aperçu embarqué plus robuste (repli sur
+  les échecs intermittents du backend gdk-pixbuf « glycin »).
+- Export vers GIMP : si GIMP n'est pas détecté (fréquent sous AppImage),
+  CaraStudio demande une fois le chemin de l'exécutable et le mémorise.
+- Nouveau : menu « Fichier → Vider le cache des vignettes » (régénère le
+  dossier courant sans toucher aux réglages d'édition).
+- Version : date de compilation affichée dans le titre et l'onglet À propos.
+
 * Fri Jul 31 2026 Carafife <carafife@users.noreply.github.com> - 2026.07-6
 - Couleur : corriger le cast cyan/turquoise des RAF Fujifilm X-Trans
   (matrice couleur du boîtier désormais appliquée) — issue #8.
