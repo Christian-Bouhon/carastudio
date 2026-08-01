@@ -1447,12 +1447,19 @@ rs_window_set_title(const char *str)
 {
 	gboolean client_mode;
 	gchar *title;
+	gchar *ver;
 	rs_conf_get_boolean("client-mode", &client_mode);
+	/* Date de compilation injectée comme argument %s : le msgid reste inchangé
+	 * (la traduction FR « Propulsé par Carafife » est préservée) et la version
+	 * devient distinguable d'un build à l'autre — le « 2026.07 » seul ne permet
+	 * pas de savoir si l'AppImage contient les derniers correctifs (issue #11). */
+	ver = g_strdup_printf("%s (build %s)", VERSION, __DATE__);
 	if (client_mode)
-		title = g_strdup_printf(_("CaraStudio %s — Client Mode"), VERSION);
+		title = g_strdup_printf(_("CaraStudio %s — Client Mode"), ver);
 	else
-		title = g_strdup_printf(_("CaraStudio %s — Powered by Carafife"), VERSION);
+		title = g_strdup_printf(_("CaraStudio %s — Powered by Carafife"), ver);
 	gtk_window_set_title(GTK_WINDOW(rawstudio_window), title);
+	g_free(ver);
 	g_free(title);
 }
 

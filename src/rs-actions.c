@@ -2222,6 +2222,11 @@ ACTION(about)
 		g_free(icon_path);
 	}
 
+	/* Version + date de compilation : rend le build identifiable en support
+	 * (le « 2026.07 » seul ne dit pas si l'AppImage a les derniers correctifs,
+	 * cf. issue #11 — l'utilisateur ne savait pas quelle version il utilisait). */
+	gchar *version = g_strdup_printf("%s (build %s)", RAWSTUDIO_VERSION, __DATE__);
+
 	gtk_show_about_dialog(GTK_WINDOW(rawstudio_window),
 		"program-name", "CaraStudio",
 		"logo", logo,
@@ -2229,13 +2234,15 @@ ACTION(about)
 		"artists", artists,
 		"translator-credits", translators,
 		"comments", _("Développeur de photos RAW, convivial et accessible — un fork bodybuildé de RawStudio par Carafife."),
-		"version", RAWSTUDIO_VERSION,
+		"version", version,
 		"copyright", "© 2026 Carafife (CaraStudio)\n© RawStudio team",
 		"website", "https://github.com/carafife/CaraStudio",
 		"website-label", "github.com/carafife/CaraStudio",
 		"name", "CaraStudio",
 		NULL
 	);
+
+	g_free(version);
 
 	if (logo)
 		g_object_unref(logo);
