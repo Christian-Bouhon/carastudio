@@ -242,11 +242,11 @@ static gchar **
 prompt_for_gimp_command(void)
 {
 	GtkWidget *dialog = gtk_file_chooser_dialog_new(
-		_("GIMP introuvable — indiquez l'exécutable GIMP"),
+		_("GIMP not found — please point to the GIMP executable"),
 		rawstudio_window,
 		GTK_FILE_CHOOSER_ACTION_OPEN,
-		_("Annuler"), GTK_RESPONSE_CANCEL,
-		_("Valider"), GTK_RESPONSE_ACCEPT,
+		_("Cancel"), GTK_RESPONSE_CANCEL,
+		_("Open"), GTK_RESPONSE_ACCEPT,
 		NULL);
 
 	/* Les exécutables vivent le plus souvent dans /usr/bin ; on y ouvre par défaut
@@ -269,7 +269,7 @@ prompt_for_gimp_command(void)
 				rawstudio_window,
 				GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
 				GTK_MESSAGE_WARNING, GTK_BUTTONS_OK,
-				_("« %s » n'est pas un exécutable. Sélectionnez le programme GIMP."),
+				_("\"%s\" is not an executable. Please select the GIMP program."),
 				path ? path : "");
 			gtk_dialog_run(GTK_DIALOG(err));
 			gtk_widget_destroy(err);

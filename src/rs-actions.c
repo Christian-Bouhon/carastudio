@@ -325,6 +325,46 @@ ACTION(reload)
 	rs_core_actions_update_menu_items(rs);
 }
 
+/* Vide le cache d'affichage (vignettes + métadonnées) du dossier COURANT puis
+ * recharge → régénération propre. Utile quand une anomalie s'est figée dans le
+ * cache (orientation, taille de vignette…). N'efface QUE .thumb.jpg + .metacache.xml
+ * via rs_metadata_delete_cache() : les réglages d'édition (.cache.xml) sont
+ * PRÉSERVÉS. */
+ACTION(clear_thumb_cache)
+{
+	GtkWidget *dialog;
+	GList *all = NULL, *node;
+
+	dialog = gui_dialog_make_from_text(GTK_STOCK_DIALOG_QUESTION,
+		_("Clear the thumbnail cache?"),
+		_("The cached thumbnails and metadata of the current folder will be "
+		  "deleted and regenerated. Your editing settings are <b>not</b> affected."));
+	gtk_dialog_add_button(GTK_DIALOG(dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
+	gtk_dialog_add_button(GTK_DIALOG(dialog), _("Clear cache"), GTK_RESPONSE_ACCEPT);
+	gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_CANCEL);
+	gtk_widget_show_all(dialog);
+
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) != GTK_RESPONSE_ACCEPT)
+	{
+		gtk_widget_destroy(dialog);
+		return;
+	}
+	gtk_widget_destroy(dialog);
+
+	rs_store_get_names(rs->store, NULL, NULL, &all);
+	for (node = all; node; node = node->next)
+	{
+		gchar *fullname = node->data;
+		if (fullname)
+			rs_metadata_delete_cache(fullname);
+	}
+	g_list_free_full(all, g_free);
+
+	rs_store_remove(rs->store, NULL, NULL);
+	rs_store_load_directory(rs->store, NULL);
+	rs_core_actions_update_menu_items(rs);
+}
+
 ACTION(delete_flagged)
 {
 	gchar *cache;
@@ -2572,6 +2612,7 @@ rs_get_core_action_group(RS_BLOB *rs)
 	{ "ExportToGimp", "system-run", _("_Export to Gimp"), "<control>G", NULL, ACTION_CB(export_to_gimp) },
 	{ "CopyImage", "edit-copy", _("_Copy Image to Clipboard"), "<control><shift>C", NULL, ACTION_CB(copy_image) },
 	{ "Reload", "view-refresh", _("_Reload directory"), "<control>R", NULL, ACTION_CB(reload) },
+	{ "ClearThumbCache", "edit-clear", _("Clear thumbnail _cache"), NULL, NULL, ACTION_CB(clear_thumb_cache) },
 	{ "DeleteFlagged", "edit-delete", _("_Delete Flagged Photos"), "<control><shift>D", NULL, ACTION_CB(delete_flagged) },
 	{ "Quit", "application-exit", _("_Quit"), "<control>Q", NULL, ACTION_CB(quit) },
 	{ "CancelAndQuit", NULL, _("_Just Quit"), NULL, NULL, ACTION_CB(quit) },

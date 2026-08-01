@@ -6,6 +6,7 @@
    <menuitem action="ExportAs" />
    <menuitem action="ExportToGimp" />
    <menuitem action="Reload" />
+   <menuitem action="ClearThumbCache" />
    <menuitem action="DeleteFlagged" />
    <menuitem action="Quit" />
   </menu>
