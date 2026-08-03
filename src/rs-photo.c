@@ -228,7 +228,12 @@ rs_photo_set_crop(RS_PHOTO *photo, const RS_RECT *crop)
 		g_free(photo->crop);
 	photo->crop = NULL;
 
-	if (crop)
+	/* CaraStudio : ne jamais stocker un recadrage dégénéré (x2<=x1 ou y2<=y1).
+	 * Un « 0 0 0 0 » (OK de recadrage sans zone tracée, ou lu d'un .cache.xml
+	 * empoisonné) faisait s'effondrer l'image en 1×1 (carré noir / crash en
+	 * demi-résolution) et, photo->crop devenant non-NULL, l'entrée en mode
+	 * recadrage basculait en édition d'un crop existant → impossible de tracer. */
+	if (crop && crop->x2 > crop->x1 && crop->y2 > crop->y1)
 	{
 		photo->crop = g_new(RS_RECT, 1);
 		*photo->crop = *crop;

@@ -57,6 +57,10 @@ struct _RSLensfun {
 	gboolean defish;
 
 	lfLens *selected_lens;
+	/* CaraStudio : TRUE quand selected_lens est la « lentille neutre » fabriquée à
+	 * la main (emprunte Model à lensfun + Mounts bidon) ; lf_lens_destroy ne doit
+	 * pas y toucher. */
+	gboolean neutral_lens;
 	const lfCamera *selected_camera;
 	gulong settings_signal_id;
 	RSSettings *settings;
@@ -494,12 +498,25 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	if(lensfun->DIRTY)
 	{
 		if (lensfun->selected_lens)
-			lf_free(lensfun->selected_lens);
+		{
+			/* selected_lens vient TOUJOURS de lf_lens_new() (chemin copie ou
+			 * lentille neutre) → alloué en C++ (operator new). Il faut donc
+			 * lf_lens_destroy(), PAS lf_free() (qui fait un g_free → mismatch
+			 * alloc/free au changement de photo). La lentille neutre emprunte
+			 * Model et pose un Mounts bidon → on les neutralise avant destroy. */
+			if (lensfun->neutral_lens)
+			{
+				lensfun->selected_lens->Model = NULL;
+				lensfun->selected_lens->Mounts = NULL;
+			}
+			lf_lens_destroy(lensfun->selected_lens);
+		}
 
 		const lfCamera **cameras = NULL;
 		const lfLens **lenses = NULL;
 		lensfun->selected_camera = NULL;
 		lensfun->selected_lens = NULL;
+		lensfun->neutral_lens = FALSE;
 
 		if (lensfun->make && lensfun->model)
 			cameras = lf_db_find_cameras(lensfun->ldb, lensfun->make, lensfun->model);
@@ -554,6 +571,7 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 			lens->MinAperture = 1.0;
 			lens->MaxAperture = 50.0;
 			lensfun->selected_lens = lens;
+			lensfun->neutral_lens = TRUE;
 			/* FIXME: It doesn't really seem to use this, at least we'll know when it does ;)*/
 			lens->Mounts = (char**)1;
 		}
