@@ -1,6 +1,6 @@
 # Maintainer: Carafife <carafife@users.noreply.github.com>
 pkgname=carastudio
-pkgver=2026.07
+pkgver=2026.08
 pkgrel=1
 pkgdesc="Convivial raw photo developer — a beefed-up fork of RawStudio"
 arch=('x86_64')
@@ -10,9 +10,9 @@ depends=('gtk3' 'lensfun' 'lcms2' 'libgphoto2' 'exiv2' 'libraw' 'fftw'
          'sqlite' 'libtiff' 'libjpeg-turbo' 'dbus' 'libxml2' 'libx11')
 optdepends=('enblend-enfuse: exposure blending (Enfuse)')
 source=("https://github.com/carafife/carastudio/releases/download/${pkgname}-${pkgver}/${pkgname}-${pkgver}.tar.gz")
-# TODO 2026.07 : remplacer par le vrai sha256 du tarball de la Release avant le push AUR
-#   (updpkgsums, ou sha256sum sur carastudio-2026.07.tar.gz une fois la Release publiée)
-sha256sums=('55c0d81d16ba4ec8f856b0d18f707dc05292184a335876df21fcd02e94b37bcd')
+# TODO 2026.08 : remplacer par le vrai sha256 du tarball de la Release avant le push AUR
+#   (updpkgsums, ou sha256sum sur carastudio-2026.08.tar.gz une fois la Release publiée)
+sha256sums=('SKIP')
 
 build() {
 	cd "${pkgname}-${pkgver}"

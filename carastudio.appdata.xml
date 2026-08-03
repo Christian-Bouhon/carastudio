@@ -29,6 +29,18 @@
   </description>
   <url type="homepage">https://github.com/carafife/CaraStudio</url>
   <releases>
+    <release version="2026.08" date="2026-08-03">
+      <description>
+        <p>
+          Crop and straighten moved into a dedicated tool-panel module (ART
+          style): a toolbar Straighten button (press again to undo), a Crop
+          button that collapses the other modules and brings the crop controls
+          to the top, and Cancel that always removes the crop. Several old
+          crop/straighten crashes inherited from RawStudio are fixed. Fujifilm
+          X-Trans (.raf) files no longer open over-exposed.
+        </p>
+      </description>
+    </release>
     <release version="2026.07" date="2026-07-06">
       <description>
         <p>
