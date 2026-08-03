@@ -116,10 +116,14 @@ load_libraw_file(const gchar *filename)
 		}
 		image->filters = 0; /* déjà démosaïqué */
 
-		/* Gain de calage : LibRaw normalise sur la saturation capteur, ce qui
-		 * laisse le rendu ~1 IL sous une référence (darktable/JPEG boîtier).
-		 * XTRANS_GAIN ramène le niveau (2.0 = +1 IL). Molette à ajuster à l'œil. */
-		#define XTRANS_GAIN 2.83f  /* +1,5 IL (2^1.5) */
+		/* Gain de calage APRÈS la normalisation plage complète (no_auto_scale=0).
+		 * Ce boost supplémentaire était un fudge « à l'œil » (+1,5 IL) posé quand
+		 * la base RAF était plus sombre. Depuis la correction de la dominante cyan
+		 * (exclusion du cam_mul LibRaw pour Fuji), la luminosité de base a monté :
+		 * ce +1,5 IL sur-expose désormais toutes les .raf à l'ouverture (issue #16,
+		 * al186 : -1 à -1,5 IL nécessaires, contrairement à ART). On le retire donc
+		 * (1.0 = 0 IL) ; constante à ajuster si un léger relèvement s'avère utile. */
+		#define XTRANS_GAIN 1.0f  /* 0 IL — voir issue #16 (sur-exposition .raf) */
 		const uint16_t *sp = (const uint16_t *) proc->data;
 		guint yy, xx, c;
 		for (yy = 0; yy < h; yy++) {
