@@ -142,6 +142,17 @@ extern gboolean rs_preview_widget_get_show_exposure_mask(RSPreviewWidget *previe
 extern void
 rs_preview_widget_crop_start(RSPreviewWidget *preview);
 
+/* CaraStudio : API du module « Redressement / Recadrage » (onglet Outils).
+ * Le module pilote le recadrage de l'aperçu (plus de palette flottante). */
+extern void
+rs_preview_widget_set_crop_aspect(RSPreviewWidget *preview, gdouble aspect); /* aspect<0 = original */
+extern void
+rs_preview_widget_set_crop_grid(RSPreviewWidget *preview, gint grid);
+extern void
+rs_preview_widget_crop_apply(RSPreviewWidget *preview);
+extern void
+rs_preview_widget_crop_cancel(RSPreviewWidget *preview);
+
 /*
  * CaraStudio : gère Entrée (valider) / Échap (annuler) en mode recadrage
  * @param preview A RSPreviewWidget

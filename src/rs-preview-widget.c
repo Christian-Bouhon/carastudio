@@ -262,11 +262,6 @@ static void filter_changed(RSFilter *filter, RSFilterChangedMask mask, RSPreview
 static void lens_changed(RS_PHOTO *photo, RSPreviewWidget *preview);
 static gboolean get_image_coord(RSPreviewWidget *preview, gint view, const gint x, const gint y, gint *scaled_x, gint *scaled_y, gint *real_x, gint *real_y, gint *max_w, gint *max_h);
 static gint get_view_from_coord(RSPreviewWidget *preview, const gint x, const gint y);
-static void crop_aspect_changed(gpointer active, gpointer user_data);
-static void crop_grid_changed(gpointer active, gpointer user_data);
-static void crop_settings_ok_clicked(GtkButton *button, gpointer user_data);
-static void crop_cancel_clicked(GtkButton *button, gpointer user_data);
-static void crop_ensure_css(void);
 static void crop_end(RSPreviewWidget *preview, gboolean accept);
 static void crop_find_size_from_aspect(RS_RECT *roi, gdouble aspect, CROP_NEAR state);
 static CROP_NEAR crop_near(RS_RECT *roi, gint x, gint y);
@@ -1189,22 +1184,6 @@ rs_preview_widget_get_show_exposure_mask(RSPreviewWidget *preview, gboolean show
 void
 rs_preview_widget_crop_start(RSPreviewWidget *preview)
 {
-	GtkWidget *frame;
-	GtkWidget *header;
-	GtkWidget *vbox;
-	GtkWidget *roi_size_hbox;
-	GtkWidget *label;
-	GtkWidget *roi_grid_hbox;
-	GtkWidget *roi_grid_label;
-	GtkWidget *roi_grid_combobox;
-	GtkWidget *aspect_hbox;
-	GtkWidget *aspect_label;
-	GtkWidget *button_box;
-	GtkWidget *ok_button;
-	GtkWidget *uncrop_button;
-	RS_CONFBOX *grid_confbox;
-	RS_CONFBOX *aspect_confbox;
-
 	g_assert(RS_IS_PREVIEW_WIDGET(preview));
 
 	if (!(preview->state & NORMAL))
@@ -1216,122 +1195,14 @@ rs_preview_widget_crop_start(RSPreviewWidget *preview)
 	if (!preview->photo || !preview->photo->input)
 		return;
 
-	/* predefined aspects */
-	/* aspect MUST be => 1.0 */
-	const static gdouble aspect_freeform = 0.0f;
-	const static gdouble aspect_32 = 3.0f/2.0f;
-	const static gdouble aspect_43 = 4.0f/3.0f;
-	const static gdouble aspect_1008 = 10.0f/8.0f;
-	const static gdouble aspect_1610 = 16.0f/10.0f;
-	const static gdouble aspect_169 = 16.0f/9.0f;
-	const static gdouble aspect_83 = 8.0f/3.0f;
-	const static gdouble aspect_11 = 1.0f;
-	static gdouble aspect_org ;
-	aspect_org = (gdouble)preview->photo->input->w / preview->photo->input->h;
-
-	if (aspect_org < 1.0 && aspect_org != 0.0)
-		aspect_org = 1.0 / aspect_org;
-
-	static gdouble aspect_iso216;
-	static gdouble aspect_golden;
-	aspect_iso216 = sqrt(2.0f);
-	aspect_golden = (1.0f+sqrt(5.0f))/2.0f;
-
-	vbox = gtk_vbox_new(FALSE, 4);
-	gtk_container_set_border_width(GTK_CONTAINER(vbox), 8);
-
-	header = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(header), _("<b>Recadrage</b>"));
-	gtk_misc_set_alignment(GTK_MISC(header), 0.0, 0.5);
-	gtk_box_pack_start (GTK_BOX (vbox), header, FALSE, TRUE, 0);
-
-	label = gtk_label_new(_("Size"));
-	gtk_misc_set_alignment(GTK_MISC(label), 0.0, 0.5);
-
-	roi_size_hbox = gtk_hbox_new(FALSE, 0);
-
-	/* Default aspect (freeform) */
-	preview->crop_aspect = 0.0f;
-
-	preview->crop_size_label = gtk_label_new(_("-"));
-	gtk_box_pack_start (GTK_BOX (roi_size_hbox), label, TRUE, TRUE, 4);
-	gtk_box_pack_start (GTK_BOX (roi_size_hbox), preview->crop_size_label, FALSE, TRUE, 4);
-	gtk_box_pack_start (GTK_BOX (vbox), roi_size_hbox, FALSE, TRUE, 0);
-
-	roi_grid_hbox = gtk_hbox_new(FALSE, 0);
-	roi_grid_label = gtk_label_new(_("Grid"));
-	gtk_misc_set_alignment(GTK_MISC(roi_grid_label), 0.0, 0.5);
-
-	grid_confbox = gui_confbox_new(CONF_ROI_GRID);
-	gui_confbox_set_callback(grid_confbox, preview, crop_grid_changed);
-	gui_confbox_add_entry(grid_confbox, "none", _("None"), (gpointer) ROI_GRID_NONE);
-	gui_confbox_add_entry(grid_confbox, "goldensections", _("Golden sections"), (gpointer) ROI_GRID_GOLDEN);
-	gui_confbox_add_entry(grid_confbox, "ruleofthirds", _("Rule of thirds"), (gpointer) ROI_GRID_THIRDS);
-	gui_confbox_add_entry(grid_confbox, "goldentriangles1", _("Golden triangles #1"), (gpointer) ROI_GRID_GOLDEN_TRIANGLES1);
-	gui_confbox_add_entry(grid_confbox, "goldentriangles2", _("Golden triangles #2"), (gpointer) ROI_GRID_GOLDEN_TRIANGLES2);
-	gui_confbox_add_entry(grid_confbox, "harmonioustriangles1", _("Harmonious triangles #1"), (gpointer) ROI_GRID_HARMONIOUS_TRIANGLES1);
-	gui_confbox_add_entry(grid_confbox, "harmonioustriangles2", _("Harmonious triangles #2"), (gpointer) ROI_GRID_HARMONIOUS_TRIANGLES2);
-	gui_confbox_load_conf(grid_confbox, "none");
-
-	roi_grid_combobox = gui_confbox_get_widget(grid_confbox);
-
-	gtk_box_pack_start (GTK_BOX (roi_grid_hbox), roi_grid_label, TRUE, TRUE, 4);
-	gtk_box_pack_start (GTK_BOX (roi_grid_hbox), roi_grid_combobox, FALSE, TRUE, 4);
-
-	aspect_hbox = gtk_hbox_new(FALSE, 0);
-	aspect_label = gtk_label_new(_("Aspect"));
-	gtk_misc_set_alignment(GTK_MISC(aspect_label), 0.0, 0.5);
-
-	aspect_confbox = gui_confbox_new(CONF_CROP_ASPECT);
-	gui_confbox_set_callback(aspect_confbox, preview, crop_aspect_changed);
-	gui_confbox_add_entry(aspect_confbox, "freeform", _("Freeform"), (gpointer) &aspect_freeform);
-	gui_confbox_add_entry(aspect_confbox, "original", _("Original Aspect"), (gpointer) &aspect_org);
-	gui_confbox_add_entry(aspect_confbox, "iso216", _("ISO paper (A4)"), (gpointer) &aspect_iso216);
-	gui_confbox_add_entry(aspect_confbox, "3:2", _("3:2 (35mm)"), (gpointer) &aspect_32);
-	gui_confbox_add_entry(aspect_confbox, "4:3", _("4:3"), (gpointer) &aspect_43);
-	gui_confbox_add_entry(aspect_confbox, "10:8", _("10:8 (SXGA)"), (gpointer) &aspect_1008);
-	gui_confbox_add_entry(aspect_confbox, "16:10", _("16:10 (Wide XGA)"), (gpointer) &aspect_1610);
-	gui_confbox_add_entry(aspect_confbox, "16:9", _("16:9 (HDTV)"), (gpointer) &aspect_169);
-	gui_confbox_add_entry(aspect_confbox, "8:3", _("8:3 (Dualhead XGA)"), (gpointer) &aspect_83);
-	gui_confbox_add_entry(aspect_confbox, "1:1", _("1:1"), (gpointer) &aspect_11);
-	gui_confbox_add_entry(aspect_confbox, "goldenrectangle", _("Golden rectangle"), (gpointer) &aspect_golden);
-	gui_confbox_load_conf(aspect_confbox, "freeform");
-
-	gtk_box_pack_start (GTK_BOX (aspect_hbox), aspect_label, TRUE, TRUE, 4);
-	gtk_box_pack_start (GTK_BOX (aspect_hbox),
-		gui_confbox_get_widget(aspect_confbox), FALSE, TRUE, 4);
-
-	/* CaraStudio : OK = applique le recadrage tracé et quitte le mode (comme
-	 * Entrée / clic droit). « Annuler le recadrage » retire le recadrage existant
-	 * et quitte (ancien « Don't crop »). */
-	button_box = gtk_hbox_new(FALSE, 0);
-	ok_button = gtk_button_new_with_label(_("OK"));
-	g_signal_connect (G_OBJECT(ok_button), "clicked", G_CALLBACK (crop_settings_ok_clicked), preview);
-	uncrop_button = gtk_button_new_with_label(_("Annuler le recadrage"));
-	g_signal_connect (G_OBJECT(uncrop_button), "clicked", G_CALLBACK (crop_cancel_clicked), preview);
-	gtk_box_pack_start (GTK_BOX (button_box), ok_button, TRUE, TRUE, 4);
-	gtk_box_pack_start (GTK_BOX (button_box), uncrop_button, TRUE, TRUE, 4);
-
-	gtk_box_pack_start (GTK_BOX (vbox), roi_grid_hbox, FALSE, TRUE, 0);
-	gtk_box_pack_start (GTK_BOX (vbox), aspect_hbox, FALSE, TRUE, 0);
-	gtk_box_pack_start (GTK_BOX (vbox), button_box, FALSE, TRUE, 0);
-
-	/* CaraStudio : palette flottante en haut à gauche, par-dessus l'aperçu,
-	 * au lieu d'un pavé enfoui en bas du panneau d'outils. */
-	crop_ensure_css();
-	frame = gtk_frame_new(NULL);
-	gtk_widget_set_name(frame, "cs-crop-float");
-	gtk_frame_set_shadow_type(GTK_FRAME(frame), GTK_SHADOW_NONE);
-	gtk_container_add(GTK_CONTAINER(frame), vbox);
-
-	gtk_widget_set_halign(frame, GTK_ALIGN_START);
-	gtk_widget_set_valign(frame, GTK_ALIGN_START);
-	gtk_widget_set_margin_start(frame, 12);
-	gtk_widget_set_margin_top(frame, 12);
-
-	preview->tool = frame;
-	gtk_overlay_add_overlay(GTK_OVERLAY(preview->canvas_overlay), frame);
-	gtk_widget_show_all(frame);
+	/* CaraStudio : les contrôles Grille / Format / Appliquer / Annuler vivent
+	 * désormais dans le module « Redressement / Recadrage » de l'onglet Outils
+	 * (façon ART). Ici on n'entre que dans le mode de tracé sur l'image — plus de
+	 * palette flottante (elle gênait le tracé en paysage). */
+	preview->tool = NULL;
+	preview->crop_size_label = NULL;
+	/* Ne PAS réinitialiser crop_aspect : le format choisi dans le module persiste
+	 * (le menu Format reste la source de vérité). */
 
 	if (preview->photo->crop)
 	{
@@ -2442,71 +2313,64 @@ filter_changed(RSFilter *filter, RSFilterChangedMask mask, RSPreviewWidget *prev
 		canvas_draw(preview, &dirty, FALSE);
 }
 
-static void
-crop_aspect_changed(gpointer active, gpointer user_data)
+/* CaraStudio : API pilotée par le module « Redressement / Recadrage » (onglet
+ * Outils). Les contrôles du panneau remplacent l'ancienne palette flottante. */
+void
+rs_preview_widget_set_crop_aspect(RSPreviewWidget *preview, gdouble aspect)
 {
-	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
+	g_assert(RS_IS_PREVIEW_WIDGET(preview));
+	/* aspect < 0 = « aspect d'origine » → calculé depuis la photo courante. */
+	if (aspect < 0.0 && preview->photo && preview->photo->input)
+	{
+		gdouble a = (gdouble) preview->photo->input->w / preview->photo->input->h;
+		if (a < 1.0 && a != 0.0)
+			a = 1.0 / a;
+		aspect = a;
+	}
+	preview->crop_aspect = (aspect < 0.0) ? 0.0 : aspect;
 
-	preview->crop_aspect = *((gdouble *)active);
+	/* Reformer IMMÉDIATEMENT le rectangle courant à ce format (sinon l'aspect ne
+	 * s'appliquait qu'au prochain glisser d'un coin → l'utilisateur croyait le
+	 * format « non figé »). On ancre le coin haut-gauche. Ne rien faire en format
+	 * libre, ou si aucune zone n'est encore tracée. */
+	if ((preview->state & CROP) && preview->crop_aspect > 0.0
+		&& preview->roi.x2 > preview->roi.x1 && preview->roi.y2 > preview->roi.y1)
+	{
+		crop_find_size_from_aspect(&preview->roi, preview->crop_aspect, CROP_NEAR_SE);
+		preview->crop_near = CROP_NEAR_SE;
+	}
+
 	canvas_draw(preview, NULL, FALSE);
 }
 
-static void
-crop_grid_changed(gpointer active, gpointer user_data)
+void
+rs_preview_widget_set_crop_grid(RSPreviewWidget *preview, gint grid)
 {
-	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
-
-	preview->roi_grid = GPOINTER_TO_INT(active);
+	g_assert(RS_IS_PREVIEW_WIDGET(preview));
+	preview->roi_grid = grid;
 	canvas_draw(preview, NULL, FALSE);
 }
 
-/* CaraStudio : installe une seule fois le style de la palette flottante de
- * recadrage (fond sombre translucide, coins arrondis, texte clair) pour
- * qu'elle reste lisible par-dessus n'importe quelle photo. */
-static void
-crop_ensure_css(void)
+void
+rs_preview_widget_crop_apply(RSPreviewWidget *preview)
 {
-	static gboolean done = FALSE;
-	if (done)
-		return;
-	done = TRUE;
-
-	GtkCssProvider *provider = gtk_css_provider_new();
-	gtk_css_provider_load_from_data(provider,
-		"#cs-crop-float {"
-		"  background-color: rgba(30, 30, 30, 0.88);"
-		"  border-radius: 8px;"
-		"  border: 1px solid rgba(255, 255, 255, 0.15);"
-		"  color: #ffffff;"
-		"}"
-		"#cs-crop-float label { color: #ffffff; }",
-		-1, NULL);
-	gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
-		GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-	g_object_unref(provider);
+	g_assert(RS_IS_PREVIEW_WIDGET(preview));
+	if (preview->state & CROP)
+		crop_end(preview, TRUE);
 }
 
-/* CaraStudio : « OK » APPLIQUE le recadrage et quitte le mode — comme la touche
- * Entrée ou le clic droit à l'intérieur de la sélection. (Auparavant OK ne
- * faisait que masquer la palette, ce qui était contre-intuitif : l'utilisateur
- * cliquait OK et rien ne se passait.) Même motif que « Annuler le recadrage ». */
-static void
-crop_settings_ok_clicked(GtkButton *button, gpointer user_data)
+void
+rs_preview_widget_crop_cancel(RSPreviewWidget *preview)
 {
-	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
-
-	crop_end(preview, TRUE);
-}
-
-/* CaraStudio : « Annuler le recadrage » = retire le recadrage existant et quitte
- * le mode (à l'entrée, un crop déjà appliqué a été mis à NULL ; ne pas le
- * réappliquer revient à le supprimer). Reprend l'ancien bouton « Don't crop ». */
-static void
-crop_cancel_clicked(GtkButton *button, gpointer user_data)
-{
-	RSPreviewWidget *preview = RS_PREVIEW_WIDGET(user_data);
-
-	crop_end(preview, FALSE);
+	g_assert(RS_IS_PREVIEW_WIDGET(preview));
+	/* « Annuler » retire TOUJOURS le recadrage : en mode tracé, on quitte sans
+	 * appliquer (le crop avait été mis à NULL à l'entrée = suppression) ; hors
+	 * mode, on retire directement un recadrage déjà appliqué (plus besoin de
+	 * repasser par « Recadrer » d'abord — annuler, c'est annuler). */
+	if (preview->state & CROP)
+		crop_end(preview, FALSE);
+	else
+		rs_preview_widget_uncrop(preview);
 }
 
 static void
@@ -2515,7 +2379,13 @@ crop_end(RSPreviewWidget *preview, gboolean accept)
 	if (accept)
 		rs_photo_set_crop(preview->photo, &preview->roi);
 
-	gtk_widget_destroy(preview->tool);
+	/* CaraStudio : plus de palette flottante (contrôles dans le module Outils) ;
+	 * preview->tool peut être NULL. */
+	if (preview->tool)
+	{
+		gtk_widget_destroy(preview->tool);
+		preview->tool = NULL;
+	}
 	preview->state = WB_PICKER;
 
 	gdk_window_set_cursor(gtk_widget_get_window(GTK_WIDGET(preview->canvas)), cur_normal);
@@ -3147,7 +3017,10 @@ canvas_draw_handler(GtkWidget *widget, cairo_t *cr, RSPreviewWidget *preview)
 
 			/* Translate "back" */
 			cairo_translate(cr, -placement.x, -placement.y);
-			gtk_label_set_text(GTK_LABEL(preview->crop_size_label), text);
+			/* CaraStudio : le label de taille n'existe plus (palette supprimée) ;
+			 * mise à jour seulement s'il est présent. */
+			if (preview->crop_size_label)
+				gtk_label_set_text(GTK_LABEL(preview->crop_size_label), text);
 			g_free(text);
 		}
 

@@ -1484,6 +1484,46 @@ cs_zoom_100(GtkButton *button, gpointer user_data)
 	rs_preview_widget_set_zoom(RS_PREVIEW_WIDGET(user_data), 1.0);
 }
 
+/* CaraStudio : entrer en recadrage/redressement depuis la barre. Les contrôles
+ * (Format/Grille/Appliquer) sont dans le module de l'onglet Outils, on lève donc
+ * cet onglet et on déplie le module pour qu'ils soient visibles immédiatement. */
+static void
+cs_reveal_geometry_module(RS_BLOB *rs)
+{
+	if (rs->toolbox)
+		gtk_notebook_set_current_page(GTK_NOTEBOOK(rs->toolbox), 0); /* onglet Outils */
+	if (rs->tools)
+		rs_toolbox_expand_geometry(RS_TOOLBOX(rs->tools));
+}
+
+static void
+cs_bar_crop_clicked(GtkButton *button, gpointer user_data)
+{
+	RS_BLOB *rs = user_data;
+	rs_core_action_group_activate("Crop");
+	/* Recadrage = beaucoup de contrôles : on passe en « mode focus » (replie les
+	 * autres modules, ne laisse que le module géométrie déroulé, en tête). */
+	if (rs->toolbox)
+		gtk_notebook_set_current_page(GTK_NOTEBOOK(rs->toolbox), 0); /* onglet Outils */
+	if (rs->tools)
+		rs_toolbox_focus_geometry(RS_TOOLBOX(rs->tools));
+}
+
+static void
+cs_bar_straighten_clicked(GtkButton *button, gpointer user_data)
+{
+	RS_BLOB *rs = user_data;
+	/* Bascule : si la photo est déjà redressée, rappuyer ANNULE le redressement
+	 * (redresser, c'est une bascule — pas besoin d'un second bouton). */
+	if (rs->photo && rs->photo->angle != 0.0)
+	{
+		rs_preview_widget_unstraighten(RS_PREVIEW_WIDGET(rs->preview));
+		return;
+	}
+	rs_core_action_group_activate("Straighten");
+	cs_reveal_geometry_module(rs);
+}
+
 static GtkWidget *
 cs_icon_label_button(const gchar *icon_name, const gchar *label_text)
 {
@@ -1869,12 +1909,18 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_100, FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_in,  FALSE, FALSE, 0);
 
-		/* CaraStudio : séparateur + bouton Recadrer (remplace le raccourci Maj+C,
-		 * qui reste actif) */
+		/* CaraStudio : séparateur + boutons Redresser / Recadrer. Ils entrent en
+		 * mode tracé sur l'image ET dévoilent le module « Redressement / Recadrage »
+		 * (onglet Outils) où vivent les contrôles Format/Grille/Appliquer. Les
+		 * raccourcis (Maj+C recadrage) restent actifs. */
 		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
+		GtkWidget *btn_straighten = cs_icon_label_button("tool-rotate", _("Redresser"));
+		gtk_widget_set_tooltip_text(btn_straighten, _("Redresser l'image : tracez une ligne qui devrait être horizontale ou verticale."));
+		g_signal_connect(btn_straighten, "clicked", G_CALLBACK(cs_bar_straighten_clicked), rs);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_straighten, FALSE, FALSE, 0);
 		GtkWidget *btn_crop = cs_icon_label_button("tool-crop", _("Recadrer"));
 		gtk_widget_set_tooltip_text(btn_crop, _("Recadrer l'image (Maj+C)"));
-		g_signal_connect_swapped(btn_crop, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Crop");
+		g_signal_connect(btn_crop, "clicked", G_CALLBACK(cs_bar_crop_clicked), rs);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_crop, FALSE, FALSE, 0);
 
 		/* CaraStudio : bouton Séparer les vues (déclenche l'action Split, Ctrl+D,

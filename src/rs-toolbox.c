@@ -177,6 +177,7 @@ struct _RSToolbox {
 	GtkWidget *rgb_curve[3][3];   /* [snapshot][canal] : courbes RVB (0=R/1=V/2=B) */
 
 	GtkWidget *transforms;
+	GtkWidget *geometry_expander[3]; /* module Redressement/Recadrage par snapshot */
 	gint selected_snapshot;
 	RS_PHOTO *photo;
 	RSFilter* histogram_input;
@@ -1037,6 +1038,246 @@ rs_toolbox_set_preview(RSToolbox *toolbox, GtkWidget *preview)
 	}
 }
 
+/* CaraStudio : déplie le module géométrie du snapshot courant (et, par sûreté,
+ * des trois) pour que les contrôles Format/Grille/Appliquer soient visibles dès
+ * qu'on entre en recadrage/redressement depuis la barre d'outils. */
+void
+rs_toolbox_expand_geometry(RSToolbox *toolbox)
+{
+	g_return_if_fail(RS_IS_TOOLBOX(toolbox));
+	gint i;
+	for (i = 0; i < 3; i++)
+		if (toolbox->geometry_expander[i] && GTK_IS_EXPANDER(toolbox->geometry_expander[i]))
+			gtk_expander_set_expanded(GTK_EXPANDER(toolbox->geometry_expander[i]), TRUE);
+}
+
+/* Amène le module « geom » tout en haut de la fenêtre défilante (RSToolbox est
+ * elle-même une GtkScrolledWindow). On vise la position ABSOLUE du module dans
+ * le contenu défilé (indépendante du défilement courant). */
+static void
+tb_scroll_geom_to_top(GtkWidget *geom)
+{
+	GtkWidget *sw = gtk_widget_get_ancestor(geom, GTK_TYPE_SCROLLED_WINDOW);
+	/* contenu défilé = enfant du viewport (lui-même enfant du scrolled). */
+	GtkWidget *viewport = (sw && GTK_IS_BIN(sw)) ? gtk_bin_get_child(GTK_BIN(sw)) : NULL;
+	GtkWidget *content = (viewport && GTK_IS_BIN(viewport)) ? gtk_bin_get_child(GTK_BIN(viewport)) : NULL;
+	gint x, y;
+	if (sw && content && gtk_widget_translate_coordinates(geom, content, 0, 0, &x, &y))
+	{
+		GtkAdjustment *vadj = gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(sw));
+		if (vadj)
+		{
+			gdouble target = y; /* position absolue du module dans le contenu */
+			gdouble max = gtk_adjustment_get_upper(vadj) - gtk_adjustment_get_page_size(vadj);
+			if (target > max) target = max;
+			if (target < 0) target = 0;
+			if (ABS(gtk_adjustment_get_value(vadj) - target) > 0.5)
+				gtk_adjustment_set_value(vadj, target);
+		}
+	}
+}
+
+/* Épinglage : re-défile à chaque « size-allocate » du module. Indispensable car
+ * le chargement d'une photo fraîchement sélectionnée déclenche des relayouts
+ * APRÈS notre premier défilement — sans ce ré-ancrage, le module repartait hors
+ * champ (« trop haut ») et il fallait le rechercher à la souris. */
+static void
+tb_pin_geometry_cb(GtkWidget *geom, GdkRectangle *allocation, gpointer user_data)
+{
+	tb_scroll_geom_to_top(geom);
+}
+
+/* Fin de l'épinglage : on rend la main à l'utilisateur (il peut re-défiler). */
+static gboolean
+tb_unpin_geometry_cb(gpointer data)
+{
+	GtkWidget *geom = data;
+	if (GTK_IS_WIDGET(geom))
+		g_signal_handlers_disconnect_by_func(geom, G_CALLBACK(tb_pin_geometry_cb), NULL);
+	g_object_unref(geom);
+	return G_SOURCE_REMOVE;
+}
+
+void
+rs_toolbox_focus_geometry(RSToolbox *toolbox)
+{
+	g_return_if_fail(RS_IS_TOOLBOX(toolbox));
+	gint snapshot = toolbox->selected_snapshot;
+	if (snapshot < 0 || snapshot >= 3)
+		snapshot = 0;
+	GtkWidget *geom = toolbox->geometry_expander[snapshot];
+	if (!geom || !GTK_IS_EXPANDER(geom))
+		return;
+
+	/* Replie tous les modules frères SAUF géométrie (qui reste seul déroulé). */
+	GtkWidget *page = gtk_widget_get_parent(geom);
+	if (GTK_IS_CONTAINER(page))
+	{
+		GList *kids = gtk_container_get_children(GTK_CONTAINER(page));
+		GList *l;
+		for (l = kids; l; l = l->next)
+			if (GTK_IS_EXPANDER(l->data))
+				gtk_expander_set_expanded(GTK_EXPANDER(l->data), l->data == geom);
+		g_list_free(kids);
+	}
+
+	/* Épingle le module en tête pendant ~350 ms : chaque relayout (repli des
+	 * modules, puis chargement de la photo) le ré-ancre en haut, puis on relâche.
+	 * Le connect n'est posé qu'une fois à la fois (déconnexion par fonction). */
+	g_signal_handlers_disconnect_by_func(geom, G_CALLBACK(tb_pin_geometry_cb), NULL);
+	g_signal_connect(geom, "size-allocate", G_CALLBACK(tb_pin_geometry_cb), NULL);
+	g_timeout_add(350, tb_unpin_geometry_cb, g_object_ref(geom));
+	/* Cas où aucun relayout ne suit (état déjà replié) : un défilement direct. */
+	tb_scroll_geom_to_top(geom);
+}
+
+/* CaraStudio : module « Redressement / Recadrage » (onglet Outils, façon ART).
+ * Les outils géométriques pilotent l'aperçu depuis le panneau, plutôt que via
+ * une palette flottante posée sur l'image (qui gênait le tracé en paysage). */
+static void
+tb_straighten_clicked(GtkButton *button, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (toolbox->preview)
+		rs_preview_widget_straighten(RS_PREVIEW_WIDGET(toolbox->preview));
+}
+
+static void
+tb_unstraighten_clicked(GtkButton *button, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (toolbox->preview)
+		rs_preview_widget_unstraighten(RS_PREVIEW_WIDGET(toolbox->preview));
+}
+
+static void
+tb_crop_clicked(GtkButton *button, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (toolbox->preview)
+		rs_preview_widget_crop_start(RS_PREVIEW_WIDGET(toolbox->preview));
+}
+
+/* Format (aspect) : l'id de chaque entrée du combo porte la valeur d'aspect
+ * (« -1 » = aspect d'origine, calculé côté aperçu depuis la photo). */
+static void
+tb_aspect_changed(GtkComboBox *combo, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	const gchar *id = gtk_combo_box_get_active_id(combo);
+	if (!toolbox->preview || !id)
+		return;
+	rs_preview_widget_set_crop_aspect(RS_PREVIEW_WIDGET(toolbox->preview),
+		g_ascii_strtod(id, NULL));
+}
+
+/* Grille de composition : id = valeur ROI_GRID (0=aucune, 1=nombre d'or,
+ * 2=règle des tiers, 3/4=triangles d'or, 5/6=triangles harmonieux). */
+static void
+tb_grid_changed(GtkComboBox *combo, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	const gchar *id = gtk_combo_box_get_active_id(combo);
+	if (!toolbox->preview || !id)
+		return;
+	rs_preview_widget_set_crop_grid(RS_PREVIEW_WIDGET(toolbox->preview), atoi(id));
+}
+
+static void
+tb_crop_apply_clicked(GtkButton *button, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (toolbox->preview)
+		rs_preview_widget_crop_apply(RS_PREVIEW_WIDGET(toolbox->preview));
+}
+
+static void
+tb_crop_cancel_clicked(GtkButton *button, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+	if (toolbox->preview)
+		rs_preview_widget_crop_cancel(RS_PREVIEW_WIDGET(toolbox->preview));
+}
+
+/* Construit le contenu du module géométrie (boutons Redresser / Recadrer +
+ * leurs annulations). Renvoie un widget à emballer dans un gui_box. */
+static GtkWidget *
+tb_build_geometry_box(RSToolbox *toolbox)
+{
+	GtkWidget *vbox = gtk_vbox_new(FALSE, 4);
+
+	GtkWidget *straighten_hbox = gtk_hbox_new(FALSE, 4);
+	GtkWidget *straighten_btn = gtk_button_new_with_label(_("Redresser"));
+	gtk_widget_set_tooltip_text(straighten_btn,
+		_("Tracez sur l'image une ligne qui devrait être horizontale ou verticale."));
+	g_signal_connect(straighten_btn, "clicked", G_CALLBACK(tb_straighten_clicked), toolbox);
+	GtkWidget *unstraighten_btn = gtk_button_new_with_label(_("Annuler"));
+	gtk_widget_set_tooltip_text(unstraighten_btn, _("Retire le redressement."));
+	g_signal_connect(unstraighten_btn, "clicked", G_CALLBACK(tb_unstraighten_clicked), toolbox);
+	gtk_box_pack_start(GTK_BOX(straighten_hbox), straighten_btn, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(straighten_hbox), unstraighten_btn, FALSE, FALSE, 0);
+
+	/* Recadrage : bouton pour entrer en mode tracé + Format + Appliquer/Annuler. */
+	GtkWidget *crop_btn = gtk_button_new_with_label(_("Recadrer"));
+	gtk_widget_set_tooltip_text(crop_btn,
+		_("Tracez sur l'image la zone à conserver, puis Appliquer (ou Entrée)."));
+	g_signal_connect(crop_btn, "clicked", G_CALLBACK(tb_crop_clicked), toolbox);
+
+	/* Format (aspect) : id = valeur d'aspect (≥ 1), « 0 » = libre, « -1 » = origine. */
+	GtkWidget *aspect_hbox = gtk_hbox_new(FALSE, 4);
+	GtkWidget *aspect_label = gtk_label_new(_("Format"));
+	gtk_misc_set_alignment(GTK_MISC(aspect_label), 0.0, 0.5);
+	GtkWidget *aspect_combo = gtk_combo_box_text_new();
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(aspect_combo), "0", _("Libre"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(aspect_combo), "-1", _("Aspect d'origine"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(aspect_combo), "1.5", _("3:2 (24×36)"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(aspect_combo), "1.3333333", _("4:3"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(aspect_combo), "1.7777778", _("16:9"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(aspect_combo), "1.4142136", _("ISO (A4)"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(aspect_combo), "1.6180340", _("Nombre d'or"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(aspect_combo), "1.0", _("1:1"));
+	gtk_combo_box_set_active_id(GTK_COMBO_BOX(aspect_combo), "0");
+	g_signal_connect(aspect_combo, "changed", G_CALLBACK(tb_aspect_changed), toolbox);
+	gtk_box_pack_start(GTK_BOX(aspect_hbox), aspect_label, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(aspect_hbox), aspect_combo, TRUE, TRUE, 0);
+
+	/* Grille de composition (id = valeur ROI_GRID). */
+	GtkWidget *grid_hbox = gtk_hbox_new(FALSE, 4);
+	GtkWidget *grid_label = gtk_label_new(_("Grille"));
+	gtk_misc_set_alignment(GTK_MISC(grid_label), 0.0, 0.5);
+	GtkWidget *grid_combo = gtk_combo_box_text_new();
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(grid_combo), "0", _("Aucune"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(grid_combo), "2", _("Règle des tiers"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(grid_combo), "1", _("Sections d'or"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(grid_combo), "3", _("Triangles d'or #1"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(grid_combo), "4", _("Triangles d'or #2"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(grid_combo), "5", _("Triangles harmonieux #1"));
+	gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(grid_combo), "6", _("Triangles harmonieux #2"));
+	gtk_combo_box_set_active_id(GTK_COMBO_BOX(grid_combo), "0");
+	g_signal_connect(grid_combo, "changed", G_CALLBACK(tb_grid_changed), toolbox);
+	gtk_box_pack_start(GTK_BOX(grid_hbox), grid_label, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(grid_hbox), grid_combo, TRUE, TRUE, 0);
+
+	GtkWidget *apply_hbox = gtk_hbox_new(TRUE, 4);
+	GtkWidget *apply_btn = gtk_button_new_with_label(_("Appliquer"));
+	gtk_widget_set_tooltip_text(apply_btn, _("Valide le recadrage tracé."));
+	g_signal_connect(apply_btn, "clicked", G_CALLBACK(tb_crop_apply_clicked), toolbox);
+	GtkWidget *cancel_btn = gtk_button_new_with_label(_("Annuler"));
+	gtk_widget_set_tooltip_text(cancel_btn, _("Quitte le recadrage sans l'appliquer (retire un recadrage existant)."));
+	g_signal_connect(cancel_btn, "clicked", G_CALLBACK(tb_crop_cancel_clicked), toolbox);
+	gtk_box_pack_start(GTK_BOX(apply_hbox), apply_btn, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(apply_hbox), cancel_btn, TRUE, TRUE, 0);
+
+	gtk_box_pack_start(GTK_BOX(vbox), straighten_hbox, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), gtk_hseparator_new(), FALSE, FALSE, 2);
+	gtk_box_pack_start(GTK_BOX(vbox), crop_btn, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), aspect_hbox, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), grid_hbox, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), apply_hbox, FALSE, FALSE, 0);
+
+	return vbox;
+}
+
 /* Callback : activation/désactivation du négatif Argentico */
 static void
 argentico_enable_toggled(GtkToggleButton *btn, gpointer user_data)
@@ -1429,6 +1670,13 @@ new_snapshot_page(RSToolbox *toolbox, const gint snapshot)
 	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(channelmixertable), "show_channelmixer", TRUE), FALSE, FALSE, 0); g_free(t); }
 	{ gchar *t = cs_stage_title(0, 1, _("Lens Correction")); /* A — géométrie */
 	  gtk_box_pack_start(GTK_BOX(vbox), gui_box(t, GTK_WIDGET(lenstable), "show_lens", TRUE), FALSE, FALSE, 0); g_free(t); }
+	/* CaraStudio : module Redressement / Recadrage (A — géométrie), façon ART.
+	 * On garde une réf de l'expander pour pouvoir le déplier depuis la barre. */
+	{ gchar *t = cs_stage_title(0, 1, _("Redressement / Recadrage"));
+	  GtkWidget *geom = gui_box(t, tb_build_geometry_box(toolbox), "show_geometry", TRUE);
+	  if (snapshot >= 0 && snapshot < 3)
+	  	toolbox->geometry_expander[snapshot] = geom;
+	  gtk_box_pack_start(GTK_BOX(vbox), geom, FALSE, FALSE, 0); g_free(t); }
 	/* Bloc Courbe : bouton-menu de courbes prédéfinies au-dessus de l'éditeur.
 	 * (GtkMenuButton plutôt qu'un combo : s'ouvre au clic et reste ouvert,
 	 * fiable sous Wayland, et c'est une ACTION « appliquer » pas un état.) */
