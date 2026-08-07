@@ -1,0 +1,22 @@
+/*
+ * Thème « CaraStudio original » — palette grise studio d'origine (RawStudio).
+ * Reproduit exactement les couleurs @define-color d'origine ; la structure
+ * moderne (curseurs compacts, onglets, en-têtes) reste celle de la base.
+ */
+
+@define-color cs_bg          #787878;
+@define-color cs_bg_dark     #5c5c5c;
+@define-color cs_bg_light    #888888;
+@define-color cs_bg_lighter  #969696;
+@define-color cs_fg          #f0f0f0;
+@define-color cs_fg_dim      #d8d8d8;
+@define-color cs_fg_disabled #b0b0b0;
+@define-color cs_border      #444444;
+@define-color cs_border_soft #7a7a7a;
+@define-color cs_accent      #6a9bbf;
+@define-color cs_accent_dark #5580a0;
+@define-color cs_hover       #848484;
+@define-color cs_active      #505050;
+@define-color cs_selected    #4a6f8a;
+@define-color cs_entry_bg    #585858;
+@define-color cs_tooltip_bg  #444444;

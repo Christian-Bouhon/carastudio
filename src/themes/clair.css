@@ -1,0 +1,27 @@
+/*
+ * Thème « Clair » — gris moyen (fond 128,128,128), texte quasi blanc, accent
+ * bleu clair tirant vers le blanc. Peu contrasté, ambiance « studio neutre ».
+ */
+
+@define-color cs_bg          #808080;
+@define-color cs_bg_dark     #747476;
+@define-color cs_bg_light    #8c8c8f;
+@define-color cs_bg_lighter  #9a9a9d;
+@define-color cs_fg          #f4f4f6;
+@define-color cs_fg_dim      #c9cbd0;
+@define-color cs_fg_disabled #8f9196;
+@define-color cs_border      #3f3f43;
+@define-color cs_border_soft #a7a9ad;
+@define-color cs_accent      #a5cbe3;
+@define-color cs_accent_dark #5d8cab;
+@define-color cs_hover       #78787d;
+@define-color cs_active      #6b6b6f;
+@define-color cs_selected    #4d7c9c;
+@define-color cs_entry_bg    #79797e;
+@define-color cs_tooltip_bg  #8f8f93;
+
+/* Remplissage des curseurs : ton neutre moyen, visible sur le rail sans
+ * reprendre la couleur d'accent (qui est très pâle ici). */
+scale trough highlight {
+    background-color: #6f8291;
+}

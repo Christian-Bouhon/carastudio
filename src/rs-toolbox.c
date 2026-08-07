@@ -161,6 +161,9 @@ struct _RSToolbox {
 	GtkWidget *colorwheels_enable[3];
 	GtkWidget *colorwheel[3][3];
 	GtkRange  *cwlum[3][3];
+	/* Mode curseurs : Teinte (degrés) / Intensité (rayon), conversion polaire↔x/y */
+	GtkRange *cwhue[3][3];
+	GtkRange *cwsat[3][3];
 	/* Égaliseur de couleurs (color zones) [snapshot][canal 0=teinte 1=sat 2=lum] */
 	GtkWidget *hsl_enable[3];
 	GtkWidget *hslcurve[3][3];
@@ -614,6 +617,7 @@ basic_slider(RSToolbox *toolbox, const gint snapshot, GtkTable *table, const gin
 	g_object_set_data(G_OBJECT(scale), "rs-value-label", value_label);
 	g_object_set_data(G_OBJECT(scale), "rs-toolbox", toolbox);
 	g_object_set_data(G_OBJECT(scale), "rs-blurb", (gpointer) g_param_spec_get_blurb(spec));
+	g_object_set_data(G_OBJECT(scale), "rs-cw-label-widget", label);
 
 	gtk_scale_set_value_pos(GTK_SCALE(scale), GTK_POS_RIGHT);
 	g_signal_connect(scale, "value-changed", G_CALLBACK(basic_range_value_changed), toolbox);
@@ -2099,6 +2103,157 @@ colorwheel_new(RSToolbox *toolbox, gint snapshot, const gchar *prop_x, const gch
 	return da;
 }
 
+/* --- Mode curseurs polaires (Teinte/Intensité) pour la balance des couleurs ---
+ * Les propriétés stockées restent x/y (identiques à celles pilotées par la roue) ;
+ * on convertit Teinte (degrés) + Intensité [0,1] ↔ (x,y), orientation de la roue :
+ * x = r·cos(t), y = r·sin(t), t en degrés (0° = rouge à droite, 120° vert, 240° bleu). */
+
+static const gchar *cwx_prop[3] = { "cw-shadows-x", "cw-mid-x", "cw-high-x" };
+static const gchar *cwy_prop[3] = { "cw-shadows-y", "cw-mid-y", "cw-high-y" };
+
+/* Met à jour les labels de valeur des deux curseurs d'une zone. */
+static void
+cw_slider_update_labels(RSToolbox *toolbox, const gint snapshot, const gint zone)
+{
+	GtkLabel *lbl;
+	gdouble hue = gtk_range_get_value(toolbox->cwhue[snapshot][zone]);
+	gdouble r   = gtk_range_get_value(toolbox->cwsat[snapshot][zone]);
+
+	lbl = g_object_get_data(G_OBJECT(toolbox->cwhue[snapshot][zone]), "rs-cw-label");
+	if (lbl) gui_label_set_text_printf(lbl, "%.0f°", hue);
+	lbl = g_object_get_data(G_OBJECT(toolbox->cwsat[snapshot][zone]), "rs-cw-label");
+	if (lbl) gui_label_set_text_printf(lbl, "%.3f", r);
+}
+
+static void
+cw_slider_changed(GtkRange *range, gpointer user_data)
+{
+	RSToolbox *toolbox = RS_TOOLBOX(user_data);
+
+	if (!toolbox->photo || toolbox->mute_from_sliders)
+		return;
+
+	gint snapshot = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(range), "rs-snapshot"));
+	gint zone     = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(range), "rs-cw-zone"));
+
+	if (!toolbox->cwhue[snapshot][zone] || !toolbox->cwsat[snapshot][zone])
+		return;
+
+	gdouble rad = gtk_range_get_value(toolbox->cwhue[snapshot][zone]) * M_PI / 180.0;
+	gdouble r   = gtk_range_get_value(toolbox->cwsat[snapshot][zone]);
+
+	toolbox->mute_from_photo = TRUE;
+	g_object_set(toolbox->photo->settings[snapshot],
+		cwx_prop[zone], (gfloat)(r * cos(rad)),
+		cwy_prop[zone], (gfloat)(r * sin(rad)), NULL);
+	toolbox->mute_from_photo = FALSE;
+
+	cw_slider_update_labels(toolbox, snapshot, zone);
+	/* Si la roue est visible (bascule ultérieure), la tenir à jour. */
+	if (toolbox->colorwheel[snapshot][zone])
+		gtk_widget_queue_draw(toolbox->colorwheel[snapshot][zone]);
+}
+
+/* Clic sur le libellé d'une rangée (Teinte ou Intensité) : remise à zéro de CE curseur. */
+static gboolean
+cw_slider_reset(GtkWidget *widget, GdkEventButton *event, gpointer user_data)
+{
+	GtkRange *range = GTK_RANGE(user_data);
+	(void)widget;
+	(void)event;
+
+	RSToolbox *toolbox = g_object_get_data(G_OBJECT(range), "rs-toolbox");
+	gint snapshot = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(range), "rs-snapshot"));
+	gint zone     = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(range), "rs-cw-zone"));
+	gboolean is_hue = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(range), "rs-cw-is-hue"));
+
+	if (!toolbox || !toolbox->photo) return FALSE;
+
+	if (is_hue && toolbox->cwhue[snapshot][zone])
+		gtk_range_set_value(toolbox->cwhue[snapshot][zone], 0.0);
+	else if (!is_hue && toolbox->cwsat[snapshot][zone])
+		gtk_range_set_value(toolbox->cwsat[snapshot][zone], 0.0);
+	return TRUE;
+}
+
+/* Construit une rangée de curseur (Teinte ou Intensité) dans `table` et la lie. */
+static GtkRange *
+cw_slider_new(RSToolbox *toolbox, const gint snapshot, GtkTable *table,
+              const gint row, const gint zone, const gboolean is_hue)
+{
+	GtkWidget *label = gui_label_new_with_mouseover(is_hue ? _("Teinte") : _("Intensité"), _("Reset"));
+	GtkWidget *seperator1 = gtk_vseparator_new();
+	GtkWidget *seperator2 = gtk_vseparator_new();
+	GtkWidget *scale, *event, *value_label;
+	gdouble lo = 0.0, hi, step;
+
+	if (is_hue) { hi = 360.0; step = 1.0; }
+	else        { hi = 1.0;   step = 0.001; }
+
+	gtk_widget_set_tooltip_text(label,
+		is_hue ? _("Teinte (angle). Clic sur le libellé pour remettre à zéro (0°).")
+		       : _("Intensité de la teinte. Clic sur le libellé pour remettre à zéro (0)."));
+
+	scale = gtk_hscale_new_with_range(lo, hi, step);
+	event = gtk_event_box_new();
+	value_label = gtk_label_new(NULL);
+	gtk_scale_set_draw_value(GTK_SCALE(scale), FALSE);
+	gtk_scale_set_value_pos(GTK_SCALE(scale), GTK_POS_RIGHT);
+	g_object_set_data(G_OBJECT(scale), "rs-snapshot", GINT_TO_POINTER(snapshot));
+	g_object_set_data(G_OBJECT(scale), "rs-cw-zone",   GINT_TO_POINTER(zone));
+	g_object_set_data(G_OBJECT(scale), "rs-toolbox",   toolbox);
+	g_object_set_data(G_OBJECT(scale), "rs-cw-label",  value_label);
+	g_object_set_data(G_OBJECT(scale), "rs-cw-is-hue", GINT_TO_POINTER(is_hue));
+	g_object_set_data(G_OBJECT(scale), "rs-blurb", (gpointer) (is_hue ? _("Teinte") : _("Intensité")));
+	g_signal_connect(scale, "value-changed", G_CALLBACK(cw_slider_changed), toolbox);
+
+	/* La rangée de luminance (basic_slider) reçoit le clic sur son étiquette/eventbox :
+	   ici on utilise la même astuce (libellé avec eventbox) pour le reset au survol/clic. */
+	gtk_widget_set_events(label, GDK_BUTTON_PRESS_MASK);
+	g_signal_connect(label, "button_press_event", G_CALLBACK(cw_slider_reset), GTK_RANGE(scale));
+
+	gtk_label_set_width_chars(GTK_LABEL(value_label), 5);
+	gtk_widget_set_events(event, GDK_SCROLL_MASK|GDK_ENTER_NOTIFY_MASK|GDK_LEAVE_NOTIFY_MASK|GDK_BUTTON_PRESS_MASK);
+	gtk_container_add(GTK_CONTAINER(event), value_label);
+	g_signal_connect(event, "scroll-event", G_CALLBACK(value_label_scroll), GTK_RANGE(scale));
+	g_signal_connect(event, "button-press-event", G_CALLBACK(value_enterleaveclick), GTK_RANGE(scale));
+	g_signal_connect(event, "enter-notify-event", G_CALLBACK(value_enterleaveclick), NULL);
+	g_signal_connect(event, "leave-notify-event", G_CALLBACK(value_enterleaveclick), NULL);
+
+	if (is_hue)
+		gui_label_set_text_printf(GTK_LABEL(value_label), "%.0f°", 0.0);
+	else
+		gui_label_set_text_printf(GTK_LABEL(value_label), "%.3f", 0.0);
+
+	gtk_widget_set_halign(label, GTK_ALIGN_END);
+	gtk_table_attach(table, label,      0, 1, row, row+1, GTK_FILL, GTK_SHRINK, 4, 0);
+	gtk_table_attach(table, seperator1, 1, 2, row, row+1, GTK_SHRINK,          GTK_FILL, 0, 0);
+	gtk_table_attach(table, scale,      2, 3, row, row+1, GTK_EXPAND|GTK_FILL, GTK_SHRINK, 0, 0);
+	gtk_table_attach(table, seperator2, 3, 4, row, row+1, GTK_SHRINK,          GTK_FILL, 0, 0);
+	gtk_table_attach(table, event,      4, 5, row, row+1, GTK_SHRINK,          GTK_SHRINK, 0, 0);
+
+	return GTK_RANGE(scale);
+}
+
+/* Retitre le libellé d'une rangée de luminance : normal = `title`, survol = « Reset »
+   (au clic, basic_range_reset remet la valeur à zéro — on restaure l'indice visuel). */
+static void
+cw_retitle_luminance(GtkRange *range, const gchar *title)
+{
+	GtkWidget *eventbox = g_object_get_data(G_OBJECT(range), "rs-cw-label-widget");
+	GtkWidget *label;
+
+	if (!eventbox) return;
+	label = gtk_bin_get_child(GTK_BIN(eventbox));
+	if (!label) return;
+	/* Largeur = max(title, « Reset ») pour éviter le sautillement au survol. */
+	gint w = MAX(g_utf8_strlen(title, -1), g_utf8_strlen(_("Reset"), -1));
+	gtk_label_set_text(GTK_LABEL(label), title);
+	gtk_label_set_width_chars(GTK_LABEL(label), w);
+	g_object_set_data_full(G_OBJECT(label), "rs-mouseover-enter", g_strdup(_("Reset")), g_free);
+	g_object_set_data_full(G_OBJECT(label), "rs-mouseover-leave", g_strdup(title), g_free);
+}
+
 /* --- Égaliseur de couleurs : widget courbe plate sur spectre de teintes --- */
 #define HSL_MAXNODES 32
 
@@ -2450,24 +2605,31 @@ new_tones_page(RSToolbox *toolbox, const gint snapshot)
 	gint z;
 	for (z = 0; z < 3; z++)
 	{
-		/* Une ligne par zone : roue à gauche, label + curseur luminance à droite */
-		GtkWidget *zhbox = gtk_hbox_new(FALSE, 6);
+		/* Une zone : titre pleine-largeur, puis [roue | 3 curseurs] en dessous.
+		   La première rangée (Teinte) s'aligne ainsi sur la roue, pas sur le titre. */
+		GtkWidget *zcol = gtk_vbox_new(FALSE, 2);
+
+		GtkWidget *ztitle = gtk_label_new(NULL);
+		gchar *m = g_strdup_printf("<b>%s</b>", zlabels[z]);
+		gtk_label_set_markup(GTK_LABEL(ztitle), m);
+		g_free(m);
+		gtk_misc_set_alignment(GTK_MISC(ztitle), 0.0, 0.5);
+		gtk_box_pack_start(GTK_BOX(zcol), ztitle, FALSE, FALSE, 0);
+
+		GtkWidget *zhbox = gtk_hbox_new(FALSE, 4);
 		toolbox->colorwheel[snapshot][z] = colorwheel_new(toolbox, snapshot, zpx[z], zpy[z]);
+		gtk_widget_set_size_request(toolbox->colorwheel[snapshot][z], 64, 64);
 		gtk_box_pack_start(GTK_BOX(zhbox), toolbox->colorwheel[snapshot][z], FALSE, FALSE, 0);
 
-		GtkWidget *zright = gtk_vbox_new(FALSE, 2);
-		GtkWidget *zlabel = gtk_label_new(NULL);
-		gchar *m = g_strdup_printf("<b>%s</b>", zlabels[z]);
-		gtk_label_set_markup(GTK_LABEL(zlabel), m);
-		g_free(m);
-		gtk_misc_set_alignment(GTK_MISC(zlabel), 0.0, 0.5);
-		gtk_box_pack_start(GTK_BOX(zright), zlabel, FALSE, FALSE, 0);
-		GtkTable *ltable = GTK_TABLE(gtk_table_new(1, 5, FALSE));
-		toolbox->cwlum[snapshot][z] = basic_slider(toolbox, snapshot, ltable, 0, &cwlum_def[z]);
-		gtk_box_pack_start(GTK_BOX(zright), GTK_WIDGET(ltable), FALSE, FALSE, 0);
-		gtk_box_pack_start(GTK_BOX(zhbox), zright, TRUE, TRUE, 0);
+		GtkTable *ztable = GTK_TABLE(gtk_table_new(3, 5, FALSE));
+		toolbox->cwhue[snapshot][z] = cw_slider_new(toolbox, snapshot, ztable, 0, z, TRUE);
+		toolbox->cwsat[snapshot][z] = cw_slider_new(toolbox, snapshot, ztable, 1, z, FALSE);
+		toolbox->cwlum[snapshot][z] = basic_slider(toolbox, snapshot, ztable, 2, &cwlum_def[z]);
+		cw_retitle_luminance(toolbox->cwlum[snapshot][z], _("Luminance"));
+		gtk_box_pack_start(GTK_BOX(zhbox), GTK_WIDGET(ztable), TRUE, TRUE, 0);
 
-		gtk_box_pack_start(GTK_BOX(wheels_vbox), zhbox, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(zcol), zhbox, FALSE, FALSE, 0);
+		gtk_box_pack_start(GTK_BOX(wheels_vbox), zcol, FALSE, FALSE, 0);
 	}
 	gtk_box_pack_start(GTK_BOX(cc_vbox), wheels_vbox, FALSE, FALSE, 0);
 	{ gchar *t = cs_stage_title(3, 4, _("Color balance")); /* D — effets */
@@ -3042,6 +3204,10 @@ photo_finalized(gpointer data, GObject *where_the_object_was)
 				gtk_widget_set_sensitive(toolbox->colorwheel[snapshot][i], FALSE);
 			if (toolbox->cwlum[snapshot][i])
 				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwlum[snapshot][i]), FALSE);
+			if (toolbox->cwhue[snapshot][i])
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwhue[snapshot][i]), FALSE);
+			if (toolbox->cwsat[snapshot][i])
+				gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwsat[snapshot][i]), FALSE);
 		}
 		if (toolbox->hsl_enable[snapshot])
 			gtk_widget_set_sensitive(toolbox->hsl_enable[snapshot], FALSE);
@@ -3188,6 +3354,19 @@ toolbox_copy_from_photo(RSToolbox *toolbox, const gint snapshot, const RSSetting
 			}
 			if (mask && toolbox->colorwheel[snapshot][i])
 				gtk_widget_queue_draw(toolbox->colorwheel[snapshot][i]);
+			if (mask && toolbox->cwhue[snapshot][i] && toolbox->cwsat[snapshot][i])
+			{
+				gfloat x = 0.0f, y = 0.0f;
+				g_object_get(toolbox->photo->settings[snapshot],
+					cwx_prop[i], &x, cwy_prop[i], &y, NULL);
+				gdouble r = hypot(x, y);
+				if (r > 1.0) r = 1.0;
+				gdouble hue = atan2(y, x) * 180.0 / M_PI;
+				if (hue < 0.0) hue += 360.0;
+				gtk_range_set_value(toolbox->cwhue[snapshot][i], hue);
+				gtk_range_set_value(toolbox->cwsat[snapshot][i], r);
+				cw_slider_update_labels(toolbox, snapshot, i);
+			}
 		}
 
 		/* Update color zones (HSL) */
@@ -3347,6 +3526,10 @@ rs_toolbox_set_photo(RSToolbox *toolbox, RS_PHOTO *photo)
 					gtk_widget_set_sensitive(toolbox->colorwheel[snapshot][i], TRUE);
 				if (toolbox->cwlum[snapshot][i])
 					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwlum[snapshot][i]), TRUE);
+				if (toolbox->cwhue[snapshot][i])
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwhue[snapshot][i]), TRUE);
+				if (toolbox->cwsat[snapshot][i])
+					gtk_widget_set_sensitive(GTK_WIDGET(toolbox->cwsat[snapshot][i]), TRUE);
 			}
 			if (toolbox->hsl_enable[snapshot])
 				gtk_widget_set_sensitive(toolbox->hsl_enable[snapshot], TRUE);

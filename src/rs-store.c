@@ -2046,9 +2046,10 @@ rs_store_get_sort_method(RSStore *store)
 void
 cairo_draw_thumbnail(cairo_t *cr, GdkPixbuf *pixbuf, gint x, gint y, gint width, gint height, gdouble alpha)
 {
-	gdouble greyvalue = 0.9;
-
-	cairo_set_source_rgba(cr, greyvalue, greyvalue, greyvalue, 1.0);
+	/* Fond mat de la vignette : gris-bleu neutre et peu saturé, à peine plus
+	   clair que le filmstrip, pour gagner le contraste sans attirer l'œil à
+	   distance de la photo. */
+	cairo_set_source_rgba(cr, 0.40, 0.43, 0.48, 1.0);
 	cairo_rectangle(cr, x, y, width, height);
 	cairo_fill(cr);
 

@@ -1,29 +1,33 @@
 /*
  * CaraStudio Studio Theme
- * Gris neutre studio, inspiré de Darktable — professionnel et lisible
- * GTK3 CSS — chargé via GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+ * Anthracite « Capture One / DxO PhotoLab » : charbon profond, accent bleu-azur,
+ * curseurs compacts, hiérarchie module > contenu. GTK3 CSS chargé via
+ * GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
  */
 
 /* ------------------------------------------------------------------ */
 /* Couleurs de base                                                     */
 /* ------------------------------------------------------------------ */
 
-@define-color cs_bg          #787878;
-@define-color cs_bg_dark     #5c5c5c;
-@define-color cs_bg_light    #888888;
-@define-color cs_bg_lighter  #969696;
-@define-color cs_fg          #f0f0f0;
-@define-color cs_fg_dim      #d8d8d8;
-@define-color cs_fg_disabled #b0b0b0;
-@define-color cs_border      #444444;
-@define-color cs_border_soft #7a7a7a;
-@define-color cs_accent      #6a9bbf;
-@define-color cs_accent_dark #5580a0;
-@define-color cs_hover       #848484;
-@define-color cs_active      #505050;
-@define-color cs_selected    #4a6f8a;
-@define-color cs_entry_bg    #585858;
-@define-color cs_tooltip_bg  #444444;
+/* Palette « Studio Anthracite » : ambiance Capture One / DxO PhotoLab. Fond
+   charbon profond, surfaces légèrement rehaussées, accent bleu-ciel sobre,
+   texte très clair, bordures discrètes. */
+@define-color cs_bg          #26262c; /* fond fenêtre */
+@define-color cs_bg_dark     #1c1d22; /* panneaux, menubar, en-têtes */
+@define-color cs_bg_light    #30313a; /* surfaces élevées, boutons inertes */
+@define-color cs_bg_lighter  #3b3d47; /* survol, curseurs, ascenseurs */
+@define-color cs_fg          #e9e9ee;
+@define-color cs_fg_dim      #bcc0ca;
+@define-color cs_fg_disabled #747880;
+@define-color cs_border      #0d0e12;
+@define-color cs_border_soft #3f414b;
+@define-color cs_accent      #4fa8c9; /* accent principal (bleu-azur) */
+@define-color cs_accent_dark #3d7f98;
+@define-color cs_hover       #36383f;
+@define-color cs_active      #292a31;
+@define-color cs_selected    #35606f;
+@define-color cs_entry_bg    #2b2d34;
+@define-color cs_tooltip_bg  #33353d;
 
 /* ------------------------------------------------------------------ */
 /* Fenêtre et dialogue                                                  */
@@ -76,14 +80,18 @@ expander {
     min-width: 1px;
 }
 
+/* En-tête de module : bande légèrement plus claire que la section, soulignée
+   d'un filet fin, pour une hiérarchie « C1/DxO » (module > contenu). */
 expander > title {
-    background-color: @cs_bg_dark;
+    background-color: @cs_bg_light;
     color: @cs_fg;
-    padding: 3px 6px;
+    padding: 4px 8px;
+    border-bottom: 1px solid @cs_border;
 }
 
 expander > title:hover {
     background-color: @cs_hover;
+    color: @cs_fg;
 }
 
 /* Séparateurs horizontaux dans le toolbox */
@@ -110,17 +118,18 @@ label:disabled {
 
 button {
     background-image: none;
-    background-color: @cs_bg_lighter;
+    background-color: @cs_bg_light;
     color: @cs_fg;
     border: 1px solid @cs_border;
     border-radius: 3px;
     padding: 3px 8px;
     min-height: 0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 button:hover {
     background-color: @cs_hover;
-    border-color: @cs_accent;
+    border-color: @cs_accent_dark;
 }
 
 button:active,
@@ -128,6 +137,7 @@ button:checked {
     background-color: @cs_active;
     border-color: @cs_accent_dark;
     color: @cs_fg;
+    box-shadow: none;
 }
 
 button:disabled {
@@ -137,6 +147,7 @@ button:disabled {
 }
 
 button.toggle:checked {
+    background-image: none;
     background-color: @cs_accent_dark;
     color: @cs_fg;
     border-color: @cs_accent;
@@ -227,6 +238,7 @@ menu {
     color: @cs_fg;
     border: 1px solid @cs_border;
     padding: 2px 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
 menuitem {
@@ -236,7 +248,7 @@ menuitem {
 }
 
 menuitem:hover {
-    background-color: @cs_selected;
+    background-color: @cs_accent_dark;
     color: @cs_fg;
 }
 
@@ -280,24 +292,24 @@ notebook > header {
 }
 
 notebook > header > tabs > tab {
-    background-color: @cs_bg_light;
+    background-color: transparent;
     color: @cs_fg_dim;
-    border: 1px solid @cs_border;
-    border-bottom: none;
-    padding: 4px 10px;
-    margin: 0 1px;
-    border-radius: 3px 3px 0 0;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 5px 12px;
+    margin: 0;
 }
 
 notebook > header > tabs > tab:checked {
-    background-color: @cs_bg;
+    background-color: transparent;
     color: @cs_fg;
-    border-bottom-color: @cs_bg;
+    border-bottom: 2px solid @cs_accent;
 }
 
 notebook > header > tabs > tab:hover {
     background-color: @cs_hover;
     color: @cs_fg;
+    border-bottom: 2px solid @cs_border_soft;
 }
 
 /* ------------------------------------------------------------------ */
@@ -317,6 +329,7 @@ scrollbar trough {
 }
 
 scrollbar slider {
+    background-image: none;
     background-color: @cs_bg_lighter;
     border-radius: 4px;
     min-width: 6px;
@@ -355,42 +368,54 @@ paned > separator:hover {
 }
 
 /* ------------------------------------------------------------------ */
-/* Curseurs / Sliders                                                   */
+/* Curseurs / Sliders — fins et discrets (le regard doit rester sur l'image) */
 /* ------------------------------------------------------------------ */
 
 scale {
     padding: 0;
+    min-height: 0;
+    min-width: 0;
 }
 
 scale trough {
+    background-image: none;
     background-color: @cs_entry_bg;
-    border: 1px solid @cs_border_soft;
-    border-radius: 3px;
-    min-height: 4px;
-    min-width: 4px;
+    border: 1px solid @cs_border;
+    border-radius: 1px;
+    min-height: 2px;
+    min-width: 2px;
 }
 
+/* Portion active : ton neutre désaturé, peu attirant, pour ne pas voler l'attention */
 scale trough highlight {
-    background-color: @cs_accent_dark;
-    border-radius: 3px;
-    min-height: 4px;
+    background-image: none;
+    background-color: #41505a;
+    border-radius: 1px;
+    min-height: 2px;
 }
 
+/* Poignée compacte, neutre au repos ; ne prend l'accent qu'en survol/saisie */
 scale slider {
+    background-image: none;
     background-color: @cs_bg_lighter;
     border: 1px solid @cs_border_soft;
     border-radius: 50%;
-    min-width: 14px;
-    min-height: 14px;
+    min-width: 8px;
+    min-height: 8px;
+    margin: -2px;
 }
 
 scale slider:hover {
-    background-color: @cs_accent;
-    border-color: @cs_accent;
+    background-image: none;
+    background-color: @cs_bg_lighter;
+    border-color: @cs_border_soft;
+    box-shadow: 0 0 0 1px @cs_accent_dark;
 }
 
 scale slider:active {
+    background-image: none;
     background-color: @cs_accent_dark;
+    border-color: @cs_accent;
 }
 
 /* ------------------------------------------------------------------ */
@@ -418,6 +443,7 @@ radio {
 
 check:checked,
 radio:checked {
+    background-image: none;
     background-color: @cs_accent_dark;
     border-color: @cs_accent;
     color: @cs_fg;
@@ -446,6 +472,7 @@ treeview.view cell {
 
 treeview.view:selected,
 treeview.view:selected cell {
+    background-image: none;
     background-color: @cs_selected;
     color: #ffffff;
 }
@@ -622,8 +649,8 @@ headerbar button {
 
 /* Panneau d'outils de droite */
 #rawstudio-toolbox {
-    background-color: #606060;
-    border-left: 2px solid #2a2a2a;
+    background-color: @cs_bg_dark;
+    border-left: 2px solid @cs_border_soft;
 }
 
 /* Navigateur de fichiers de gauche */
@@ -642,14 +669,14 @@ headerbar button {
 /* ------------------------------------------------------------------ */
 
 #filmstrip-notebook {
-    background-color: #606060;
-    border-top:    2px solid #6c6c6c;
-    border-bottom: 2px solid #6c6c6c;
+    background-color: @cs_bg_dark;
+    border-top:    1px solid @cs_border_soft;
+    border-bottom: 1px solid @cs_border_soft;
 }
 
 #filmstrip-notebook viewport,
 #filmstrip-notebook iconview {
-    background-color: #606060;
+    background-color: @cs_bg_dark;
 }
 
 #filmstrip-notebook iconview:selected {
@@ -658,36 +685,36 @@ headerbar button {
 
 /* Scrollbar horizontale dans le filmstrip — reste stylée normalement */
 #filmstrip-notebook scrollbar trough {
-    background-color: #3a3a3a;
+    background-color: @cs_bg;
 }
 
 #filmstrip-notebook scrollbar slider {
-    background-color: #707070;
-    border-radius: 4px;
-    min-height: 6px;
+    background-color: @cs_bg_lighter;
+    border-radius: 3px;
+    min-height: 5px;
     margin: 1px;
 }
 
 #filmstrip-notebook scrollbar slider:hover {
-    background-color: #8a8a8a;
+    background-color: @cs_accent_dark;
 }
 
 #filmstrip-notebook > header.left > tabs > tab {
-    padding: 1px 3px;
+    padding: 2px 6px;
     min-height: 0;
     min-width: 0;
-    background-color: #555555;
-    color: #dddddd;
+    background-color: @cs_bg_light;
+    color: @cs_fg_dim;
 }
 
 #filmstrip-notebook > header.left > tabs > tab:checked {
-    background-color: #686868;
-    color: #f0f0f0;
+    background-color: @cs_accent_dark;
+    color: @cs_fg;
 }
 
 #filmstrip-notebook > header.left {
     padding: 0;
-    background-color: #484848;
+    background-color: @cs_bg_dark;
 }
 
 /* ------------------------------------------------------------------ */
@@ -731,6 +758,7 @@ combobox {
     background-color: @cs_bg_dark;
     color: @cs_fg;
     border: 1px solid @cs_border;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
 .popup treeview,
