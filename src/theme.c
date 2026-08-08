@@ -29,10 +29,10 @@ typedef struct {
 } CSTHEME;
 
 static const CSTHEME cs_themes[] = {
-	{ "anthracite", N_("Studio anthracite") },   /* thème par défaut = base theme.css */
-	{ "clair",      N_("Clair") },
-	{ "ambre",      N_("Ambre") },
-	{ "carafife",   N_("CaraStudio original") },
+	{ "carafife",   N_("CaraStudio") },        /* défaut : palette d'origine (overlay carafife.css) */
+	{ "anthracite", N_("Studio Anthracite") }, /* = base theme.css */
+	{ "clair",      N_("Studio Clair") },
+	{ "ambre",      N_("Studio Ambre") },
 };
 
 static GtkCssProvider *provider = NULL;
@@ -98,9 +98,10 @@ cs_theme_unload(void)
 }
 
 /* Charge base + overlay et pose le provider. `cleaned` est une clé déjà validée
- * de la table. Retourne (en sortie) la clé réellement appliquée (overlay, ou
- * défaut si l'overlay est manquant). Toujours mets un provider en place sauf si
- * même la base est illisible. */
+ * de la table : on charge toujours la base `theme.css`, puis l'overlay
+ * `themes/<cle>.css` s'il existe (y compris pour le thème par défaut).
+ * Retourne en sortie la clé réellement appliquée. Toujours mets un provider en
+ * place sauf si même la base est illisible. */
 static gboolean
 cs_theme_build_and_load(const gchar *cleaned, gchar **effective)
 {
@@ -108,23 +109,9 @@ cs_theme_build_and_load(const gchar *cleaned, gchar **effective)
 	gchar *base_path, *overlay_path;
 	gchar *base = NULL, *overlay = NULL, *css = NULL;
 	gsize len;
-	const gchar *apply = cs_theme_default_key();
 	gboolean ret = FALSE;
 
-	/* Détermine si l'overlay existe ; sinon on applique la base. */
-	if (!g_str_equal(cleaned, cs_theme_default_key()))
-	{
-		gchar *overlay_name = g_strconcat(cleaned, ".css", NULL);
-		overlay_path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), PACKAGE, "themes", overlay_name, NULL);
-		g_free(overlay_name);
-		if (g_file_test(overlay_path, G_FILE_TEST_EXISTS))
-			apply = cleaned;
-		else
-			g_warning("CaraStudio: thème « %s » introuvable; repli sur la base.", cleaned);
-		g_free(overlay_path);
-	}
-
-	*effective = g_strdup(apply);
+	*effective = g_strdup(cleaned);
 
 	/* Lit la base. */
 	base_path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), PACKAGE, "theme.css", NULL);
@@ -137,24 +124,28 @@ cs_theme_build_and_load(const gchar *cleaned, gchar **effective)
 	}
 	g_free(base_path);
 
-	/* Concatène l'overlay si on l'applique. */
-	if (!g_str_equal(apply, cs_theme_default_key()))
+	/* Concatène l'overlay de la clé demandée s'il existe. */
 	{
-		gchar *overlay_base = g_strconcat(apply, ".css", NULL);
-		overlay_path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), PACKAGE, "themes", overlay_base, NULL);
-		g_free(overlay_base);
-		if (g_file_get_contents(overlay_path, &overlay, &len, &err))
+		gchar *overlay_name = g_strconcat(cleaned, ".css", NULL);
+		overlay_path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), PACKAGE, "themes", overlay_name, NULL);
+		g_free(overlay_name);
+		if (g_file_test(overlay_path, G_FILE_TEST_EXISTS))
 		{
-			css = g_strdup_printf("%s\n\n%s", base, overlay);
-			g_free(overlay);
+			if (g_file_get_contents(overlay_path, &overlay, &len, &err))
+				css = g_strdup_printf("%s\n\n%s", base, overlay);
+			else
+			{
+				g_warning("CaraStudio: lecture de l'overlay « %s » échouée: %s", cleaned, err ? err->message : "?");
+				g_clear_error(&err);
+			}
 		}
 		else
 		{
-			g_warning("CaraStudio: lecture de l'overlay « %s » échouée: %s", apply, err ? err->message : "?");
-			g_clear_error(&err);
+			/* Thème « base » (ex. anthracite) : pas d'overlay, on utilise theme.css seul. */
 		}
 		g_free(overlay_path);
 	}
+	g_free(overlay);
 
 	if (!css)
 		css = g_strdup(base);
