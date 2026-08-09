@@ -22,7 +22,7 @@ extern const gchar *cs_theme_key_at(gint i);
 /* Nom localisé (traduit) du thème i. */
 extern const gchar *cs_theme_name_at(gint i);
 
-/* Clé et nom du thème par défaut (« anthracite »). */
+/* Clé du thème par défaut (« carafife » : la palette d'origine). */
 extern const gchar *cs_theme_default_key(void);
 
 /* Charge le provider de base + applique la conf « ui-theme » au démarrage. */

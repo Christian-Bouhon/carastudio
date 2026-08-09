@@ -2017,12 +2017,12 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		rs_core_action_group_activate("Toolbox");
 
 	gtk_widget_show_all (rs->window);
-	toolbox_width = 200;
+	toolbox_width = 240;
 	rs_conf_get_integer(CONF_TOOLBOX_WIDTH, &toolbox_width);
 	/* Borne de sécurité : une conf corrompue (largeur ≈ 0) escamoterait le
 	   panneau d'outils sans retour possible. On revient au défaut si hors plage. */
 	if (toolbox_width < 150 || toolbox_width > 1200)
-		toolbox_width = 200;
+		toolbox_width = 240;
 	gdk_threads_enter();
 	GTK_CATCHUP();
 	gdk_threads_leave();

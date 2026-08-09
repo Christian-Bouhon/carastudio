@@ -175,7 +175,10 @@ cs_theme_build_and_load(const gchar *cleaned, gchar **effective)
 void
 cs_theme_init(void)
 {
-	cs_theme_apply(cs_theme_current_key());
+	gchar *key = cs_theme_current_key();
+
+	cs_theme_apply(key);
+	g_free(key);
 }
 
 void
