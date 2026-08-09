@@ -461,11 +461,36 @@ rs_lensfun_db_load(struct lfDatabase *lensdb)
 	if (g_strcmp0(datadir, PACKAGE_DATA_DIR) != 0)
 	{
 		gchar *bundled = g_build_filename(datadir, "lensfun", "version_1", NULL);
+		GDir *dir = g_dir_open(bundled, 0, NULL);
 
-		if (g_file_test(bundled, G_FILE_TEST_IS_DIR))
+		/* On charge fichier par fichier avec lf_db_load_file() plutôt qu'avec
+		   lf_db_load_directory() : cette dernière n'existe pas dans l'API C de
+		   lensfun 0.3.2, la version d'Ubuntu 20.04 sur laquelle l'AppImage est
+		   construite (« undefined reference to lf_db_load_directory »).
+		   lf_db_load_file() est présente depuis longtemps dans les deux. */
+		if (dir)
 		{
-			if (!lf_db_load_directory(lensdb, bundled))
-				g_warning("CaraStudio: base lensfun embarquée illisible: %s", bundled);
+			const gchar *name;
+			gint loaded = 0;
+
+			while ((name = g_dir_read_name(dir)))
+			{
+				gchar *path;
+
+				if (!g_str_has_suffix(name, ".xml"))
+					continue;
+
+				path = g_build_filename(bundled, name, NULL);
+				if (lf_db_load_file(lensdb, path) == LF_NO_ERROR)
+					loaded++;
+				g_free(path);
+			}
+			g_dir_close(dir);
+
+			if (loaded == 0)
+				g_warning("CaraStudio: aucune base lensfun embarquée lue dans %s", bundled);
+			else
+				g_debug("lensfun: %d fichier(s) de base embarquée chargé(s)", loaded);
 		}
 		g_free(bundled);
 	}
