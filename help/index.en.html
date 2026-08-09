@@ -178,6 +178,9 @@
   <li>The <b>navigator</b> (a small overview) helps you find your way when zoomed into the image.</li>
 </ul>
 <div class="note"><b>Good to know:</b> thumbnails of already-edited photos regenerate with your effects. Depending on the folder size, this may take a moment in the background.</div>
+<h3>Clear the thumbnail cache</h3>
+<p>To speed up display, CaraStudio keeps a <b>thumbnail</b> and a <b>metadata cache</b> for each image (in a hidden <code>.rawstudio</code> folder next to your photos). If an anomaly gets stuck there — a tilted thumbnail, a wrong size, an unexpected colour — use <b>File → Clear thumbnail cache</b>: CaraStudio deletes these thumbnails and metadata for the <b>current folder</b>, then regenerates them cleanly.</p>
+<div class="note"><b>Your edits are preserved:</b> only the thumbnail and the metadata cache are deleted. Your editing settings (exposure, curves, crop…) are left untouched.</div>
 </section>
 
 <section id="sort">
@@ -535,6 +538,9 @@
   <tr><td><code>%p</code></td><td>Path of the original file</td></tr>
 </table>
 <p>Example: <code>%f_%2c</code> produces <code>IMG1234_01</code>, <code>IMG1234_02</code>…</p>
+<h3>Open in GIMP</h3>
+<p>The <b>GIMP</b> button (top bar), or the <b>File → Export to GIMP</b> menu, renders the current view with all your settings and opens it in <b>GIMP</b> for pixel editing. CaraStudio detects GIMP automatically (installed by your distribution or as a Flatpak).</p>
+<div class="note"><b>GIMP not found?</b> On some installations — the <b>AppImage</b> in particular — CaraStudio may not locate GIMP on its own. On the first click, a window then asks you to <b>point to the GIMP executable</b> (for example <code>/usr/bin/gimp</code>, or a GIMP AppImage). The path is remembered: you only need to do this once.</div>
 </section>
 
 <section id="language">

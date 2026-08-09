@@ -304,6 +304,12 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 
 	calc(crop);
 
+	/* CaraStudio : recadrage dégénéré (width/height ≤ 0, p.ex. rectangle inversé
+	 * ou parent de taille négative pendant une régén vignette) → pas de recadrage.
+	 * Évite un rs_image16_new(≤0) = NULL déréférencé plus bas (crash historique). */
+	if (crop->width < 1 || crop->height < 1)
+		return rs_filter_get_image(filter->previous, request);
+
 	/* Special case for full crop */
 	if ((crop->width == parent_width) && (crop->height==parent_height))
 		return rs_filter_get_image(filter->previous, request);
@@ -349,7 +355,10 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 	g_object_unref(previous_response);
 
 	int shift = half_size ? 1 : 0;
-	output = rs_image16_new(crop->width>>shift, crop->height>>shift, 3, input->pixelsize);
+	/* CaraStudio : en demi-résolution, un crop de 1 px donne 1>>1 = 0 →
+	 * rs_image16_new(0,…) renvoie NULL → déréférence output->h = crash. On borne
+	 * à ≥ 1 px. */
+	output = rs_image16_new(MAX(1, crop->width>>shift), MAX(1, crop->height>>shift), 3, input->pixelsize);
 	rs_filter_response_set_image(response, output);
 	g_object_unref(output);
 

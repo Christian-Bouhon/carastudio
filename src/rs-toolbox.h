@@ -77,6 +77,18 @@ rs_toolbox_get_histogram_widget(RSToolbox *toolbox);
 extern GtkWidget *
 rs_toolbox_get_tools_page(RSToolbox *self);
 
+/* CaraStudio : déplie le module « Redressement / Recadrage » (onglet Outils),
+ * appelé quand on entre en recadrage/redressement depuis la barre d'outils —
+ * les contrôles Format/Grille/Appliquer y vivent (plus de palette flottante). */
+extern void
+rs_toolbox_expand_geometry(RSToolbox *toolbox);
+
+/* CaraStudio : « mode focus » recadrage — replie tous les autres modules, ne
+ * laisse déroulé QUE « Redressement / Recadrage » et le fait défiler en tête de
+ * la zone visible (le recadrage a beaucoup de contrôles, on dégage la vue). */
+extern void
+rs_toolbox_focus_geometry(RSToolbox *toolbox);
+
 extern GtkWidget *
 rs_toolbox_get_effects_widget(RSToolbox *toolbox);
 

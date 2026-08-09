@@ -178,6 +178,9 @@
   <li>Le <b>navigateur</b> (petite vue d'ensemble) aide à se repérer quand vous êtes zoomé dans l'image.</li>
 </ul>
 <div class="note"><b>Bon à savoir :</b> les vignettes des photos déjà retouchées se régénèrent avec vos effets. Selon la taille du dossier, cela peut prendre un instant en arrière-plan.</div>
+<h3>Vider le cache des vignettes</h3>
+<p>Pour accélérer l'affichage, CaraStudio conserve pour chaque image une <b>vignette</b> et un <b>cache de métadonnées</b> (dans un dossier caché <code>.rawstudio</code>, à côté de vos photos). Si une anomalie s'y fige — vignette de travers, mauvaise taille, couleur inattendue — utilisez <b>Fichier → Vider le cache des vignettes</b> : CaraStudio efface ces vignettes et métadonnées pour le <b>dossier courant</b>, puis les régénère proprement.</p>
+<div class="note"><b>Vos retouches sont préservées :</b> seuls la vignette et le cache de métadonnées sont supprimés. Vos réglages d'édition (exposition, courbes, recadrage…) ne sont pas touchés.</div>
 </section>
 
 <section id="trier">
@@ -535,6 +538,9 @@
   <tr><td><code>%p</code></td><td>Chemin du fichier d'origine</td></tr>
 </table>
 <p>Exemple : <code>%f_%2c</code> produit <code>IMG1234_01</code>, <code>IMG1234_02</code>…</p>
+<h3>Ouvrir dans GIMP</h3>
+<p>Le bouton <b>GIMP</b> (barre du haut), ou le menu <b>Fichier → Exporter vers GIMP</b>, rend la vue en cours avec tous vos réglages et l'ouvre dans <b>GIMP</b> pour une retouche pixel. CaraStudio détecte GIMP automatiquement (installé par votre distribution ou en Flatpak).</p>
+<div class="note"><b>GIMP introuvable ?</b> Sous certaines installations — notamment l'<b>AppImage</b> — CaraStudio peut ne pas localiser GIMP tout seul. Au premier clic, une fenêtre vous invite alors à <b>indiquer l'exécutable GIMP</b> (par exemple <code>/usr/bin/gimp</code>, ou un GIMP au format AppImage). Le chemin est mémorisé : vous ne le ferez qu'une seule fois.</div>
 </section>
 
 <section id="langue">

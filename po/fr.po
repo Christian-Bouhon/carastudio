@@ -3280,3 +3280,25 @@ msgstr "Photo _suivante"
 
 #~ msgid "Hasselblad"
 #~ msgstr "Hasselblad"
+
+msgid "Clear thumbnail _cache"
+msgstr "Vider le _cache des vignettes"
+
+msgid "Clear the thumbnail cache?"
+msgstr "Vider le cache des vignettes ?"
+
+msgid ""
+"The cached thumbnails and metadata of the current folder will be deleted and "
+"regenerated. Your editing settings are <b>not</b> affected."
+msgstr ""
+"Les vignettes et métadonnées en cache du dossier courant vont être supprimées "
+"puis régénérées. Vos réglages d'édition ne sont <b>pas</b> touchés."
+
+msgid "Clear cache"
+msgstr "Vider le cache"
+
+msgid "GIMP not found — please point to the GIMP executable"
+msgstr "GIMP introuvable — indiquez l'exécutable GIMP"
+
+msgid "\"%s\" is not an executable. Please select the GIMP program."
+msgstr "« %s » n'est pas un exécutable. Sélectionnez le programme GIMP."

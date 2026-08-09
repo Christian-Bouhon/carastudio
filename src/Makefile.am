@@ -50,7 +50,8 @@ carastudio_SOURCES = \
 	rs-tethered-shooting.c rs-tethered-shooting.h \
 	rs-enfuse.c rs-enfuse.h \
 	rs-style.c rs-style.h \
-	rs-splash.c rs-splash.h
+	rs-splash.c rs-splash.h \
+	cs-pipeline.h
 
 carastudio_LDADD = ../librawstudio/librawstudio.la @PACKAGE_LIBS@ @LENSFUN_LIBS@ @LIBGPHOTO2_LIBS@ @DBUS_LIBS@ @SQLITE3_LIBS@ $(INTLLIBS) -lm
 

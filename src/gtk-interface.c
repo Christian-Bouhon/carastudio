@@ -1447,12 +1447,19 @@ rs_window_set_title(const char *str)
 {
 	gboolean client_mode;
 	gchar *title;
+	gchar *ver;
 	rs_conf_get_boolean("client-mode", &client_mode);
+	/* Date de compilation injectée comme argument %s : le msgid reste inchangé
+	 * (la traduction FR « Propulsé par Carafife » est préservée) et la version
+	 * devient distinguable d'un build à l'autre — le « 2026.07 » seul ne permet
+	 * pas de savoir si l'AppImage contient les derniers correctifs (issue #11). */
+	ver = g_strdup_printf("%s (build %s)", VERSION, __DATE__);
 	if (client_mode)
-		title = g_strdup_printf(_("CaraStudio %s — Client Mode"), VERSION);
+		title = g_strdup_printf(_("CaraStudio %s — Client Mode"), ver);
 	else
-		title = g_strdup_printf(_("CaraStudio %s — Powered by Carafife"), VERSION);
+		title = g_strdup_printf(_("CaraStudio %s — Powered by Carafife"), ver);
 	gtk_window_set_title(GTK_WINDOW(rawstudio_window), title);
+	g_free(ver);
 	g_free(title);
 }
 
@@ -1475,6 +1482,46 @@ static void
 cs_zoom_100(GtkButton *button, gpointer user_data)
 {
 	rs_preview_widget_set_zoom(RS_PREVIEW_WIDGET(user_data), 1.0);
+}
+
+/* CaraStudio : entrer en recadrage/redressement depuis la barre. Les contrôles
+ * (Format/Grille/Appliquer) sont dans le module de l'onglet Outils, on lève donc
+ * cet onglet et on déplie le module pour qu'ils soient visibles immédiatement. */
+static void
+cs_reveal_geometry_module(RS_BLOB *rs)
+{
+	if (rs->toolbox)
+		gtk_notebook_set_current_page(GTK_NOTEBOOK(rs->toolbox), 0); /* onglet Outils */
+	if (rs->tools)
+		rs_toolbox_expand_geometry(RS_TOOLBOX(rs->tools));
+}
+
+static void
+cs_bar_crop_clicked(GtkButton *button, gpointer user_data)
+{
+	RS_BLOB *rs = user_data;
+	rs_core_action_group_activate("Crop");
+	/* Recadrage = beaucoup de contrôles : on passe en « mode focus » (replie les
+	 * autres modules, ne laisse que le module géométrie déroulé, en tête). */
+	if (rs->toolbox)
+		gtk_notebook_set_current_page(GTK_NOTEBOOK(rs->toolbox), 0); /* onglet Outils */
+	if (rs->tools)
+		rs_toolbox_focus_geometry(RS_TOOLBOX(rs->tools));
+}
+
+static void
+cs_bar_straighten_clicked(GtkButton *button, gpointer user_data)
+{
+	RS_BLOB *rs = user_data;
+	/* Bascule : si la photo est déjà redressée, rappuyer ANNULE le redressement
+	 * (redresser, c'est une bascule — pas besoin d'un second bouton). */
+	if (rs->photo && rs->photo->angle != 0.0)
+	{
+		rs_preview_widget_unstraighten(RS_PREVIEW_WIDGET(rs->preview));
+		return;
+	}
+	rs_core_action_group_activate("Straighten");
+	cs_reveal_geometry_module(rs);
 }
 
 static GtkWidget *
@@ -1862,12 +1909,18 @@ gui_init(int argc, char **argv, RS_BLOB *rs)
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_100, FALSE, FALSE, 0);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_zoom_in,  FALSE, FALSE, 0);
 
-		/* CaraStudio : séparateur + bouton Recadrer (remplace le raccourci Maj+C,
-		 * qui reste actif) */
+		/* CaraStudio : séparateur + boutons Redresser / Recadrer. Ils entrent en
+		 * mode tracé sur l'image ET dévoilent le module « Redressement / Recadrage »
+		 * (onglet Outils) où vivent les contrôles Format/Grille/Appliquer. Les
+		 * raccourcis (Maj+C recadrage) restent actifs. */
 		gtk_box_pack_start(GTK_BOX(view_toolbar), gtk_separator_new(GTK_ORIENTATION_VERTICAL), FALSE, FALSE, 4);
+		GtkWidget *btn_straighten = cs_icon_label_button("tool-rotate", _("Redresser"));
+		gtk_widget_set_tooltip_text(btn_straighten, _("Redresser l'image : tracez une ligne qui devrait être horizontale ou verticale."));
+		g_signal_connect(btn_straighten, "clicked", G_CALLBACK(cs_bar_straighten_clicked), rs);
+		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_straighten, FALSE, FALSE, 0);
 		GtkWidget *btn_crop = cs_icon_label_button("tool-crop", _("Recadrer"));
 		gtk_widget_set_tooltip_text(btn_crop, _("Recadrer l'image (Maj+C)"));
-		g_signal_connect_swapped(btn_crop, "clicked", G_CALLBACK(rs_core_action_group_activate), (gpointer) "Crop");
+		g_signal_connect(btn_crop, "clicked", G_CALLBACK(cs_bar_crop_clicked), rs);
 		gtk_box_pack_start(GTK_BOX(view_toolbar), btn_crop, FALSE, FALSE, 0);
 
 		/* CaraStudio : bouton Séparer les vues (déclenche l'action Split, Ctrl+D,

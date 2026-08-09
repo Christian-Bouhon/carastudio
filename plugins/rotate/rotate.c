@@ -228,13 +228,20 @@ get_image(RSFilter *filter, const RSFilterRequest *request)
 		roi->y = MAX(0, (gint)miny);
 		roi->width = MIN((gint)maxx - roi->x, prev_w - roi->x);
 		roi->height = MIN((gint)maxy - roi->y, prev_h - roi->y);
-		
-		/* A few basic checks */
-		g_assert(roi->x >= 0);
-		g_assert(roi->y >= 0);
-		g_assert(roi->width > 0);
-		g_assert(roi->height > 0);
-		
+
+		/* CaraStudio : recadrage sur les triangles noirs du redressement → la ROI
+		 * mappée peut tomber (partiellement) hors entrée, donnant width/height ≤ 0.
+		 * L'ancien code AVORTAIT (g_assert). On borne à une ROI 1×1 valide : lensfun
+		 * renvoie de toute façon l'image entière, la sortie de rotate reste correcte
+		 * (les pixels concernés mappent hors entrée → rendus noirs). */
+		if (roi->width < 1 || roi->height < 1)
+		{
+			roi->x = CLAMP(roi->x, 0, prev_w - 1);
+			roi->y = CLAMP(roi->y, 0, prev_h - 1);
+			roi->width = 1;
+			roi->height = 1;
+		}
+
 		/* Request image */
 		rs_filter_request_set_roi(new_request, roi);
 		previous_response = rs_filter_get_image(filter->previous, new_request);
@@ -396,6 +403,12 @@ bilinear(RS_IMAGE16 *in, gushort *out, gint x, gint y)
 {
 	const static gushort black[4] = {0, 0, 0, 0};
 
+	/* CaraStudio : garantir une sortie initialisée. Les gardes de bord font
+	 * « return » sans écrire out[] quand le pixel tombe hors image → l'ancien code
+	 * laissait le garbage de posix_memalign (buffer non zéroté) = zones de couleur
+	 * uniforme aléatoire en rendu qualité (nearest écrivait du noir). */
+	out[R] = out[G] = out[B] = 0;
+
 	const gint fx = x>>8;
 	const gint fy = y>>8;
 
@@ -437,7 +450,10 @@ bilinear(RS_IMAGE16 *in, gushort *out, gint x, gint y)
 
 	if (unlikely(fx >= (in->w-1)))
 	{
-		c = black;
+		/* CaraStudio : bord droit = colonne fx+1 hors image → neutraliser b et d
+		 * (pas c/d : copier-coller fautif du bord bas). Sans ça b=pixel(in->w,fy)
+		 * est lu hors image (débordement tas ASan au rendu d'une photo redressée). */
+		b = black;
 		d = black;
 		if (fx >= in->w)
 			return;

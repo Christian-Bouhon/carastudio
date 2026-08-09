@@ -2952,7 +2952,13 @@ rs_thumb_regen_render(const gchar *filename)
 		rs_io_unlock();
 		return NULL;
 	}
-	rs_cache_load(photo); /* applique les réglages .cache.xml (idempotent) */
+	/* NE PAS rappeler rs_cache_load(photo) ici : rs_photo_load_from_file l'a DÉJÀ
+	 * fait en interne (rs-photo.c:1027) PUIS a posé le défaut « wb_camera » pour les
+	 * photos sans WB en cache (rs-photo.c:1033). Un second appel réinitialise les
+	 * réglages et efface ce défaut → wb_ascii devient NULL → set_wb_from_camera
+	 * n'est plus déclenché (rs-photo.c:436) → le cam_mul du boîtier est ignoré →
+	 * premul(2,1,2) = cast MAGENTA sur les vignettes RAW (l'éditeur, lui, ne charge
+	 * le cache qu'une fois via open_photo → rendu correct). */
 
 	RSFilter *fend = rs_thumb_regen_chain();
 	GList *filters = g_list_append(NULL, fend);

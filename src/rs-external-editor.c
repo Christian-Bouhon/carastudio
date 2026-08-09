@@ -19,13 +19,18 @@
 
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <gtk/gtk.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include "gettext.h"
 #include "application.h"
 #include "rs-photo.h"
+#include "conf_interface.h"
+#include "gtk-interface.h" /* rawstudio_window (parent des dialogues) */
 
 
 static gchar **find_gimp_command(void);
+static gchar **prompt_for_gimp_command(void);
 static gchar **external_editor_environ(void);
 
 gboolean
@@ -38,6 +43,12 @@ rs_external_editor_gimp(RS_PHOTO *photo, RSFilter *prior_to_resample, guint snap
 	 * d'installation (paquet distro ou Flatpak). Le fichier est passé en
 	 * ARGUMENT → toutes les versions 2.x/3.x l'ouvrent, pas de test de version. */
 	gchar **gimp_cmd = find_gimp_command();
+	if (!gimp_cmd)
+		/* Auto-détection en échec (typique sous AppImage, où l'environnement
+		 * nettoyé masque le GIMP hôte) : on demande une seule fois à l'utilisateur
+		 * de pointer l'exécutable, on le mémorise (CONF_GIMP_COMMAND) et on relance.
+		 * Les fois suivantes, find_gimp_command() lit directement ce chemin. */
+		gimp_cmd = prompt_for_gimp_command();
 	if (!gimp_cmd) {
 		g_warning("GIMP introuvable (ni dans le PATH, ni en Flatpak org.gimp.GIMP)");
 		return FALSE;
@@ -168,6 +179,22 @@ external_editor_environ(void)
 static gchar **
 find_gimp_command(void)
 {
+	/* Chemin explicitement configuré par l'utilisateur (voir
+	 * prompt_for_gimp_command) : PRIORITAIRE sur l'auto-détection. S'il n'est plus
+	 * exécutable (GIMP déplacé/désinstallé), on l'ignore et on retombe sur la
+	 * détection automatique. */
+	gchar *conf = rs_conf_get_string(CONF_GIMP_COMMAND);
+	if (conf)
+	{
+		if (conf[0] && g_file_test(conf, G_FILE_TEST_IS_EXECUTABLE))
+		{
+			gchar **argv = g_new0(gchar *, 2);
+			argv[0] = conf;   /* chemin absolu, transféré à l'appelant */
+			return argv;
+		}
+		g_free(conf);
+	}
+
 	const gchar *candidates[] = { "gimp", "gimp-2.10", "gimp-3.0", NULL };
 	gint i;
 	for (i = 0; candidates[i]; i++)
@@ -204,5 +231,52 @@ find_gimp_command(void)
 	}
 
 	return NULL;
+}
+
+/* Demande à l'utilisateur de pointer l'exécutable GIMP via un sélecteur de
+ * fichier, mémorise le choix dans CONF_GIMP_COMMAND et renvoie l'argv
+ * correspondant ({ "<chemin>", NULL }, à libérer par g_strfreev), ou NULL si
+ * l'utilisateur annule / choisit un fichier non exécutable. N'est appelée qu'en
+ * dernier recours, quand l'auto-détection a échoué. */
+static gchar **
+prompt_for_gimp_command(void)
+{
+	GtkWidget *dialog = gtk_file_chooser_dialog_new(
+		_("GIMP not found — please point to the GIMP executable"),
+		rawstudio_window,
+		GTK_FILE_CHOOSER_ACTION_OPEN,
+		_("Cancel"), GTK_RESPONSE_CANCEL,
+		_("Open"), GTK_RESPONSE_ACCEPT,
+		NULL);
+
+	/* Les exécutables vivent le plus souvent dans /usr/bin ; on y ouvre par défaut
+	 * sans l'imposer (l'utilisateur peut viser un GIMP AppImage, /opt, etc.). */
+	gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(dialog), "/usr/bin");
+
+	gchar **result = NULL;
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT)
+	{
+		gchar *path = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+		if (path && g_file_test(path, G_FILE_TEST_IS_EXECUTABLE))
+		{
+			rs_conf_set_string(CONF_GIMP_COMMAND, path);
+			result = g_new0(gchar *, 2);
+			result[0] = path;   /* chemin absolu, transféré à l'appelant */
+		}
+		else
+		{
+			GtkWidget *err = gtk_message_dialog_new(
+				rawstudio_window,
+				GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+				GTK_MESSAGE_WARNING, GTK_BUTTONS_OK,
+				_("\"%s\" is not an executable. Please select the GIMP program."),
+				path ? path : "");
+			gtk_dialog_run(GTK_DIALOG(err));
+			gtk_widget_destroy(err);
+			g_free(path);
+		}
+	}
+	gtk_widget_destroy(dialog);
+	return result;
 }
 

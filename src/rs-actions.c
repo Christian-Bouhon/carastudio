@@ -325,6 +325,46 @@ ACTION(reload)
 	rs_core_actions_update_menu_items(rs);
 }
 
+/* Vide le cache d'affichage (vignettes + métadonnées) du dossier COURANT puis
+ * recharge → régénération propre. Utile quand une anomalie s'est figée dans le
+ * cache (orientation, taille de vignette…). N'efface QUE .thumb.jpg + .metacache.xml
+ * via rs_metadata_delete_cache() : les réglages d'édition (.cache.xml) sont
+ * PRÉSERVÉS. */
+ACTION(clear_thumb_cache)
+{
+	GtkWidget *dialog;
+	GList *all = NULL, *node;
+
+	dialog = gui_dialog_make_from_text(GTK_STOCK_DIALOG_QUESTION,
+		_("Clear the thumbnail cache?"),
+		_("The cached thumbnails and metadata of the current folder will be "
+		  "deleted and regenerated. Your editing settings are <b>not</b> affected."));
+	gtk_dialog_add_button(GTK_DIALOG(dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
+	gtk_dialog_add_button(GTK_DIALOG(dialog), _("Clear cache"), GTK_RESPONSE_ACCEPT);
+	gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_CANCEL);
+	gtk_widget_show_all(dialog);
+
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) != GTK_RESPONSE_ACCEPT)
+	{
+		gtk_widget_destroy(dialog);
+		return;
+	}
+	gtk_widget_destroy(dialog);
+
+	rs_store_get_names(rs->store, NULL, NULL, &all);
+	for (node = all; node; node = node->next)
+	{
+		gchar *fullname = node->data;
+		if (fullname)
+			rs_metadata_delete_cache(fullname);
+	}
+	g_list_free_full(all, g_free);
+
+	rs_store_remove(rs->store, NULL, NULL);
+	rs_store_load_directory(rs->store, NULL);
+	rs_core_actions_update_menu_items(rs);
+}
+
 ACTION(delete_flagged)
 {
 	gchar *cache;
@@ -2141,6 +2181,56 @@ ACTION(add_profile)
 	gtk_widget_destroy (dialog);
 }
 
+/* Ouvre le manuel HTML sous AppImage. gtk_show_uri_on_window() résout le handler
+ * text/html EN-PROCESS via GIO, dans l'environnement pollué par le runtime AppImage
+ * (XDG_DATA_DIRS/GIO_MODULE_DIR pointant dans le bundle) : il tombe alors sur une
+ * appli inattendue (Signal a été signalé, issue #15). On délègue plutôt à
+ * `xdg-open` de l'HÔTE, lancé avec un environnement nettoyé (variables injectées par
+ * l'AppImage retirées) pour que les associations par défaut de l'utilisateur
+ * s'appliquent. Renvoie TRUE si le lancement a été confié à xdg-open.
+ * Hors AppImage (APPDIR non défini), renvoie FALSE : l'appelant utilise le chemin
+ * GTK normal, qui fonctionne. */
+static gboolean
+open_help_via_host_xdg_open(const gchar *uri)
+{
+	if (!g_getenv("APPDIR"))
+		return FALSE;   /* pas sous AppImage : laisser le chemin GTK habituel */
+
+	gchar *xdg = g_find_program_in_path("xdg-open");
+	if (!xdg)
+		return FALSE;   /* pas de xdg-open : repli GTK */
+
+	/* Environnement nettoyé : on retire les variables du runtime AppImage qui
+	 * fausseraient la résolution du handler (XDG_*_DIRS pointent dans le bundle) et
+	 * qui feraient charger nos bibliothèques bundlées au navigateur. */
+	gchar **env = g_get_environ();
+	static const gchar * const strip[] = {
+		"LD_LIBRARY_PATH", "LD_PRELOAD",
+		"GTK_PATH", "GTK_IM_MODULE_FILE", "GTK_EXE_PREFIX", "GTK_DATA_PREFIX",
+		"GDK_PIXBUF_MODULE_FILE", "GDK_PIXBUF_MODULEDIR",
+		"GIO_MODULE_DIR", "GSETTINGS_SCHEMA_DIR",
+		"XDG_DATA_DIRS", "XDG_CONFIG_DIRS",
+		"FONTCONFIG_FILE", "FONTCONFIG_PATH",
+		"GI_TYPELIB_PATH", "PANGO_LIBDIR", NULL };
+	gint i;
+	for (i = 0; strip[i]; i++)
+		env = g_environ_unsetenv(env, strip[i]);
+
+	gchar *argv[] = { xdg, (gchar *) uri, NULL };
+	GError *error = NULL;
+	gboolean ok = g_spawn_async(NULL, argv, env,
+		G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, &error);
+	if (!ok && error)
+	{
+		g_warning("xdg-open a échoué pour l'aide : %s", error->message);
+		g_error_free(error);
+	}
+
+	g_strfreev(env);
+	g_free(xdg);
+	return ok;
+}
+
 ACTION(online_documentation)
 {
 	GError *error = NULL;
@@ -2160,7 +2250,10 @@ ACTION(online_documentation)
 	gchar *path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), PACKAGE, "help", fname, NULL);
 	gchar *uri = g_filename_to_uri(path, NULL, NULL);
 
-	if (!uri || !gtk_show_uri_on_window(GTK_WINDOW(rawstudio_window), uri, GDK_CURRENT_TIME, &error))
+	/* Sous AppImage, xdg-open de l'hôte (env nettoyé) ; sinon chemin GTK normal. */
+	if (!uri ||
+	    (!open_help_via_host_xdg_open(uri) &&
+	     !gtk_show_uri_on_window(GTK_WINDOW(rawstudio_window), uri, GDK_CURRENT_TIME, &error)))
 	{
 		gui_status_error(_("Could not open the help file in your browser."));
 		if (error)
@@ -2171,6 +2264,17 @@ ACTION(online_documentation)
 	g_free(fname);
 	g_free(path);
 	g_free(uri);
+}
+
+/* Lien cliquable du dialogue « À propos » (website). GtkAboutDialog passe sinon par
+ * gtk_show_uri EN-PROCESS, avec le même travers que l'aide sous AppImage (issue #15 :
+ * ouverture d'une appli inattendue comme Signal). On délègue à xdg-open de l'hôte ;
+ * hors AppImage le helper renvoie FALSE et GTK gère le lien normalement. */
+static gboolean
+about_activate_link(GtkAboutDialog *about, const gchar *uri, gpointer user_data)
+{
+	(void) about; (void) user_data;
+	return open_help_via_host_xdg_open(uri);   /* TRUE => pris en charge, stoppe le défaut */
 }
 
 ACTION(about)
@@ -2222,20 +2326,32 @@ ACTION(about)
 		g_free(icon_path);
 	}
 
-	gtk_show_about_dialog(GTK_WINDOW(rawstudio_window),
+	/* Version + date de compilation : rend le build identifiable en support
+	 * (le « 2026.07 » seul ne dit pas si l'AppImage a les derniers correctifs,
+	 * cf. issue #11 — l'utilisateur ne savait pas quelle version il utilisait). */
+	gchar *version = g_strdup_printf("%s (build %s)", RAWSTUDIO_VERSION, __DATE__);
+
+	/* Construit à la main (au lieu de gtk_show_about_dialog) pour pouvoir brancher
+	 * « activate-link » et détourner le lien website vers xdg-open sous AppImage. */
+	GtkWidget *about = g_object_new(GTK_TYPE_ABOUT_DIALOG,
 		"program-name", "CaraStudio",
 		"logo", logo,
 		"authors", authors,
 		"artists", artists,
 		"translator-credits", translators,
 		"comments", _("Développeur de photos RAW, convivial et accessible — un fork bodybuildé de RawStudio par Carafife."),
-		"version", RAWSTUDIO_VERSION,
+		"version", version,
 		"copyright", "© 2026 Carafife (CaraStudio)\n© RawStudio team",
 		"website", "https://github.com/carafife/CaraStudio",
 		"website-label", "github.com/carafife/CaraStudio",
-		"name", "CaraStudio",
-		NULL
-	);
+		NULL);
+	gtk_window_set_transient_for(GTK_WINDOW(about), GTK_WINDOW(rawstudio_window));
+	gtk_window_set_modal(GTK_WINDOW(about), TRUE);
+	g_signal_connect(about, "activate-link", G_CALLBACK(about_activate_link), NULL);
+	g_signal_connect(about, "response", G_CALLBACK(gtk_widget_destroy), NULL);
+	gtk_widget_show_all(about);
+
+	g_free(version);
 
 	if (logo)
 		g_object_unref(logo);
@@ -2565,6 +2681,7 @@ rs_get_core_action_group(RS_BLOB *rs)
 	{ "ExportToGimp", "system-run", _("_Export to Gimp"), "<control>G", NULL, ACTION_CB(export_to_gimp) },
 	{ "CopyImage", "edit-copy", _("_Copy Image to Clipboard"), "<control><shift>C", NULL, ACTION_CB(copy_image) },
 	{ "Reload", "view-refresh", _("_Reload directory"), "<control>R", NULL, ACTION_CB(reload) },
+	{ "ClearThumbCache", "edit-clear", _("Clear thumbnail _cache"), NULL, NULL, ACTION_CB(clear_thumb_cache) },
 	{ "DeleteFlagged", "edit-delete", _("_Delete Flagged Photos"), "<control><shift>D", NULL, ACTION_CB(delete_flagged) },
 	{ "Quit", "application-exit", _("_Quit"), "<control>Q", NULL, ACTION_CB(quit) },
 	{ "CancelAndQuit", NULL, _("_Just Quit"), NULL, NULL, ACTION_CB(quit) },

@@ -116,10 +116,14 @@ load_libraw_file(const gchar *filename)
 		}
 		image->filters = 0; /* déjà démosaïqué */
 
-		/* Gain de calage : LibRaw normalise sur la saturation capteur, ce qui
-		 * laisse le rendu ~1 IL sous une référence (darktable/JPEG boîtier).
-		 * XTRANS_GAIN ramène le niveau (2.0 = +1 IL). Molette à ajuster à l'œil. */
-		#define XTRANS_GAIN 2.83f  /* +1,5 IL (2^1.5) */
+		/* Gain de calage APRÈS la normalisation plage complète (no_auto_scale=0).
+		 * Ce boost supplémentaire était un fudge « à l'œil » (+1,5 IL) posé quand
+		 * la base RAF était plus sombre. Depuis la correction de la dominante cyan
+		 * (exclusion du cam_mul LibRaw pour Fuji), la luminosité de base a monté :
+		 * ce +1,5 IL sur-expose désormais toutes les .raf à l'ouverture (issue #16,
+		 * al186 : -1 à -1,5 IL nécessaires, contrairement à ART). On le retire donc
+		 * (1.0 = 0 IL) ; constante à ajuster si un léger relèvement s'avère utile. */
+		#define XTRANS_GAIN 1.0f  /* 0 IL — voir issue #16 (sur-exposition .raf) */
 		const uint16_t *sp = (const uint16_t *) proc->data;
 		guint yy, xx, c;
 		for (yy = 0; yy < h; yy++) {
@@ -225,6 +229,33 @@ load_libraw_file(const gchar *filename)
 	g_object_unref(image);
 
 	return response;
+}
+
+/* Décode un JPEG en mémoire (aperçu embarqué) en pixbuf, avec REPLI.
+ * Le backend gdk-pixbuf « glycin » (Fedora récent) décode dans un sous-processus
+ * sandboxé et échoue par INTERMITTENCE sur les gros aperçus (RAF X-Trans de
+ * plusieurs Mo), surtout sous charge → vignette vide (placeholder) alors que le
+ * JPEG est valide. L'échec étant transitoire, on retente quelques fois. (Sans
+ * effet néfaste avec le loader libjpeg classique, celui de l'AppImage, qui ne
+ * flanche pas.) Renvoie une pixbuf (ref = 1, à libérer par l'appelant) ou NULL. */
+static GdkPixbuf *
+libraw_decode_jpeg_retry(const guchar *data, gsize size)
+{
+	int attempt;
+	for (attempt = 0; attempt < 3; attempt++)
+	{
+		GdkPixbufLoader *ldr = gdk_pixbuf_loader_new();
+		GdkPixbuf *p = NULL;
+		if (gdk_pixbuf_loader_write(ldr, data, size, NULL) &&
+		    gdk_pixbuf_loader_close(ldr, NULL))
+			p = gdk_pixbuf_loader_get_pixbuf(ldr);
+		if (p)
+			g_object_ref(p);   /* survivre à l'unref du loader (get_pixbuf = ref empruntée) */
+		g_object_unref(ldr);
+		if (p)
+			return p;
+	}
+	return NULL;
 }
 
 /* ------------------------------------------------------------------ */
@@ -384,30 +415,27 @@ libraw_load_meta(const gchar *service, RAWFILE *rawfile, guint offset, RSMetadat
 					if (errc == 0 && timg->type == LIBRAW_IMAGE_JPEG &&
 					    timg->data_size > 0)
 					{
-						GdkPixbufLoader *ldr = gdk_pixbuf_loader_new();
-						if (gdk_pixbuf_loader_write(ldr, (const guchar *) timg->data,
-						                            timg->data_size, NULL) &&
-						    gdk_pixbuf_loader_close(ldr, NULL))
+						GdkPixbuf *p = libraw_decode_jpeg_retry(
+							(const guchar *) timg->data, timg->data_size);
+						if (p)
 						{
-							GdkPixbuf *p = gdk_pixbuf_loader_get_pixbuf(ldr);
-							if (p)
+							GdkPixbuf *o = gdk_pixbuf_apply_embedded_orientation(p);
+							g_object_unref(p);
+							/* Réduire les gros aperçus (certains font plusieurs
+							   milliers de px) à la taille STANDARD du bandeau (128 px,
+							   comme meta-tiff/load-gdk) : sinon les RAW via LibRaw
+							   sortaient 2x trop gros → bandeau hétérogène (régression). */
+							gint w = gdk_pixbuf_get_width(o);
+							gint h = gdk_pixbuf_get_height(o);
+							gint m = MAX(w, h);
+							if (m > 128)
 							{
-								GdkPixbuf *o = gdk_pixbuf_apply_embedded_orientation(p);
-								/* Réduire les gros aperçus (certains font plusieurs
-								   milliers de px) à une taille de vignette raisonnable. */
-								gint w = gdk_pixbuf_get_width(o);
-								gint h = gdk_pixbuf_get_height(o);
-								gint m = MAX(w, h);
-								if (m > 256)
-								{
-									GdkPixbuf *s = gdk_pixbuf_scale_simple(
-										o, w * 256 / m, h * 256 / m, GDK_INTERP_BILINEAR);
-									if (s) { g_object_unref(o); o = s; }
-								}
-								meta->thumbnail = o;
+								GdkPixbuf *s = gdk_pixbuf_scale_simple(
+									o, w * 128 / m, h * 128 / m, GDK_INTERP_BILINEAR);
+								if (s) { g_object_unref(o); o = s; }
 							}
+							meta->thumbnail = o;
 						}
-						g_object_unref(ldr);
 					}
 					libraw_dcraw_clear_mem(timg);
 				}
