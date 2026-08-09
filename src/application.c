@@ -40,6 +40,7 @@
 #endif
 #include <dbus/dbus.h>
 #include "application.h"
+#include "theme.h"
 #include "gtk-interface.h"
 #include "gtk-helper.h"
 #include "rs-cache.h"
@@ -284,7 +285,7 @@ test(void)
 	gint sum, good = 0, bad = 0;
 
 	struct lfDatabase *lensdb = lf_db_new ();
-	lf_db_load (lensdb);
+	rs_lensfun_db_load (lensdb);
 
 	RSProfileFactory *profile_factory = g_object_new(RS_TYPE_PROFILE_FACTORY, NULL);
 	rs_profile_factory_load_profiles(profile_factory, rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "profiles" G_DIR_SEPARATOR_S), TRUE, FALSE);
@@ -681,24 +682,10 @@ main(int argc, char **argv)
 		g_free(icon_path);
 	}
 
-	/* CaraStudio: thème sombre chargé globalement avant toute fenêtre */
-	{
-		GtkCssProvider *provider = gtk_css_provider_new();
-		GError *err = NULL;
-		gchar *css_path = g_build_filename(rs_reloc(PACKAGE_DATA_DIR), PACKAGE,
-		                                   "theme.css", NULL);
-		if (gtk_css_provider_load_from_path(provider, css_path, &err))
-			gtk_style_context_add_provider_for_screen(
-				gdk_screen_get_default(),
-				GTK_STYLE_PROVIDER(provider),
-				GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-		else if (err) {
-			g_warning("CaraStudio: chargement thème CSS échoué: %s", err->message);
-			g_error_free(err);
-		}
-		g_free(css_path);
-		g_object_unref(provider);
-	}
+	/* CaraStudio: thème sombre chargé globalement avant toute fenêtre.
+	 * Le sélecteur de thèmes (theme.c) charge la base `theme.css` puis, le cas
+	 * échéant, l'overlay `themes/<cle>.css` de la conf « ui-theme ». */
+	cs_theme_init();
 
 	check_install();
 

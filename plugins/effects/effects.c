@@ -874,9 +874,18 @@ apply_colorcorrection(RS_IMAGE16 *img, RSEffects *e)
 			gushort *px = row + xx * ps;
 			float rf = px[0] / 65535.0f, gf = px[1] / 65535.0f, bf = px[2] / 65535.0f;
 			float L = 0.2126f*rf + 0.7152f*gf + 0.0722f*bf;
-			float ws = (1.0f - L) * (1.0f - L);
-			float wh = L * L;
-			float wm = 2.0f * L * (1.0f - L);
+			/* Les pixels sont ici en ProPhoto LINÉAIRE (sortie du DCP, la
+			   conversion gamma vers l'affichage n'arrive qu'après ce filtre).
+			   Pondérer les 3 zones sur L linéaire écrase les hautes lumières :
+			   mesuré sur photo réelle, L_moy = 0,104 → wh = L² ne pesait que 3 %
+			   de ws, la roue « hautes lumières » n'agissait qu'au-delà de
+			   sRGB ≈ 0,73 (quasi blanc). On pondère donc sur une luminance
+			   PERÇUE, sqrt(L) — c'est la convention « gamma 2.0 » déjà employée
+			   dans dcp.c — ce qui rend les trois roues comparables. */
+			float Lp = sqrtf(L);
+			float ws = (1.0f - Lp) * (1.0f - Lp);
+			float wh = Lp * Lp;
+			float wm = 2.0f * Lp * (1.0f - Lp);
 
 			float dr = ws*sr_s + wm*sr_m + wh*sr_h;
 			float dg = ws*sg_s + wm*sg_m + wh*sg_h;

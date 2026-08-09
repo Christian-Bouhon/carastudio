@@ -88,6 +88,18 @@ RSLens *rs_lens_db_lookup_from_metadata(RSLensDb *lens_db, RSMetadata *metdata);
  */
 GList *rs_lens_db_get_lenses(RSLensDb *lens_db);
 
+struct lfDatabase;
+
+/**
+ * Charge la base d'objectifs lensfun, base embarquée comprise.
+ *
+ * À utiliser partout à la place de lf_db_load() : celui-ci ne lit que des
+ * chemins compilés en dur dans liblensfun, ce qui rend la base embarquée d'une
+ * AppImage invisible.
+ * @param lensdb Une lfDatabase fraîchement créée par lf_db_new()
+ */
+void rs_lensfun_db_load(struct lfDatabase *lensdb);
+
 G_END_DECLS
 
 #endif /* RS_LENS_DB_H */

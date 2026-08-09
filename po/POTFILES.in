@@ -20,6 +20,7 @@ src/gtk-helper.c
 src/gtk-interface.c
 src/gtk-progress.c
 src/rs-actions.c
+src/theme.c
 src/rs-batch.c
 src/rs-cache.c
 src/rs-camera-db.c

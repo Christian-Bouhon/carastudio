@@ -1,0 +1,22 @@
+/*
+ * Thème « Ambre » — anthracite, accent ambre/gold à la place du bleu-azur.
+ * Base sombre identique ; seuls les tons d'accent et de sélection changent.
+ * Cours: structure identique, aucune correction supplémentaire nécessaire.
+ */
+
+@define-color cs_bg          #26262c;
+@define-color cs_bg_dark     #1c1d22;
+@define-color cs_bg_light    #30313a;
+@define-color cs_bg_lighter  #3b3d47;
+@define-color cs_fg          #e9e9ee;
+@define-color cs_fg_dim      #bcc0ca;
+@define-color cs_fg_disabled #747880;
+@define-color cs_border      #0d0e12;
+@define-color cs_border_soft #3f414b;
+@define-color cs_accent      #d99c34;
+@define-color cs_accent_dark #a87a20;
+@define-color cs_hover       #36383f;
+@define-color cs_active      #292a31;
+@define-color cs_selected    #7a5c1f;
+@define-color cs_entry_bg    #2b2d34;
+@define-color cs_tooltip_bg  #33353d;

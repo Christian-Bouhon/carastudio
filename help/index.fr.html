@@ -130,6 +130,7 @@
   <a href="#basique">Réglages de base</a>
   <a href="#objectif">Objectif &amp; courbe</a>
   <a href="#recadrage">Recadrage</a>
+  <a href="#annuler">Annuler, copier, réinitialiser</a>
   <h2>Créer</h2>
   <a href="#effets">Effets</a>
   <a href="#tonalite">Tonalité</a>
@@ -139,7 +140,8 @@
   <a href="#enfuse">Fusion d'expositions</a>
   <a href="#exporter">Exporter</a>
   <h2>Divers</h2>
-  <a href="#langue">Langue de l'interface</a>
+  <a href="#langue">Apparence &amp; langue</a>
+  <a href="#menus">Les menus, de A à Z</a>
   <a href="#raccourcis">Raccourcis clavier</a>
   <a href="#apropos">À propos &amp; communauté</a>
 </nav>
@@ -310,7 +312,17 @@
   <tr><td>3</td><td>Sélectionnez le profil dans la liste : la photo change immédiatement de rendu.</td></tr>
   <tr><td>4</td><td>Pour l'appliquer automatiquement à <b>toutes les photos de ce boîtier</b> : menu <b>Photo → Sauvegarder les paramètres par défaut de l'appareil</b>. La barre du bas confirme (« Settings saved as default for… »). Désormais, chaque photo de ce boîtier chargera avec ce profil.</td></tr>
 </table>
-<div class="warn"><b>Attention :</b> l'étape 4 enregistre comme défauts <b>tous les réglages actuels</b> de la photo (exposition, saturation…), pas seulement le profil. Faites-la de préférence sur une photo aux réglages vierges, juste après avoir choisi le profil.</div>
+<div class="warn"><b>Attention :</b> l'étape 4 enregistre comme défauts <b>tous les réglages actuels</b> de la photo (exposition, saturation, balance des blancs…), pas seulement le profil. Faites-la de préférence sur une photo aux réglages vierges, juste après avoir choisi le profil. Une fenêtre de confirmation vous le rappelle et nomme le boîtier concerné.</div>
+
+<h3>Défauts boîtier : ce que ça change, et comment revenir en arrière</h3>
+<p>Les défauts enregistrés ne sont pas un simple raccourci : ils deviennent la <b>référence</b> du boîtier. Deux conséquences à connaître :</p>
+<table>
+  <tr><th>Effet</th><th>Détail</th></tr>
+  <tr><td>Nouvelles photos</td><td>Toute photo de ce boîtier s'ouvre désormais avec ces réglages, au lieu des valeurs d'usine.</td></tr>
+  <tr><td>Réinitialiser</td><td><b>Réinitialiser</b> ramène à <b>ces défauts</b>, et non aux valeurs d'usine. C'est voulu — mais si les défauts contiennent un réglage indésirable, aucune remise à zéro ne semblera fonctionner.</td></tr>
+</table>
+<p><b>La sortie de secours.</b> Rouvrez <b>Photo → Sauvegarder les paramètres par défaut de l'appareil</b> et choisissez <b>« Effacer les défauts existants »</b>. Le boîtier repart des valeurs d'usine, et <b>votre profil DCP reste associé</b> — vous ne perdez pas votre travail de calibration.</p>
+<div class="tip"><b>Le bon réflexe :</b> avant d'enregistrer des défauts, cliquez <b>Réinitialiser</b> puis choisissez uniquement le profil DCP. Vous obtenez ainsi un défaut « profil seul », sans exposition ni balance des blancs figées.</div>
 
 <h3>Où trouver des profils DCP ?</h3>
 <table>
@@ -390,6 +402,32 @@
 <p>Le recadrage est non destructif : vous pouvez le rouvrir et le modifier à tout moment.</p>
 </section>
 
+<section id="annuler">
+<h2 class="sec">Annuler, copier, réinitialiser</h2>
+<p>Le menu <b>Édition</b> regroupe tout ce qui concerne la <b>gestion des réglages</b> d'une photo : revenir en arrière, transporter un réglage vers d'autres photos, ou repartir de zéro.</p>
+
+<h3>Revenir en arrière (Ctrl+Z)</h3>
+<p><b>Édition → Revenir aux anciens paramètres</b> (<b>Ctrl+Z</b>) rétablit les réglages tels qu'ils étaient <b>à l'ouverture de la photo</b>.</p>
+<div class="warn"><b>Important — ce n'est pas un annuler classique.</b> Il ne défait pas les actions une par une, curseur par curseur, comme dans un traitement de texte. Il n'y a <b>qu'un seul point de retour</b> : l'état de la photo au moment où vous l'avez ouverte. Appuyer plusieurs fois sur Ctrl+Z ne remonte donc pas plus loin.</div>
+<p>Conséquence pratique : si vous avez ouvert la photo, fait dix réglages, puis appuyé sur Ctrl+Z, les dix réglages disparaissent d'un coup. Et si la photo était <b>déjà développée</b> lors de son ouverture, Ctrl+Z vous ramène à ce développement — pas à la photo brute.</p>
+
+<h3>Repartir de zéro</h3>
+<p><b>Édition → Réinitialiser les paramètres</b> remet la photo aux valeurs par défaut. Le bouton <b>Réinitialiser</b> du module Basique fait la même chose.</p>
+<div class="note">Si vous avez enregistré des <b>défauts pour votre boîtier</b>, la réinitialisation revient à <b>ces défauts</b> et non aux valeurs d'usine. Voir <a href="#dcp">Défauts boîtier : ce que ça change</a>.</div>
+
+<h3>Reporter un réglage sur d'autres photos</h3>
+<table>
+  <tr><th>Commande</th><th>Rôle</th></tr>
+  <tr><td><b>Copier les paramètres</b></td><td>Mémorise <b>tous</b> les réglages de la photo courante.</td></tr>
+  <tr><td><b>Coller les paramètres</b></td><td>Les applique à la photo — ou à <b>toutes les photos sélectionnées</b> dans la bande d'images.</td></tr>
+</table>
+<div class="tip"><b>Copier/coller ou style ?</b> Le copier/coller transporte <b>tout</b>, tout de suite, et ne se conserve pas d'une session à l'autre. Un <a href="#styles">style</a> est nommé, enregistré durablement, et vous laisse <b>choisir les modules</b> à transporter. Pour un geste ponctuel entre deux photos, le copier/coller suffit ; pour un rendu que vous réutiliserez, faites un style.</div>
+<div class="note">Le <b>profil DCP</b> n'est jamais transporté, ni par le copier/coller ni par les styles : il est propre au boîtier.</div>
+
+<h3>Préférences</h3>
+<p><b>Édition → Préférences</b> ouvre les réglages de l'application : couleur du fond de prévisualisation, hauteur de l'histogramme, emplacement du cache, <a href="#langue">thème de l'interface</a>, profils de couleur d'affichage, et options d'export rapide.</p>
+</section>
+
 <section id="effets">
 <h2 class="sec"><span class="stagebadge" style="background:#9a6fc0">D</span>Effets</h2>
 <p>L'onglet <b>Effets</b> rassemble les traitements créatifs. Ils forment l'étape <span class="stagebadge" style="background:#9a6fc0">D</span> du pipeline et s'enchaînent dans un <b>ordre interne fixe</b> (Argentico → Voile → DynaComp → Tone doctor → Color balance → Color scalpel → Courbes RVB → Noir &amp; Blanc → Lumière douce → Vignettage), toujours <i>après</i> le développement de base.</p>
@@ -420,7 +458,17 @@
 <h3>Tone doctor (égaliseur de tons)</h3>
 <p>Un <b>égaliseur</b> qui agit par plages de luminosité : <b>Noirs</b>, <b>Ombres</b>, <b>Tons moyens</b>, <b>Hautes lumières</b>, <b>Blancs</b>, autour d'un <b>pivot</b> réglable. Idéal pour rééquilibrer une image trop contrastée ou récupérer des détails dans les ombres/lumières.</p>
 <h3>Color balance (roues 3 voies)</h3>
-<p>Trois <b>roues chromatiques</b> — <b>Ombres</b>, <b>Tons moyens</b>, <b>Hautes lumières</b> — pour donner une teinte à chaque plage tonale (étalonnage couleur cinéma). Chaque roue règle la couleur (X/Y) et la luminance (lift / gamma / gain).</p>
+<p>Trois <b>roues chromatiques</b> — <b>Ombres</b>, <b>Tons moyens</b>, <b>Hautes lumières</b> — pour donner une teinte à chaque plage tonale (étalonnage couleur cinéma). Chaque roue règle la couleur et la luminance (lift / gamma / gain).</p>
+<p><b>Roue ou curseurs, au choix.</b> Sous chaque roue, trois curseurs affichent en permanence le réglage de la zone :</p>
+<table>
+  <tr><th>Curseur</th><th>Rôle</th></tr>
+  <tr><td><b>Teinte</b></td><td>L'<b>angle</b> sur la roue, de 0 à 360° (0° = rouge, 120° = vert, 240° = bleu). Choisit <i>quelle</i> couleur est ajoutée.</td></tr>
+  <tr><td><b>Intensité</b></td><td>La <b>distance au centre</b>, de 0 à 1. Dose <i>combien</i> de cette couleur est ajoutée. À 0, la zone est neutre.</td></tr>
+  <tr><td><b>Luminance</b></td><td>Éclaircit ou assombrit la plage tonale, sans changer sa couleur.</td></tr>
+</table>
+<p>Roue et curseurs sont <b>deux vues du même réglage</b> et restent synchronisés : déplacez le point sur la roue, les curseurs suivent ; poussez un curseur, le point se déplace. La roue est rapide et intuitive, les curseurs permettent la précision et la répétabilité d'une photo à l'autre.</p>
+<div class="tip"><b>Astuce :</b> tant qu'<b>Intensité</b> vaut 0, la zone est neutre et changer la Teinte ne produit aucun effet visible — c'est normal, il n'y a pas encore de couleur à orienter. Montez d'abord l'Intensité, puis cherchez la teinte. Un <b>clic droit sur la roue</b> ramène la zone au centre (neutre) ; un <b>clic sur le nom</b> d'un curseur le remet à zéro.</div>
+<div class="tip"><b>À savoir :</b> chaque roue agit surtout sur sa plage tonale, mais les trois se recouvrent progressivement — sur une photo très sombre, la roue <b>Hautes lumières</b> a naturellement peu de matière sur laquelle agir, et inversement sur une photo très claire pour les <b>Ombres</b>.</div>
 <h3>Color scalpel (courbes par teinte)</h3>
 <p>Ajuste finement chaque <b>famille de couleurs</b> indépendamment, sur trois courbes (onglets <b>Teinte</b>, <b>Saturation</b>, <b>Luminance</b>) tracées sur le spectre des teintes. Parfait pour, par exemple, raviver un ciel sans toucher aux peaux. La courbe est <b>lissée</b> (transitions douces entre les points), et le réglage <b>s'atténue sur les couleurs peu saturées</b> (blancs, gris) pour éviter les halos.</p>
 <table>
@@ -544,8 +592,104 @@
 </section>
 
 <section id="langue">
-<h2 class="sec">Langue de l'interface</h2>
+<h2 class="sec">Apparence &amp; langue</h2>
+
+<h3>Langue de l'interface</h3>
 <p>Le bouton <b>FR / EN</b> à droite de la barre du haut bascule l'interface entre le français et l'anglais. Le libellé indique la langue vers laquelle vous allez basculer. CaraStudio vous proposera de <b>redémarrer</b> pour appliquer le changement (vos réglages sont sauvegardés avant la relance).</p>
+
+<h3>Thème de l'interface</h3>
+<p>Dans <b>Édition → Préférences</b>, le sélecteur <b>Thème</b> change l'habillage de l'application. Le changement est <b>immédiat</b> : pas de redémarrage, et votre choix est mémorisé.</p>
+<table>
+  <tr><th>Thème</th><th>Ambiance</th></tr>
+  <tr><td><b>CaraStudio</b></td><td>La palette d'origine, gris moyen neutre. Choix par défaut.</td></tr>
+  <tr><td><b>Studio Anthracite</b></td><td>Gris charbon profond, accent bleu-azur. Le plus sombre : l'interface s'efface au profit de l'image.</td></tr>
+  <tr><td><b>Studio Clair</b></td><td>Gris moyen peu contrasté, pour les pièces très éclairées.</td></tr>
+  <tr><td><b>Studio Ambre</b></td><td>Même base sombre, accent doré plutôt que bleu.</td></tr>
+</table>
+<div class="tip"><b>Pourquoi un fond gris et pas blanc ?</b> L'œil juge une couleur <b>relativement à ce qui l'entoure</b>. Un fond neutre et sombre évite de fausser votre appréciation des teintes et de l'exposition — c'est la raison pour laquelle tous les logiciels de développement photo sont sombres. En cas de doute, restez sur un thème sombre pour l'étalonnage.</div>
+<div class="note">Ces thèmes ont été proposés par <b>Christian Bouhon</b>, contributeur du projet, en même temps que les curseurs des roues de <a href="#tonalite">Color balance</a>. Merci à lui !</div>
+</section>
+
+<section id="menus">
+<h2 class="sec">Les menus, de A &agrave; Z</h2>
+<p>Un tour complet de la barre de menus. Les fonctions les plus riches ont leur propre chapitre : ce tableau vous y renvoie.</p>
+
+<h3>Fichier</h3>
+<table>
+  <tr><th>Commande</th><th>Raccourci</th><th>R&ocirc;le</th></tr>
+  <tr><td>Ouvrir un r&eacute;pertoire</td><td><code>Ctrl+O</code></td><td>Charge un dossier de photos dans la biblioth&egrave;que.</td></tr>
+  <tr><td>Export rapide</td><td><code>Ctrl+S</code></td><td>Exporte la photo avec les r&eacute;glages d&eacute;finis dans les <a href="#annuler">Pr&eacute;f&eacute;rences</a>, sans poser de question.</td></tr>
+  <tr><td>Exporter sous</td><td><code>Ctrl+Maj+S</code></td><td>Ouvre la fen&ecirc;tre d'export compl&egrave;te : format, dimensions, destination. Voir <a href="#exporter">Exporter</a>.</td></tr>
+  <tr><td>Exporter vers GIMP</td><td><code>Ctrl+G</code></td><td>Envoie la photo d&eacute;velopp&eacute;e directement dans GIMP.</td></tr>
+  <tr><td>Recharger le r&eacute;pertoire</td><td><code>Ctrl+R</code></td><td>Relit le dossier. Utile si des fichiers ont &eacute;t&eacute; ajout&eacute;s ou modifi&eacute;s en dehors de CaraStudio.</td></tr>
+  <tr><td>Vider le cache des vignettes</td><td>&mdash;</td><td>Force la reconstruction des miniatures. Voir <a href="#importer">Vider le cache des vignettes</a>.</td></tr>
+  <tr><td>Supprimer les photos marqu&eacute;es</td><td><code>Ctrl+Maj+D</code></td><td>Supprime d&eacute;finitivement les photos marqu&eacute;es par <b>Suppr</b>.</td></tr>
+  <tr><td>Quitter</td><td><code>Ctrl+Q</code></td><td>Ferme CaraStudio en enregistrant vos r&eacute;glages.</td></tr>
+</table>
+<div class="warn"><b>Attention :</b> « Supprimer les photos marqu&eacute;es » efface les <b>fichiers d'origine</b> du disque, pas seulement leur affichage. Cette action est irr&eacute;versible.</div>
+
+<h3>&Eacute;dition</h3>
+<p>Ce menu a son propre chapitre : <a href="#annuler">Annuler, copier, r&eacute;initialiser</a>. En r&eacute;sum&eacute; : <b>Ctrl+Z</b> revient &agrave; l'ouverture de la photo, <b>Ctrl+C / Ctrl+V</b> reportent les r&eacute;glages sur d'autres photos, les trois entr&eacute;es <b>style</b> m&egrave;nent aux <a href="#styles">CaraStyles</a>, et <b>Ctrl+Maj+C</b> copie l'image d&eacute;velopp&eacute;e dans le presse-papier pour la coller ailleurs.</p>
+
+<h3>Photo</h3>
+<table>
+  <tr><th>Commande</th><th>Raccourci</th><th>R&ocirc;le</th></tr>
+  <tr><td>Marquer pour suppression</td><td><code>Suppr</code></td><td>Marque la photo ; rien n'est effac&eacute; tant que vous n'utilisez pas <b>Fichier &rarr; Supprimer les photos marqu&eacute;es</b>.</td></tr>
+  <tr><td>Choisir la priorit&eacute;</td><td><code>1</code> <code>2</code> <code>3</code> <code>0</code></td><td>Note la photo pour la retrouver vite. <code>0</code> retire la note. Voir <a href="#trier">Trier ses photos</a>.</td></tr>
+  <tr><td>Balance des blancs</td><td><code>C</code> / <code>A</code></td><td><b>Appareil</b> (r&eacute;glage du bo&icirc;tier) ou <b>Auto</b>. Voir <a href="#wb">Balance des blancs</a>.</td></tr>
+  <tr><td>Cadrer / Annuler le cadrage</td><td><code>Maj+C</code> / <code>Maj+V</code></td><td>Recadrage. Voir <a href="#recadrage">Recadrage</a>.</td></tr>
+  <tr><td>Redresser / Annuler</td><td>&mdash;</td><td>Corrige un horizon pench&eacute;.</td></tr>
+  <tr><td>Tourner &agrave; droite / &agrave; gauche</td><td><code>Alt+&rarr;</code> / <code>Alt+&larr;</code></td><td>Rotation par quarts de tour, pour les photos verticales mal orient&eacute;es.</td></tr>
+  <tr><td>Retourner / Miroir</td><td>&mdash;</td><td><b>Retourner</b> bascule de haut en bas, <b>Miroir</b> inverse gauche-droite.</td></tr>
+  <tr><td>Grouper / D&eacute;grouper</td><td>&mdash;</td><td>Empile plusieurs photos sous une seule vignette. Pratique pour les rafales ou les bracketings.</td></tr>
+  <tr><td>Groupement automatique</td><td>&mdash;</td><td>Regroupe tout seul les photos prises &agrave; quelques secondes d'intervalle.</td></tr>
+  <tr><td>Tag photo</td><td><code>Alt+T</code></td><td>Ajoute des mots-cl&eacute;s. Voir <a href="#infos">Infos &amp; mots-cl&eacute;s</a>.</td></tr>
+  <tr><td>Enfuse</td><td><code>Ctrl+Alt+E</code></td><td>Fusion d'expositions. Voir <a href="#enfuse">Fusion d'expositions</a>.</td></tr>
+  <tr><td>Ajustement auto des extr&eacute;mit&eacute;s de courbe</td><td><code>Ctrl+Maj+L</code></td><td>Cale les deux bouts de la courbe de tonalit&eacute; sur le point le plus sombre et le plus clair de la photo : le contraste est &eacute;tir&eacute; au maximum sans &eacute;craser les extr&ecirc;mes.</td></tr>
+  <tr><td>Sauvegarder les param&egrave;tres par d&eacute;faut</td><td>&mdash;</td><td>D&eacute;finit les r&eacute;glages de r&eacute;f&eacute;rence du bo&icirc;tier. &Agrave; lire avant usage : <a href="#dcp">D&eacute;fauts bo&icirc;tier</a>.</td></tr>
+</table>
+<div class="tip"><b>Grouper, &agrave; quoi &ccedil;a sert ?</b> Une rafale de vingt images encombre la bande. Groupez-les : une seule vignette repr&eacute;sente le lot, et vous d&eacute;pliez au besoin. Vos fichiers ne sont ni d&eacute;plac&eacute;s ni modifi&eacute;s.</div>
+
+<h3>Vue</h3>
+<table>
+  <tr><th>Commande</th><th>Raccourci</th><th>R&ocirc;le</th></tr>
+  <tr><td>Photo pr&eacute;c&eacute;dente / suivante</td><td><code>Ctrl+&larr;</code> / <code>Ctrl+&rarr;</code></td><td>Navigue dans le dossier sans quitter l'&eacute;diteur.</td></tr>
+  <tr><td>Lecture / Arr&ecirc;t</td><td><code>Ctrl+P</code></td><td>Fait d&eacute;filer les photos automatiquement, comme un diaporama.</td></tr>
+  <tr><td>Trier par</td><td>&mdash;</td><td>Nom, horodatage, ISO, ouverture, focale ou vitesse d'obturation. Pratique pour retrouver toutes les photos d'une m&ecirc;me focale.</td></tr>
+  <tr><td>Zoom &agrave; la taille de la fen&ecirc;tre</td><td><code>*</code></td><td>Recadre l'affichage pour que la photo enti&egrave;re tienne &agrave; l'&eacute;cran.</td></tr>
+  <tr><td>Instantan&eacute;</td><td>&mdash;</td><td>Bascule entre les versions <b>A</b>, <b>B</b> et <b>C</b>. Voir <a href="#espace">Comparer avant/apr&egrave;s</a>.</td></tr>
+  <tr><td>Ic&ocirc;nes / Outils</td><td><code>Ctrl+I</code> / <code>Ctrl+T</code></td><td>Affiche ou masque la bande d'images et le panneau d'outils, pour gagner de la place.</td></tr>
+  <tr><td>Plein &eacute;cran</td><td><code>F11</code></td><td>L'application occupe tout l'&eacute;cran.</td></tr>
+  <tr><td>Montrer sur le moniteur secondaire</td><td><code>F10</code></td><td>Envoie la photo en grand sur un <b>second &eacute;cran</b>, pendant que vous gardez les outils sur le premier.</td></tr>
+  <tr><td>Ne pas charger les images s&eacute;lectionn&eacute;es</td><td><code>Pause</code></td><td>Emp&ecirc;che le chargement des photos s&eacute;lectionn&eacute;es. D&eacute;pannage sur les fichiers lourds ou ab&icirc;m&eacute;s.</td></tr>
+  <tr><td>Montrer le nom de fichier</td><td>&mdash;</td><td>Affiche le nom sous chaque vignette.</td></tr>
+  <tr><td>Charger les images non-RAW</td><td>&mdash;</td><td>Active l'affichage des JPEG, TIFF et PNG. Voir <a href="#importer">Photos non-RAW</a>.</td></tr>
+  <tr><td>Masque d'exposition</td><td><code>Ctrl+E</code></td><td>Signale les zones br&ucirc;l&eacute;es ou bouch&eacute;es. Voir <a href="#pipeline">Masque d'exposition</a>.</td></tr>
+  <tr><td>S&eacute;parer</td><td><code>Ctrl+D</code></td><td>Coupe l'aper&ccedil;u en deux panneaux, pour comparer deux instantan&eacute;s c&ocirc;te &agrave; c&ocirc;te.</td></tr>
+  <tr><td>Voile noir</td><td><code>F12</code></td><td>Assombrit tout sauf la photo. Voir <a href="#espace">Lights Out</a>.</td></tr>
+  <tr><td>Base de donn&eacute;es d'objectifs</td><td><code>Ctrl+L</code></td><td>Ouvre la biblioth&egrave;que d'objectifs. Voir ci-dessous.</td></tr>
+</table>
+
+<h3>Traitement par lot</h3>
+<table>
+  <tr><th>Commande</th><th>Raccourci</th><th>R&ocirc;le</th></tr>
+  <tr><td>Ajouter au traitement par lot</td><td><code>Inser</code></td><td>Met la photo dans la file d'attente.</td></tr>
+  <tr><td>Ajouter la vue courante</td><td><code>Ctrl+Inser</code></td><td>Ajoute la photo avec l'instantan&eacute; <b>actuellement affich&eacute;</b> (A, B ou C).</td></tr>
+  <tr><td>Supprimer du traitement</td><td><code>Ctrl+Suppr</code></td><td>Retire la photo de la file.</td></tr>
+  <tr><td>D&eacute;marrer</td><td>&mdash;</td><td>Lance l'export de toute la file. Voir <a href="#exporter">Exporter</a>.</td></tr>
+  <tr><td>Grouper la s&eacute;lection</td><td>&mdash;</td><td>Ajoute d'un coup toutes les photos s&eacute;lectionn&eacute;es.</td></tr>
+</table>
+
+<h3>Aide</h3>
+<table>
+  <tr><th>Commande</th><th>Raccourci</th><th>R&ocirc;le</th></tr>
+  <tr><td>Aide CaraStudio</td><td><code>F1</code></td><td>Ouvre ce guide.</td></tr>
+  <tr><td>&Agrave; propos</td><td>&mdash;</td><td>Num&eacute;ro de version exact et cr&eacute;dits. Voir <a href="#apropos">&Agrave; propos</a>.</td></tr>
+</table>
+
+<h3>La biblioth&egrave;que d'objectifs (Ctrl+L)</h3>
+<p>Elle liste tous les objectifs rencontr&eacute;s dans vos photos et l'&eacute;tat de leur association &agrave; la base <b>lensfun</b>. C'est l&agrave; que vous rattachez un objectif non reconnu &agrave; sa fiche, pour activer les corrections automatiques. La marche &agrave; suivre est d&eacute;taill&eacute;e dans <a href="#objectif">Correction d'objectif</a>.</p>
+<div class="tip"><b>Objectif r&eacute;cent non reconnu ?</b> La base lensfun install&eacute;e sur votre syst&egrave;me est peut-&ecirc;tre ancienne. Mettez-la &agrave; jour (paquet <code>lensfun</code> de votre distribution, ou commande <code>lensfun-update-data</code>) : les objectifs r&eacute;cents y sont souvent d&eacute;j&agrave;, avec leurs mesures.</div>
 </section>
 
 <section id="raccourcis">

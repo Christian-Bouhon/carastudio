@@ -399,7 +399,7 @@ static void row_clicked (GtkTreeView *tree_view, GtkTreePath *path, GtkTreeViewC
 	data->single_lens_data = NULL;
 
 	lensdb = lf_db_new ();
-	lf_db_load (lensdb);
+	rs_lensfun_db_load (lensdb);
 
 	GtkTreeSelection *selection = gtk_tree_view_get_selection(data->tree_view);
 	GtkTreeModel *model = NULL;
@@ -786,7 +786,7 @@ static void set_lens (GtkButton *button, SingleLensData *single_lens_data)
 	data->single_lens_data = single_lens_data;
 
 	lensdb = lf_db_new ();
-	lf_db_load (lensdb);
+	rs_lensfun_db_load (lensdb);
 
 	RSLens *rs_lens = RS_LENS(single_lens_data->lens);
 

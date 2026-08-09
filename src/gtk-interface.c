@@ -23,6 +23,7 @@
 #include <gdk/gdkkeysyms.h>
 #include <config.h>
 #include "application.h"
+#include "theme.h"
 #include "gtk-helper.h"
 #include "gtk-interface.h"
 #include "gtk-progress.h"
@@ -882,6 +883,15 @@ gui_make_preference_quick_export(void)
 	return page;
 }
 
+/* CaraStudio : changement de thème (sélecteur des Préférences), appliqué à chaud. */
+static void
+gui_theme_changed(GtkComboBoxText *combo, gpointer user_data)
+{
+	gint idx = gtk_combo_box_get_active(GTK_COMBO_BOX(combo));
+	if (idx >= 0 && idx < cs_theme_count())
+		cs_theme_apply(cs_theme_key_at(idx));
+}
+
 void
 gui_make_preference_window(RS_BLOB *rs)
 {
@@ -963,6 +973,31 @@ gui_make_preference_window(RS_BLOB *rs)
 	enfuse_cache_check = checkbox_from_conf(CONF_ENFUSE_CACHE, _("Cache images when enfusing (speed for memory)"), DEFAULT_CONF_ENFUSE_CACHE);
 	gtk_box_pack_start (GTK_BOX (preview_page), enfuse_cache_check, FALSE, TRUE, 0);
 	
+	/* CaraStudio : sélecteur de thème (appliqué immédiatement, sans redémarrage) */
+	{
+		GtkWidget *th_hbox = gtk_hbox_new(FALSE, 0);
+		GtkWidget *th_label = gtk_label_new(_("Theme:"));
+		GtkWidget *th_combo;
+		gint i, active = 0;
+		gchar *cur;
+		gtk_misc_set_alignment(GTK_MISC(th_label), 0.0, 0.5);
+		th_combo = gtk_combo_box_text_new();
+		cur = rs_conf_get_string("ui-theme");
+		for (i = 0; i < cs_theme_count(); i++)
+		{
+			gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(th_combo), cs_theme_name_at(i));
+			if (cur && g_str_equal(cur, cs_theme_key_at(i)))
+				active = i;
+		}
+		g_free(cur);
+		gtk_combo_box_set_active(GTK_COMBO_BOX(th_combo), active);
+		gtk_widget_set_tooltip_text(th_combo, _("Choose the interface look and feel. The change applies immediately."));
+		g_signal_connect(th_combo, "changed", G_CALLBACK(gui_theme_changed), NULL);
+		gtk_box_pack_start (GTK_BOX (th_hbox), th_label, FALSE, FALSE, 0);
+		gtk_box_pack_start (GTK_BOX (th_hbox), th_combo, TRUE, TRUE, 0);
+		gtk_box_pack_start (GTK_BOX (preview_page), th_hbox, FALSE, TRUE, 0);
+	}
+
 	cs_hbox = gtk_hbox_new(FALSE, 0);
 	cs_label = gtk_label_new(_("Display Colorspace:"));
 	cs_widget = rs_color_space_selector_new();

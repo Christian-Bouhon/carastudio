@@ -137,7 +137,12 @@ A=/root/AppDir
 rm -rf "$A"
 make install DESTDIR="$A"
 rm -rf "$A/usr/include" "$A/usr/lib/pkgconfig"          # superflu dev
-cp -r /usr/share/lensfun "$A/usr/share/lensfun"          # base lensfun
+# Base lensfun embarquée. Elle est lue par rs_lensfun_db_load() (rs-lens-db.c),
+# qui appelle lf_db_load_directory() sur le chemin relocalisé AVANT lf_db_load().
+# Indispensable : liblensfun n'a que des chemins compilés en dur et n'honore
+# AUCUNE variable d'environnement, donc sans ce chargement explicite un
+# utilisateur sans lensfun installé n'aurait aucun objectif reconnu.
+cp -r /usr/share/lensfun "$A/usr/share/lensfun"
 
 echo "== Icône + .desktop =="
 convert /root/carastudio/pixmaps/carastudio.png -resize 512x512 /root/carastudio.png
@@ -151,7 +156,9 @@ echo "== Hook AppRun (LD_LIBRARY_PATH pour les plugins + lensfun) =="
 mkdir -p "$A/apprun-hooks"
 cat > "$A/apprun-hooks/carastudio.sh" <<'HOOK'
 export LD_LIBRARY_PATH="${APPDIR}/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-export LENSFUN_DB_PATH="${APPDIR}/usr/share/lensfun"
+# NB : pas de LENSFUN_DB_PATH ici — cette variable n'existe pas dans lensfun
+# (chemins compilés en dur). La base embarquée est chargée côté code, par
+# rs_lensfun_db_load().
 export LIBOVERLAY_SCROLLBAR=0
 # Isolation des modules GIO de l'HÔTE. Notre GLib bundlée (ancienne, base
 # Ubuntu 20.04) a pour dossier de modules GIO compilé /usr/lib/x86_64-linux-gnu/
