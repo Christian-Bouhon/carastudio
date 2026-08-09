@@ -285,7 +285,7 @@ test(void)
 	gint sum, good = 0, bad = 0;
 
 	struct lfDatabase *lensdb = lf_db_new ();
-	lf_db_load (lensdb);
+	rs_lensfun_db_load (lensdb);
 
 	RSProfileFactory *profile_factory = g_object_new(RS_TYPE_PROFILE_FACTORY, NULL);
 	rs_profile_factory_load_profiles(profile_factory, rs_reloc(PACKAGE_DATA_DIR G_DIR_SEPARATOR_S PACKAGE G_DIR_SEPARATOR_S "profiles" G_DIR_SEPARATOR_S), TRUE, FALSE);

@@ -217,7 +217,7 @@ rs_lensfun_init(RSLensfun *lensfun)
 
 	/* Initialize Lensfun database */
 	lensfun->ldb = lf_db_new ();
-	lf_db_load (lensfun->ldb);
+	rs_lensfun_db_load (lensfun->ldb);
 }
 
 static void

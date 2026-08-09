@@ -18,6 +18,7 @@
  */
 
 #include <rawstudio.h>
+#include <lensfun.h>
 #include <libxml/encoding.h>
 #include <libxml/parser.h>
 #include <libxml/xmlwriter.h>
@@ -428,4 +429,46 @@ rs_lens_db_get_lenses(RSLensDb *lens_db)
 	g_return_val_if_fail(RS_IS_LENS_DB(lens_db), NULL);
 
 	return lens_db->lenses;
+}
+
+/**
+ * Charge la base lensfun, base embarquée comprise.
+ *
+ * lf_db_load() ne lit QUE des chemins compilés en dur dans liblensfun
+ * (/usr/share/lensfun, ~/.local/share/lensfun) : aucune variable
+ * d'environnement n'est honorée — LENSFUN_DB_PATH n'existe pas. Dans une
+ * AppImage, la base embarquée n'était donc jamais lue : l'utilisateur héritait
+ * de la base de son système, ou de RIEN du tout s'il n'a pas lensfun installé
+ * (aucun objectif reconnu).
+ *
+ * On charge donc d'abord la base embarquée, PUIS la base standard. lensfun
+ * donne la priorité aux objets chargés en DERNIER : la base système de
+ * l'utilisateur — souvent plus récente que celle figée dans l'AppImage —
+ * l'emporte, et l'embarquée ne sert que de filet de sécurité.
+ *
+ * Hors AppImage, rs_reloc() renvoie le chemin inchangé : on saute la première
+ * étape pour ne pas relire inutilement la base système.
+ */
+void
+rs_lensfun_db_load(struct lfDatabase *lensdb)
+{
+	const gchar *datadir;
+
+	if (!lensdb)
+		return;
+
+	datadir = rs_reloc(PACKAGE_DATA_DIR);
+	if (g_strcmp0(datadir, PACKAGE_DATA_DIR) != 0)
+	{
+		gchar *bundled = g_build_filename(datadir, "lensfun", "version_1", NULL);
+
+		if (g_file_test(bundled, G_FILE_TEST_IS_DIR))
+		{
+			if (!lf_db_load_directory(lensdb, bundled))
+				g_warning("CaraStudio: base lensfun embarquée illisible: %s", bundled);
+		}
+		g_free(bundled);
+	}
+
+	lf_db_load(lensdb);
 }
