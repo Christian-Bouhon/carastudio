@@ -1331,14 +1331,64 @@ ACTION(reset_settings)
 	}
 }
 
+/* Réponses du dialogue de confirmation des défauts boîtier. */
+enum {
+	CS_DEFAULTS_CANCEL = 1,
+	CS_DEFAULTS_CLEAR,
+	CS_DEFAULTS_SAVE
+};
+
 ACTION(save_default_settings)
 {
 	if (RS_IS_PHOTO(rs->photo) && rs->photo->metadata)
 	{
-		rs_camera_db_save_defaults(rs_camera_db_get_singleton(), rs->photo);
-		GString *gs = g_string_new("");
-		g_string_printf(gs, _("Settings saved as default for %s %s"), rs->photo->metadata->make_ascii, rs->photo->metadata->model_ascii);
-		gui_status_notify(gs->str);
+		RSCameraDb *db = rs_camera_db_get_singleton();
+		const gchar *make = rs->photo->metadata->make_ascii;
+		const gchar *model = rs->photo->metadata->model_ascii;
+		GtkWidget *dialog;
+		gint response;
+		GString *gs;
+
+		/* Confirmation explicite : ces défauts deviennent le point de retour de
+		   « Réinitialiser » pour TOUTES les photos du boîtier. Enregistrés par
+		   mégarde avec, par exemple, une auto-exposition active, ils rendaient
+		   toute remise à zéro impossible sans éditer un XML à la main. */
+		dialog = gtk_message_dialog_new(GTK_WINDOW(rs->window),
+			GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+			GTK_MESSAGE_QUESTION, GTK_BUTTONS_NONE,
+			_("Enregistrer ces réglages comme défauts pour %s %s ?"),
+			make ? make : "?", model ? model : "?");
+		gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
+			_("Les réglages actuels seront appliqués à toutes les nouvelles photos "
+			  "de ce boîtier, et « Réinitialiser » y ramènera au lieu de revenir "
+			  "aux valeurs d'usine.\n\n"
+			  "Vérifiez qu'aucun réglage indésirable n'est actif (auto-exposition, "
+			  "balance des blancs particulière…)."));
+		gtk_dialog_add_buttons(GTK_DIALOG(dialog),
+			_("Annuler"), CS_DEFAULTS_CANCEL,
+			_("Effacer les défauts existants"), CS_DEFAULTS_CLEAR,
+			_("Enregistrer"), CS_DEFAULTS_SAVE,
+			NULL);
+		gtk_dialog_set_default_response(GTK_DIALOG(dialog), CS_DEFAULTS_CANCEL);
+
+		response = gtk_dialog_run(GTK_DIALOG(dialog));
+		gtk_widget_destroy(dialog);
+
+		gs = g_string_new("");
+		if (response == CS_DEFAULTS_SAVE)
+		{
+			rs_camera_db_save_defaults(db, rs->photo);
+			g_string_printf(gs, _("Settings saved as default for %s %s"), make, model);
+			gui_status_notify(gs->str);
+		}
+		else if (response == CS_DEFAULTS_CLEAR)
+		{
+			if (rs_camera_db_clear_defaults(db, rs->photo))
+				g_string_printf(gs, _("Défauts effacés pour %s %s"), make, model);
+			else
+				g_string_printf(gs, _("Aucun défaut enregistré pour %s %s"), make, model);
+			gui_status_notify(gs->str);
+		}
 		g_string_free(gs, TRUE);
 	}
 }

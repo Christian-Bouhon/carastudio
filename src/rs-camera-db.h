@@ -51,6 +51,13 @@ rs_camera_db_photo_get_defaults(RSCameraDb *camera_db, RS_PHOTO *photo, RSSettin
 
 gboolean rs_camera_db_photo_set_defaults(RSCameraDb *camera_db, RS_PHOTO *photo);
 
+/**
+ * Efface les réglages par défaut enregistrés pour le boîtier de cette photo.
+ * Le profil DCP associé au boîtier est CONSERVÉ.
+ * @return TRUE si des réglages ont effectivement été effacés
+ */
+gboolean rs_camera_db_clear_defaults(RSCameraDb *camera_db, RS_PHOTO *photo);
+
 G_END_DECLS
 
 #endif /* RS_CAMERA_DB_H */

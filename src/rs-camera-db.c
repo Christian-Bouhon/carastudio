@@ -215,6 +215,47 @@ rs_camera_db_save_defaults(RSCameraDb *camera_db, RS_PHOTO *photo)
 }
 
 gboolean
+rs_camera_db_clear_defaults(RSCameraDb *camera_db, RS_PHOTO *photo)
+{
+	g_return_val_if_fail(RS_IS_PHOTO(photo), FALSE);
+	g_return_val_if_fail(RS_IS_METADATA(photo->metadata), FALSE);
+
+	gboolean cleared = FALSE;
+	gint snapshot;
+	gchar *db_make, *db_model;
+	const gchar *needle_make = photo->metadata->make_ascii;
+	const gchar *needle_model = photo->metadata->model_ascii;
+
+	GtkTreeIter iter;
+	GtkTreeModel *model = GTK_TREE_MODEL(camera_db->cameras);
+
+	if (needle_make && needle_model && gtk_tree_model_get_iter_first(model, &iter))
+		do {
+			gtk_tree_model_get(model, &iter,
+				COLUMN_MAKE, &db_make,
+				COLUMN_MODEL, &db_model,
+				-1);
+			if (db_make && db_model && g_str_equal(needle_make, db_make) && g_str_equal(needle_model, db_model))
+			{
+				/* Seuls les réglages sont effacés : le profil DCP du boîtier,
+				   lui, reste associé. */
+				for(snapshot=0;snapshot<3;snapshot++)
+					gtk_list_store_set(camera_db->cameras, &iter,
+						COLUMN_SETTINGS0 + snapshot, NULL,
+						-1);
+				cleared = TRUE;
+			}
+			g_free(db_make);
+			g_free(db_model);
+		} while (!cleared && gtk_tree_model_iter_next(model, &iter));
+
+	if (cleared)
+		save_db(camera_db);
+
+	return cleared;
+}
+
+gboolean
 rs_camera_db_photo_get_defaults(RSCameraDb *camera_db, RS_PHOTO *photo, RSSettings **dest_settings, gpointer *dest_profile)
 {
 	g_return_val_if_fail(RS_IS_PHOTO(photo), FALSE);
@@ -251,7 +292,12 @@ rs_camera_db_photo_get_defaults(RSCameraDb *camera_db, RS_PHOTO *photo, RSSettin
 			g_free(db_model);
 		} while (!found && gtk_tree_model_iter_next(model, &iter));
 
-	if (!found)
+	/* N'enregistrer un nouveau boîtier que s'il est réellement identifié.
+	   Sans ce garde-fou, toute image sans métadonnées de boîtier (PNG, JPEG
+	   sans EXIF, format non reconnu) ajoutait une entrée NULL/NULL — et
+	   réécrivait le fichier — à CHAQUE ouverture : une base observée à 380
+	   entrées dont 364 coquilles vides. */
+	if (!found && needle_make && *needle_make && needle_model && *needle_model)
 		camera_db_add_camera(camera_db, needle_make, needle_model);
 
 	return found;
@@ -291,6 +337,7 @@ load_db(RSCameraDb *camera_db)
 	xmlNodePtr cur;
 	xmlNodePtr entry = NULL;
 	xmlChar *val;
+	gint shells = 0;
 	RSProfileFactory *profile_factory = rs_profile_factory_new_default();
 
 	doc = xmlParseFile(camera_db->path);
@@ -335,6 +382,26 @@ load_db(RSCameraDb *camera_db)
 					}
 					entry = entry->next;
 				}
+
+				/* Coquille sans marque ni modèle, laissée par les versions
+				   antérieures au garde-fou de rs_camera_db_photo_get_defaults().
+				   On la jette : la base se nettoie d'elle-même à la première
+				   sauvegarde, sans intervention de l'utilisateur. */
+				{
+					gchar *db_make = NULL, *db_model = NULL;
+
+					gtk_tree_model_get(GTK_TREE_MODEL(camera_db->cameras), &iter,
+						COLUMN_MAKE, &db_make,
+						COLUMN_MODEL, &db_model,
+						-1);
+					if ((!db_make || !*db_make) && (!db_model || !*db_model))
+					{
+						gtk_list_store_remove(camera_db->cameras, &iter);
+						shells++;
+					}
+					g_free(db_make);
+					g_free(db_model);
+				}
 			}
 			cur = cur->next;
 		}
@@ -343,6 +410,15 @@ load_db(RSCameraDb *camera_db)
 		g_warning(PACKAGE " did not understand the format in %s", camera_db->path);
 
 	xmlFreeDoc(doc);
+
+	/* Réécrire tout de suite : sans ça, le magasin est propre en mémoire mais le
+	   fichier reste pollué tant que rien ne déclenche une sauvegarde — un
+	   utilisateur qui n'ajoute jamais de boîtier ne serait jamais nettoyé. */
+	if (shells)
+	{
+		g_debug("camera-db: %d entrée(s) vide(s) retirée(s) de %s", shells, camera_db->path);
+		save_db(camera_db);
+	}
 }
 
 static void
