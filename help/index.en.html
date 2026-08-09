@@ -130,6 +130,7 @@
   <a href="#basic">Basic adjustments</a>
   <a href="#lens">Lens &amp; curve</a>
   <a href="#crop">Cropping</a>
+  <a href="#undo">Undo, copy, reset</a>
   <h2>Create</h2>
   <a href="#effects">Effects</a>
   <a href="#tone">Tone</a>
@@ -139,7 +140,8 @@
   <a href="#enfuse">Exposure blending</a>
   <a href="#export">Exporting</a>
   <h2>Other</h2>
-  <a href="#language">Interface language</a>
+  <a href="#language">Appearance &amp; language</a>
+  <a href="#menus">Every menu, A to Z</a>
   <a href="#shortcuts">Keyboard shortcuts</a>
   <a href="#about">About &amp; community</a>
 </nav>
@@ -310,7 +312,17 @@
   <tr><td>3</td><td>Select the profile in the list: the photo's rendering changes immediately.</td></tr>
   <tr><td>4</td><td>To apply it automatically to <b>every photo from this camera</b>: menu <b>Photo → Save Camera Default Settings</b>. The bottom bar confirms ("Settings saved as default for…"). From now on, each photo from this camera loads with this profile.</td></tr>
 </table>
-<div class="warn"><b>Careful:</b> step 4 saves <b>all the photo's current settings</b> (exposure, saturation…) as defaults, not just the profile. Preferably do it on a photo with untouched settings, right after picking the profile.</div>
+<div class="warn"><b>Careful:</b> step 4 saves <b>all the photo's current settings</b> (exposure, saturation, white balance…) as defaults, not just the profile. Preferably do it on a photo with untouched settings, right after picking the profile. A confirmation dialog reminds you and names the camera concerned.</div>
+
+<h3>Camera defaults: what they change, and how to undo them</h3>
+<p>Saved defaults are not a mere shortcut: they become the camera's <b>reference</b>. Two consequences worth knowing:</p>
+<table>
+  <tr><th>Effect</th><th>Detail</th></tr>
+  <tr><td>New photos</td><td>Every photo from this camera now opens with these settings instead of the factory values.</td></tr>
+  <tr><td>Reset</td><td><b>Reset</b> returns to <b>these defaults</b>, not to the factory values. That is intended &mdash; but if the defaults hold an unwanted setting, no reset will appear to work.</td></tr>
+</table>
+<p><b>The way out.</b> Open <b>Photo &rarr; Save Camera Default Settings</b> again and choose <b>&laquo;&nbsp;Clear existing defaults&nbsp;&raquo;</b>. The camera returns to factory values and <b>your DCP profile stays attached</b> &mdash; you do not lose your calibration work.</p>
+<div class="tip"><b>The right habit:</b> before saving defaults, click <b>Reset</b> and then pick only the DCP profile. You get a &laquo;&nbsp;profile only&nbsp;&raquo; default, with no exposure or white balance frozen in.</div>
 
 <h3>Where to find DCP profiles</h3>
 <table>
@@ -390,6 +402,32 @@
 <p>Cropping is non-destructive: you can reopen and change it at any time.</p>
 </section>
 
+<section id="undo">
+<h2 class="sec">Undo, copy, reset</h2>
+<p>The <b>Edit</b> menu gathers everything about <b>managing a photo's settings</b>: stepping back, carrying a look over to other photos, or starting fresh.</p>
+
+<h3>Stepping back (Ctrl+Z)</h3>
+<p><b>Edit &rarr; Revert Settings</b> (<b>Ctrl+Z</b>) restores the settings as they were <b>when the photo was opened</b>.</p>
+<div class="warn"><b>Important &mdash; this is not a classic undo.</b> It does not step back action by action, slider by slider, the way a word processor does. There is <b>a single return point</b>: the photo's state when you opened it. Pressing Ctrl+Z repeatedly will not go back any further.</div>
+<p>In practice: if you opened the photo, made ten adjustments, then pressed Ctrl+Z, all ten vanish at once. And if the photo was <b>already developed</b> when you opened it, Ctrl+Z returns you to that development &mdash; not to the untouched raw.</p>
+
+<h3>Starting fresh</h3>
+<p><b>Edit &rarr; Reset Settings</b> returns the photo to its default values. The <b>Reset</b> button in the Basic module does the same.</p>
+<div class="note">If you have saved <b>camera defaults</b>, resetting returns to <b>those defaults</b> rather than the factory values. See <a href="#dcp">Camera defaults: what they change</a>.</div>
+
+<h3>Carrying a look to other photos</h3>
+<table>
+  <tr><th>Command</th><th>Role</th></tr>
+  <tr><td><b>Copy Settings</b></td><td>Stores <b>all</b> the current photo's settings.</td></tr>
+  <tr><td><b>Paste Settings</b></td><td>Applies them to the photo &mdash; or to <b>every photo selected</b> in the filmstrip.</td></tr>
+</table>
+<div class="tip"><b>Copy/paste or a style?</b> Copy/paste carries <b>everything</b>, right now, and does not survive between sessions. A <a href="#styles">style</a> is named, stored for good, and lets you <b>pick which modules</b> to carry over. For a one-off between two photos, copy/paste is enough; for a look you will reuse, make a style.</div>
+<div class="note">The <b>DCP profile</b> is never carried over, neither by copy/paste nor by styles: it belongs to the camera.</div>
+
+<h3>Preferences</h3>
+<p><b>Edit &rarr; Preferences</b> opens the application settings: preview background colour, histogram height, cache location, <a href="#language">interface theme</a>, display colour profiles, and quick-export options.</p>
+</section>
+
 <section id="effects">
 <h2 class="sec"><span class="stagebadge" style="background:#9a6fc0">D</span>Effects</h2>
 <p>The <b>Effects</b> tab gathers the creative treatments. They form stage <span class="stagebadge" style="background:#9a6fc0">D</span> of the pipeline and run in a <b>fixed internal order</b> (Argentico → Dehaze → DynaComp → Tone doctor → Color balance → Color scalpel → RGB curves → Black &amp; White → Soft light → Vignette), always <i>after</i> the base development.</p>
@@ -420,7 +458,17 @@
 <h3>Tone doctor (tone equalizer)</h3>
 <p>An <b>equalizer</b> that works by brightness ranges: <b>Blacks</b>, <b>Shadows</b>, <b>Midtones</b>, <b>Highlights</b>, <b>Whites</b>, around an adjustable <b>pivot</b>. Ideal for rebalancing an over-contrasted image or recovering detail in shadows/highlights.</p>
 <h3>Color balance (3-way wheels)</h3>
-<p>Three <b>colour wheels</b> — <b>Shadows</b>, <b>Midtones</b>, <b>Highlights</b> — to tint each tonal range (cinema-style colour grading). Each wheel sets the colour (X/Y) and luminance (lift / gamma / gain).</p>
+<p>Three <b>colour wheels</b> — <b>Shadows</b>, <b>Midtones</b>, <b>Highlights</b> — to tint each tonal range (cinema-style colour grading). Each wheel sets the colour and luminance (lift / gamma / gain).</p>
+<p><b>Wheel or sliders, your choice.</b> Under each wheel, three sliders always show the zone's setting:</p>
+<table>
+  <tr><th>Slider</th><th>Role</th></tr>
+  <tr><td><b>Hue</b></td><td>The <b>angle</b> on the wheel, 0 to 360&deg; (0&deg; = red, 120&deg; = green, 240&deg; = blue). Picks <i>which</i> colour is added.</td></tr>
+  <tr><td><b>Intensity</b></td><td>The <b>distance from centre</b>, 0 to 1. Sets <i>how much</i> of that colour is added. At 0 the zone is neutral.</td></tr>
+  <tr><td><b>Luminance</b></td><td>Brightens or darkens the tonal range without changing its colour.</td></tr>
+</table>
+<p>Wheel and sliders are <b>two views of the same setting</b> and stay in sync: drag the point on the wheel and the sliders follow; move a slider and the point moves. The wheel is quick and intuitive, the sliders give precision and repeatability from one photo to the next.</p>
+<div class="tip"><b>Tip:</b> while <b>Intensity</b> is 0 the zone is neutral, so changing Hue has no visible effect &mdash; that is expected, there is no colour yet to steer. Raise Intensity first, then look for the hue. <b>Right-click the wheel</b> to return the zone to centre (neutral); <b>click a slider's name</b> to reset it.</div>
+<div class="tip"><b>Good to know:</b> each wheel mainly acts on its own tonal range, but the three overlap gradually &mdash; on a very dark photo the <b>Highlights</b> wheel naturally has little to work with, and likewise <b>Shadows</b> on a very bright one.</div>
 <h3>Color scalpel (per-hue curves)</h3>
 <p>Finely adjusts each <b>colour family</b> independently, on three curves (<b>Hue</b>, <b>Saturation</b>, <b>Luminance</b> tabs) drawn over the hue spectrum. Perfect to, for instance, revive a sky without touching skin tones. The curve is <b>smoothed</b> (soft transitions between points), and the adjustment <b>fades on low-saturation colours</b> (whites, greys) to avoid halos.</p>
 <table>
@@ -544,8 +592,104 @@
 </section>
 
 <section id="language">
-<h2 class="sec">Interface language</h2>
+<h2 class="sec">Appearance &amp; language</h2>
+
+<h3>Interface language</h3>
 <p>The <b>FR / EN</b> button on the right of the top bar switches the interface between French and English. The label shows the language you will switch to. CaraStudio will offer to <b>restart</b> to apply the change (your settings are saved before relaunching).</p>
+
+<h3>Interface theme</h3>
+<p>In <b>Edit &rarr; Preferences</b>, the <b>Theme</b> selector changes the application's look. The change is <b>immediate</b> &mdash; no restart &mdash; and your choice is remembered.</p>
+<table>
+  <tr><th>Theme</th><th>Mood</th></tr>
+  <tr><td><b>CaraStudio</b></td><td>The original palette, neutral mid-grey. Default choice.</td></tr>
+  <tr><td><b>Studio Anthracite</b></td><td>Deep charcoal grey, azure accent. The darkest: the interface steps back and lets the image speak.</td></tr>
+  <tr><td><b>Studio Clair</b></td><td>Low-contrast mid-grey, for brightly lit rooms.</td></tr>
+  <tr><td><b>Studio Ambre</b></td><td>Same dark base, golden accent instead of blue.</td></tr>
+</table>
+<div class="tip"><b>Why a grey background and not white?</b> The eye judges a colour <b>relative to its surroundings</b>. A neutral, dark background keeps you from misreading hues and exposure &mdash; which is why every raw developer is dark. When in doubt, stay on a dark theme for grading.</div>
+<div class="note">These themes were contributed by <b>Christian Bouhon</b>, along with the wheel sliders in <a href="#tone">Color balance</a>. Many thanks to him!</div>
+</section>
+
+<section id="menus">
+<h2 class="sec">Every menu, A to Z</h2>
+<p>A complete tour of the menu bar. The richer features have their own chapter; this table points you there.</p>
+
+<h3>File</h3>
+<table>
+  <tr><th>Command</th><th>Shortcut</th><th>Role</th></tr>
+  <tr><td>Open Directory</td><td><code>Ctrl+O</code></td><td>Loads a folder of photos into the library.</td></tr>
+  <tr><td>Quick Export</td><td><code>Ctrl+S</code></td><td>Exports the photo using the settings defined in <a href="#undo">Preferences</a>, without asking.</td></tr>
+  <tr><td>Export As</td><td><code>Ctrl+Shift+S</code></td><td>Opens the full export window: format, size, destination. See <a href="#export">Exporting</a>.</td></tr>
+  <tr><td>Export to GIMP</td><td><code>Ctrl+G</code></td><td>Sends the developed photo straight into GIMP.</td></tr>
+  <tr><td>Reload directory</td><td><code>Ctrl+R</code></td><td>Re-reads the folder. Useful if files were added or changed outside CaraStudio.</td></tr>
+  <tr><td>Clear thumbnail cache</td><td>&mdash;</td><td>Forces thumbnails to be rebuilt. See <a href="#import">Clearing the thumbnail cache</a>.</td></tr>
+  <tr><td>Delete Flagged Photos</td><td><code>Ctrl+Shift+D</code></td><td>Permanently deletes the photos flagged with <b>Delete</b>.</td></tr>
+  <tr><td>Quit</td><td><code>Ctrl+Q</code></td><td>Closes CaraStudio, saving your settings.</td></tr>
+</table>
+<div class="warn"><b>Careful:</b> "Delete Flagged Photos" erases the <b>original files</b> from disk, not just their display. This cannot be undone.</div>
+
+<h3>Edit</h3>
+<p>This menu has its own chapter: <a href="#undo">Undo, copy, reset</a>. In short: <b>Ctrl+Z</b> returns to the photo as opened, <b>Ctrl+C / Ctrl+V</b> carry settings to other photos, the three <b>style</b> entries lead to <a href="#styles">CaraStyles</a>, and <b>Ctrl+Shift+C</b> copies the developed image to the clipboard to paste elsewhere.</p>
+
+<h3>Photo</h3>
+<table>
+  <tr><th>Command</th><th>Shortcut</th><th>Role</th></tr>
+  <tr><td>Flag for deletion</td><td><code>Delete</code></td><td>Flags the photo; nothing is erased until you use <b>File &rarr; Delete Flagged Photos</b>.</td></tr>
+  <tr><td>Set Priority</td><td><code>1</code> <code>2</code> <code>3</code> <code>0</code></td><td>Rates the photo so you can find it again quickly. <code>0</code> clears the rating. See <a href="#sort">Sorting your photos</a>.</td></tr>
+  <tr><td>White Balance</td><td><code>C</code> / <code>A</code></td><td><b>Camera</b> (as shot) or <b>Auto</b>. See <a href="#wb">White balance</a>.</td></tr>
+  <tr><td>Crop / Uncrop</td><td><code>Shift+C</code> / <code>Shift+V</code></td><td>Cropping. See <a href="#crop">Cropping</a>.</td></tr>
+  <tr><td>Straighten / Unstraighten</td><td>&mdash;</td><td>Fixes a tilted horizon.</td></tr>
+  <tr><td>Rotate clockwise / counter</td><td><code>Alt+&rarr;</code> / <code>Alt+&larr;</code></td><td>Quarter-turn rotation, for portrait shots that came in sideways.</td></tr>
+  <tr><td>Flip / Mirror</td><td>&mdash;</td><td><b>Flip</b> turns top to bottom, <b>Mirror</b> swaps left and right.</td></tr>
+  <tr><td>Group / Ungroup</td><td>&mdash;</td><td>Stacks several photos under a single thumbnail. Handy for bursts and bracketed sets.</td></tr>
+  <tr><td>Auto Group</td><td>&mdash;</td><td>Automatically stacks photos taken seconds apart.</td></tr>
+  <tr><td>Tag Photo</td><td><code>Alt+T</code></td><td>Adds keywords. See <a href="#info">Info &amp; keywords</a>.</td></tr>
+  <tr><td>Enfuse</td><td><code>Ctrl+Alt+E</code></td><td>Exposure blending. See <a href="#enfuse">Exposure blending</a>.</td></tr>
+  <tr><td>Auto adjust curve ends</td><td><code>Ctrl+Shift+L</code></td><td>Anchors both ends of the tone curve on the photo's darkest and brightest points: contrast is stretched as far as it goes without crushing the extremes.</td></tr>
+  <tr><td>Save Camera Default Settings</td><td>&mdash;</td><td>Sets the camera's reference settings. Read first: <a href="#dcp">Camera defaults</a>.</td></tr>
+</table>
+<div class="tip"><b>What is grouping for?</b> A twenty-frame burst clutters the filmstrip. Group them: one thumbnail stands for the set, and you expand it when needed. Your files are neither moved nor changed.</div>
+
+<h3>View</h3>
+<table>
+  <tr><th>Command</th><th>Shortcut</th><th>Role</th></tr>
+  <tr><td>Previous / Next Photo</td><td><code>Ctrl+&larr;</code> / <code>Ctrl+&rarr;</code></td><td>Moves through the folder without leaving the editor.</td></tr>
+  <tr><td>Play / Stop</td><td><code>Ctrl+P</code></td><td>Cycles through photos automatically, like a slideshow.</td></tr>
+  <tr><td>Sort by</td><td>&mdash;</td><td>Name, timestamp, ISO, aperture, focal length or shutter speed. Handy to gather every shot at one focal length.</td></tr>
+  <tr><td>Zoom to Fit</td><td><code>*</code></td><td>Scales the view so the whole photo fits on screen.</td></tr>
+  <tr><td>Snapshot</td><td>&mdash;</td><td>Switches between versions <b>A</b>, <b>B</b> and <b>C</b>. See <a href="#workspace">Comparing before/after</a>.</td></tr>
+  <tr><td>Iconbox / Toolbox</td><td><code>Ctrl+I</code> / <code>Ctrl+T</code></td><td>Shows or hides the filmstrip and the tool panel, to free up room.</td></tr>
+  <tr><td>Fullscreen</td><td><code>F11</code></td><td>The application fills the screen.</td></tr>
+  <tr><td>Show on secondary monitor</td><td><code>F10</code></td><td>Sends the photo large onto a <b>second screen</b> while you keep the tools on the first.</td></tr>
+  <tr><td>Do not Load Selected Images</td><td><code>Pause</code></td><td>Stops the selected photos from loading. A way out with heavy or damaged files.</td></tr>
+  <tr><td>Show Filenames</td><td>&mdash;</td><td>Displays the name under each thumbnail.</td></tr>
+  <tr><td>Load non-RAW images</td><td>&mdash;</td><td>Enables JPEG, TIFF and PNG display. See <a href="#import">Non-RAW photos</a>.</td></tr>
+  <tr><td>Exposure Mask</td><td><code>Ctrl+E</code></td><td>Flags blown or blocked areas. See <a href="#pipeline">Exposure mask</a>.</td></tr>
+  <tr><td>Split</td><td><code>Ctrl+D</code></td><td>Splits the preview into two panes, to compare two snapshots side by side.</td></tr>
+  <tr><td>Lights Out</td><td><code>F12</code></td><td>Dims everything but the photo. See <a href="#workspace">Lights Out</a>.</td></tr>
+  <tr><td>Lens Library</td><td><code>Ctrl+L</code></td><td>Opens the lens library. See below.</td></tr>
+</table>
+
+<h3>Batch</h3>
+<table>
+  <tr><th>Command</th><th>Shortcut</th><th>Role</th></tr>
+  <tr><td>Add to Batch Queue</td><td><code>Insert</code></td><td>Puts the photo in the queue.</td></tr>
+  <tr><td>Add View to Queue</td><td><code>Ctrl+Insert</code></td><td>Adds the photo with the snapshot <b>currently displayed</b> (A, B or C).</td></tr>
+  <tr><td>Remove from Batch Queue</td><td><code>Ctrl+Delete</code></td><td>Takes the photo out of the queue.</td></tr>
+  <tr><td>Start</td><td>&mdash;</td><td>Runs the export for the whole queue. See <a href="#export">Exporting</a>.</td></tr>
+  <tr><td>Pack selected</td><td>&mdash;</td><td>Adds every selected photo at once.</td></tr>
+</table>
+
+<h3>Help</h3>
+<table>
+  <tr><th>Command</th><th>Shortcut</th><th>Role</th></tr>
+  <tr><td>CaraStudio Help</td><td><code>F1</code></td><td>Opens this guide.</td></tr>
+  <tr><td>About</td><td>&mdash;</td><td>Exact version number and credits. See <a href="#about">About</a>.</td></tr>
+</table>
+
+<h3>The lens library (Ctrl+L)</h3>
+<p>It lists every lens found in your photos and whether it is matched to the <b>lensfun</b> database. This is where you attach an unrecognised lens to its entry, which switches on the automatic corrections. The procedure is detailed in <a href="#lens">Lens correction</a>.</p>
+<div class="tip"><b>Recent lens not recognised?</b> The lensfun database installed on your system may be old. Update it (your distribution's <code>lensfun</code> package, or the <code>lensfun-update-data</code> command): recent lenses are often already in it, with their measurements.</div>
 </section>
 
 <section id="shortcuts">
