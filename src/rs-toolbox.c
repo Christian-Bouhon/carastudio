@@ -1960,9 +1960,17 @@ colorwheels_enable_toggled(GtkToggleButton *btn, gpointer user_data)
 typedef struct {
 	RSToolbox *toolbox;
 	gint snapshot;
+	gint zone;              /* 0 ombres, 1 tons moyens, 2 hautes lumières */
 	const gchar *prop_x;
 	const gchar *prop_y;
 } ColorWheel;
+
+/* Roue → curseurs. La roue écrit x/y avec mute_from_photo, ce qui court-circuite
+   toolbox_copy_from_photo : sans cette recopie explicite, Teinte/Intensité
+   restent à leur ancienne valeur (r = 0 sur une photo neuve) et le prochain
+   mouvement de Teinte réécrit x = y = 0, effaçant le réglage fait à la roue. */
+static void cw_sliders_sync_from_xy(RSToolbox *toolbox, const gint snapshot,
+                                    const gint zone, gdouble x, gdouble y);
 
 static void
 cw_hsv2rgb(double h, double s, double v, double *r, double *g, double *b)
@@ -2057,6 +2065,7 @@ cw_set_from_pointer(ColorWheel *cw, GtkWidget *widget, double ex, double ey)
 	g_object_set(cw->toolbox->photo->settings[cw->snapshot],
 		cw->prop_x, (gfloat)x, cw->prop_y, (gfloat)y, NULL);
 	cw->toolbox->mute_from_photo = FALSE;
+	cw_sliders_sync_from_xy(cw->toolbox, cw->snapshot, cw->zone, x, y);
 	gtk_widget_queue_draw(widget);
 }
 
@@ -2073,6 +2082,7 @@ cw_button(GtkWidget *widget, GdkEventButton *e, gpointer data)
 		g_object_set(cw->toolbox->photo->settings[cw->snapshot],
 			cw->prop_x, 0.0f, cw->prop_y, 0.0f, NULL);
 		cw->toolbox->mute_from_photo = FALSE;
+		cw_sliders_sync_from_xy(cw->toolbox, cw->snapshot, cw->zone, 0.0, 0.0);
 		gtk_widget_queue_draw(widget);
 	}
 	return TRUE;
@@ -2087,10 +2097,10 @@ cw_motion(GtkWidget *widget, GdkEventMotion *e, gpointer data)
 }
 
 static GtkWidget *
-colorwheel_new(RSToolbox *toolbox, gint snapshot, const gchar *prop_x, const gchar *prop_y)
+colorwheel_new(RSToolbox *toolbox, gint snapshot, gint zone, const gchar *prop_x, const gchar *prop_y)
 {
 	ColorWheel *cw = g_new0(ColorWheel, 1);
-	cw->toolbox = toolbox; cw->snapshot = snapshot;
+	cw->toolbox = toolbox; cw->snapshot = snapshot; cw->zone = zone;
 	cw->prop_x = prop_x; cw->prop_y = prop_y;
 	GtkWidget *da = gtk_drawing_area_new();
 	gtk_widget_set_size_request(da, 86, 86);
@@ -2123,6 +2133,35 @@ cw_slider_update_labels(RSToolbox *toolbox, const gint snapshot, const gint zone
 	if (lbl) gui_label_set_text_printf(lbl, "%.0f°", hue);
 	lbl = g_object_get_data(G_OBJECT(toolbox->cwsat[snapshot][zone]), "rs-cw-label");
 	if (lbl) gui_label_set_text_printf(lbl, "%.3f", r);
+}
+
+/* Recopie l'état (x,y) de la roue dans les curseurs Teinte/Intensité, sans
+   déclencher cw_slider_changed (mute_from_sliders) : on ne fait que refléter.
+   Quand r vaut 0 l'angle n'est plus défini (atan2(0,0) = 0) : on conserve alors
+   la teinte affichée plutôt que de la ramener arbitrairement à 0°. */
+static void
+cw_sliders_sync_from_xy(RSToolbox *toolbox, const gint snapshot,
+                        const gint zone, gdouble x, gdouble y)
+{
+	gboolean saved;
+	gdouble r, hue;
+
+	if (!toolbox->cwhue[snapshot][zone] || !toolbox->cwsat[snapshot][zone])
+		return;
+
+	r = hypot(x, y);
+	if (r > 1.0) r = 1.0;
+	hue = atan2(y, x) * 180.0 / M_PI;
+	if (hue < 0.0) hue += 360.0;
+
+	saved = toolbox->mute_from_sliders;
+	toolbox->mute_from_sliders = TRUE;
+	if (r > 0.0)
+		gtk_range_set_value(toolbox->cwhue[snapshot][zone], hue);
+	gtk_range_set_value(toolbox->cwsat[snapshot][zone], r);
+	toolbox->mute_from_sliders = saved;
+
+	cw_slider_update_labels(toolbox, snapshot, zone);
 }
 
 static void
@@ -2617,7 +2656,7 @@ new_tones_page(RSToolbox *toolbox, const gint snapshot)
 		gtk_box_pack_start(GTK_BOX(zcol), ztitle, FALSE, FALSE, 0);
 
 		GtkWidget *zhbox = gtk_hbox_new(FALSE, 4);
-		toolbox->colorwheel[snapshot][z] = colorwheel_new(toolbox, snapshot, zpx[z], zpy[z]);
+		toolbox->colorwheel[snapshot][z] = colorwheel_new(toolbox, snapshot, z, zpx[z], zpy[z]);
 		gtk_widget_set_size_request(toolbox->colorwheel[snapshot][z], 64, 64);
 		gtk_box_pack_start(GTK_BOX(zhbox), toolbox->colorwheel[snapshot][z], FALSE, FALSE, 0);
 
