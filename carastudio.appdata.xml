@@ -29,6 +29,26 @@
   </description>
   <url type="homepage">https://github.com/carafife/CaraStudio</url>
   <releases>
+    <release version="2026.08.1" date="2026-08-09">
+      <description>
+        <p>
+          Interface themes: a Theme selector in Preferences offers CaraStudio
+          (the original palette), Studio Anthracite, Studio Clair and Studio
+          Ambre, applied instantly without restarting. The Color balance wheels
+          gain permanent Hue, Intensity and Luminance sliders, kept in sync with
+          the wheels both ways. The three wheels are now weighted on perceived
+          luminance, which makes the Highlights wheel effective again; photos
+          already developed using these wheels will render slightly differently.
+          Lens correction: the lens database bundled in the AppImage is finally
+          loaded, so users without lensfun installed are no longer left without
+          any recognised lens. The camera database no longer fills up with empty
+          entries and cleans itself up. Saving camera defaults now asks for
+          confirmation and offers to clear existing defaults. The manual
+          documents every menu, the Edit menu and the new features, in French
+          and English. Themes and wheel sliders contributed by Christian Bouhon.
+        </p>
+      </description>
+    </release>
     <release version="2026.08" date="2026-08-03">
       <description>
         <p>

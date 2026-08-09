@@ -1,6 +1,6 @@
 
 Name:           carastudio
-Version:        2026.08
+Version:        2026.08.1
 Release:        1%{?dist}
 Summary:        Convivial raw photo developer (a beefed-up fork of RawStudio)
 
@@ -92,6 +92,27 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || :
 %{_datadir}/pixmaps/%{name}/
 
 %changelog
+* Sun Aug 09 2026 Carafife <carafife@users.noreply.github.com> - 2026.08.1-1
+- Thèmes d'interface : sélecteur dans les Préférences (CaraStudio, Studio
+  Anthracite, Studio Clair, Studio Ambre), appliqué à chaud sans redémarrage.
+- Balance des couleurs : curseurs Teinte / Intensité / Luminance sous chaque
+  roue, synchronisés dans les deux sens avec la roue.
+- Balance des couleurs : les trois zones sont pondérées sur la luminance
+  PERÇUE et non plus linéaire. La roue « hautes lumières » ne pesait que 3 %
+  de la roue « ombres » et était en pratique inerte. Attention : le rendu des
+  photos déjà développées AVEC ces roues change légèrement.
+- Correction d'objectif : la base lensfun embarquée dans l'AppImage n'était
+  jamais lue (liblensfun n'honore aucune variable d'environnement). Les
+  utilisateurs sans lensfun installé n'avaient donc AUCUN objectif reconnu.
+- Base boîtiers : plus d'entrées vides créées à chaque image sans métadonnées,
+  et les bases déjà polluées se nettoient automatiquement.
+- « Sauvegarder les paramètres par défaut de l'appareil » demande désormais
+  confirmation et propose d'effacer les défauts existants — ceux-ci rendaient
+  « Réinitialiser » inopérant sans moyen de revenir en arrière.
+- Aide : nouvelles sections « Annuler, copier, réinitialiser » (menu Édition)
+  et « Les menus, de A à Z », plus la documentation des nouveautés (FR + EN).
+- Thèmes et curseurs des roues proposés par Christian Bouhon.
+
 * Sun Aug 03 2026 Carafife <carafife@users.noreply.github.com> - 2026.08-1
 - Recadrage / redressement : outils déportés dans un module de l'onglet
   « Outils » (façon ART), l'ancienne palette flottante qui gênait le tracé en
