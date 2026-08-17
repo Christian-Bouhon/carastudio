@@ -1630,7 +1630,7 @@ scroll(GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
 				if (event->state & GDK_SHIFT_MASK)
 					delta *= 4.0;
 				else if (event->state & GDK_CONTROL_MASK)
-					delta *= 0.3;
+					delta *= 0.1; /* Ctrl = réglage fin : 0,1 % (ou 0,1°) par cran */
 
 				gint view = get_view_from_coord(preview, event->x, event->y);
 				if (VIEW_IS_VALID(view))

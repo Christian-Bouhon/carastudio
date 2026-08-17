@@ -2580,7 +2580,16 @@ rs_toolbox_scalpel_scroll(RSToolbox *toolbox, const gfloat rgb[3], gdouble delta
 
 	hslcurve_load(hc);
 	float hue = scalpel_rgb2hue(rgb[0], rgb[1], rgb[2]);
-	float move = (float)delta * 0.05f;
+	/* Un cran de molette = 1 % (ou 1 ° pour la teinte), converti en unités de
+	 * courbe [-1,1] selon le canal (mêmes constantes que le plugin effects :
+	 * teinte = ±180°, sat = ×(1+v), lum = ×(1+v·0,5)). */
+	float move;
+	if (channel == 0)
+		move = (float)delta / 180.0f;          /* 1° par cran */
+	else if (channel == 1)
+		move = (float)delta * 0.01f;           /* 1 % par cran */
+	else
+		move = (float)delta * 0.02f;           /* 1 % par cran (K_LUM = 0,5) */
 	hslcurve_adjust_gaussian(hc, hue, move);
 	hslcurve_store(hc);
 	toolbox->hsl_cursor_hue = hue; /* le repère suit la teinte ajustée */
