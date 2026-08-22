@@ -1548,10 +1548,47 @@ get_image_coord(RSPreviewWidget *preview, gint view, const gint x, const gint y,
 	}
 	else
 	{
-		_scaled_x = x + gtk_adjustment_get_value(preview->hadjustment);
-		_scaled_y = y + gtk_adjustment_get_value(preview->vadjustment);
-		/* En zoom manuel, scaled est en pixels zoomés. real est en pixels
-		   image originaux : on divise par le facteur de zoom. */
+		/* En zoom manuel : reproduire le PLACEMENT réellement dessiné par
+		 * canvas_draw_handler. Quand l'image dépasse la vue, elle est décalée
+		 * par les scrollbars ; quand elle est plus petite (dézoomée, ne
+		 * remplissant pas l'écran), elle est CENTRÉE. L'ancien code ignorait ce
+		 * centrage (il supposait l'image ancrée en haut à gauche + défilement),
+		 * si bien que la croix ne suivait plus et que la molette ne samplait
+		 * plus dès que l'image était dézoomée. */
+		GdkRectangle crect;
+		gtk_widget_get_allocation(GTK_WIDGET(preview->canvas), &crect);
+
+		gint view_w = crect.width;
+		gint view_h = crect.height;
+		gint view_x0 = 0;
+		gint view_y0 = 0;
+
+		if (preview->split == SPLIT_VERTICAL)
+		{
+			view_w = (crect.width - (preview->views - 1) * SPLITTER_WIDTH) / preview->views;
+			view_x0 = view * (view_w + SPLITTER_WIDTH);
+		}
+		else if (preview->split == SPLIT_HORIZONTAL)
+		{
+			view_h = (crect.height - (preview->views - 1) * SPLITTER_WIDTH) / preview->views;
+			view_y0 = view * (view_h + SPLITTER_WIDTH);
+		}
+
+		gint px, py;
+		if (filter_width > view_w)
+			px = (gint)(view_x0 - gtk_adjustment_get_value(preview->hadjustment));
+		else
+			px = view_x0 + (view_w - filter_width) / 2;
+		if (filter_height > view_h)
+			py = (gint)(view_y0 - gtk_adjustment_get_value(preview->vadjustment));
+		else
+			py = view_y0 + (view_h - filter_height) / 2;
+
+		_scaled_x = x - px;
+		_scaled_y = y - py;
+
+		/* scaled est en pixels zoomés ; real en pixels image originaux : on
+		 * divise par le facteur de zoom. */
 		gdouble zf = (preview->zoom_factor > 0.0) ? preview->zoom_factor : 1.0;
 		_real_x = (gint)(_scaled_x / zf);
 		_real_y = (gint)(_scaled_y / zf);
