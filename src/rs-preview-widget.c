@@ -167,9 +167,12 @@ struct _RSPreviewWidget
 	gint argentico_spot_count;
 	gboolean scalpel_interactive;   /* mode interactif Color scalpel (survol + molette sur l'image) */
 	gboolean scalpel_hover;         /* survol en cours : pointeur on-canvas à dessiner */
-	gfloat scalpel_hover_rgb[3];    /* couleur échantillonnée sous le curseur (0..65535) */
+	gfloat scalpel_hover_rgb[3];    /* couleur À L'ENTRÉE du module (cache2, post-DCP, linéaire 0..65535) */
+	gfloat scalpel_hover_rgb_in_disp[3]; /* ENTRÉE convertie espace écran par la MÊME CMS que l'affichage (cercle extérieur fidèle) */
+	gfloat scalpel_hover_rgb_out[3];/* couleur À LA SORTIE (cache3, encodée écran 0..65535) */
 	gdouble scalpel_hover_x;        /* position du curseur dans le canvas */
 	gdouble scalpel_hover_y;
+	gdouble scalpel_switch_accum;   /* accumulateur ALT+molette : changement de canal (lissé) */
 	gfloat argentico_spots[2][3];
 
 	RSFilter *filter_lensfun[MAX_VIEWS];
@@ -184,6 +187,7 @@ struct _RSPreviewWidget
 	RSFilter *filter_transform_input[MAX_VIEWS];
 	RSFilter *filter_dcp[MAX_VIEWS];
 	RSFilter *filter_transform_display[MAX_VIEWS];
+	RSFilter *filter_scalpel_in[MAX_VIEWS]; /* branche parallèle : cache2 → conversion espace écran (pointeur scalpel) */
 	RSFilter *filter_mask[MAX_VIEWS];
 	RSFilter *filter_cache3[MAX_VIEWS];
 	RSFilter *filter_end[MAX_VIEWS]; /* For convenience */
@@ -273,7 +277,9 @@ static CROP_NEAR crop_near(RS_RECT *roi, gint x, gint y);
 static gboolean make_cbdata(RSPreviewWidget *preview, const gint view, RS_PREVIEW_CALLBACK_DATA *cbdata, gint screen_x, gint screen_y, gint real_x, gint real_y);
 static gboolean sample_argentico_negative(RSPreviewWidget *preview, const gint view, gint sx, gint sy, gfloat out[3]);
 static void scalpel_set_native_cursor(RSPreviewWidget *preview, gboolean hidden);
-static gboolean scalpel_sample_rgb(RSPreviewWidget *preview, const gint view, gint sx, gint sy, gfloat out[3]);
+static GdkCursor *scalpel_blank_cursor(GdkDisplay *display);
+static void scalpel_draw_cursor(cairo_t *cr, RSPreviewWidget *preview);
+static gboolean scalpel_sample_rgb(RSPreviewWidget *preview, RSFilter *source, const gint view, gint sx, gint sy, gfloat out[3]);
 static void canvas_draw(RSPreviewWidget *preview, GdkRectangle *rect, gboolean now);
 static void canvas_draw_handler(GtkWidget *widget, cairo_t *cr, RSPreviewWidget *preview);
 static void photo_spatial_changed(RS_PHOTO *photo, RSPreviewWidget *preview);
@@ -422,7 +428,10 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 	preview->scalpel_interactive = FALSE;
 	preview->scalpel_hover = FALSE;
 	preview->scalpel_hover_rgb[0] = 0; preview->scalpel_hover_rgb[1] = 0; preview->scalpel_hover_rgb[2] = 0;
+	preview->scalpel_hover_rgb_in_disp[0] = 0; preview->scalpel_hover_rgb_in_disp[1] = 0; preview->scalpel_hover_rgb_in_disp[2] = 0;
+	preview->scalpel_hover_rgb_out[0] = 0; preview->scalpel_hover_rgb_out[1] = 0; preview->scalpel_hover_rgb_out[2] = 0;
 	preview->scalpel_hover_x = 0; preview->scalpel_hover_y = 0;
+	preview->scalpel_switch_accum = 0.0;
 	preview->argentico_spot_count = 0;
 	for(i=0;i<MAX_VIEWS;i++)
 	{
@@ -440,6 +449,10 @@ rs_preview_widget_init(RSPreviewWidget *preview)
 		preview->filter_effects[i] = rs_filter_new("RSEffects", preview->filter_denoise[i]);
 		preview->filter_transform_display[i] = rs_filter_new("RSColorspaceTransform", preview->filter_effects[i]);
 		preview->filter_cache3[i] = rs_filter_new("RSCache", preview->filter_transform_display[i]);
+		/* Branche parallèle du pointeur scalpel : même conversion d'espace que
+		 * l'affichage, mais appliquée directement à l'ENTRÉE du module (cache2)
+		 * → couleur « avant correction » fidèle, sans approximation gamma. */
+		preview->filter_scalpel_in[i] = rs_filter_new("RSColorspaceTransform", preview->filter_cache2[i]);
 		preview->filter_mask[i] = rs_filter_new("RSExposureMask", preview->filter_cache3[i]);
 		preview->filter_end[i] = preview->filter_mask[i];
 		g_signal_connect(preview->filter_end[i], "changed", G_CALLBACK(filter_changed), preview);
@@ -916,6 +929,21 @@ rs_preview_widget_set_photo(RSPreviewWidget *preview, RS_PHOTO *photo)
 	}
 
 	preview->photo = photo;
+
+	/* CaraStudio : réinitialiser le pointeur Color scalpel au changement de photo,
+	 * sinon le survol/molette pouvait rester actif entre deux photos et diverger
+	 * du bouton « Survol + molette » de la boîte à outils. */
+	if (preview->scalpel_interactive || preview->scalpel_hover)
+	{
+		preview->scalpel_interactive = FALSE;
+		preview->scalpel_hover = FALSE;
+		preview->scalpel_switch_accum = 0.0;
+		scalpel_set_native_cursor(preview, FALSE);
+		if (preview->toolbox)
+			rs_toolbox_scalpel_hover(preview->toolbox, NULL);
+		canvas_draw(preview, NULL, FALSE);
+	}
+
 	if (preview->state & CROP)
 		crop_end(preview, FALSE);
 	if (preview->state & STRAIGHTEN)
@@ -1588,17 +1616,44 @@ scroll(GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
 
 	/* Raccourci Color scalpel : ALT + molette verticale = passer au canal
 	 * suivant/précédent (Teinte / Saturation / Luminance). Fonctionne aussi
-	 * hors du mode « Survol + molette ». */
-	if ((event->state & GDK_MOD1_MASK)
-		&& (event->direction == GDK_SCROLL_UP || event->direction == GDK_SCROLL_DOWN
-			|| (event->direction == GDK_SCROLL_SMOOTH && event->delta_y != 0.0)))
+	 * hors du mode « Survol + molette ». On accumulate les petits deltas du
+	 * smooth-scroll (Wayland émet plusieurs événements par cran) pour ne pas
+	 * sauter plusieurs canaux d'un coup. */
+	if (event->state & GDK_MOD1_MASK)
 	{
-		gint dir = 1;
-		if (event->direction == GDK_SCROLL_DOWN
-			|| (event->direction == GDK_SCROLL_SMOOTH && event->delta_y > 0))
-			dir = -1;
-		rs_toolbox_scalpel_switch_channel(preview->toolbox, dir);
-		return TRUE;
+		gboolean is_vertical = (event->direction == GDK_SCROLL_UP
+			|| event->direction == GDK_SCROLL_DOWN
+			|| event->direction == GDK_SCROLL_SMOOTH);
+
+		if (is_vertical)
+		{
+			gdouble step = 0.0;
+			if (event->direction == GDK_SCROLL_UP)
+				step = 1.0;
+			else if (event->direction == GDK_SCROLL_DOWN)
+				step = -1.0;
+			else if (event->direction == GDK_SCROLL_SMOOTH)
+				step = -event->delta_y; /* delta_y > 0 = vers le bas */
+
+			if (step != 0.0)
+			{
+				preview->scalpel_switch_accum += step;
+				gint dir = 0;
+				while (preview->scalpel_switch_accum >= 1.0)
+				{
+					dir = 1;
+					preview->scalpel_switch_accum -= 1.0;
+				}
+				while (preview->scalpel_switch_accum <= -1.0)
+				{
+					dir = -1;
+					preview->scalpel_switch_accum += 1.0;
+				}
+				if (dir != 0)
+					rs_toolbox_scalpel_switch_channel(preview->toolbox, dir);
+			}
+			return TRUE;
+		}
 	}
 
 	/* Mode interactif Color scalpel : la molette VERTICALE sur l'image ajuste
@@ -1637,8 +1692,9 @@ scroll(GtkWidget *widget, GdkEventScroll *event, gpointer user_data)
 				{
 					gint sx, sy, rx, ry, max_w, max_h;
 					gfloat rgb[3];
+					/* Teinte calculée sur l'ENTRÉE (cache2), comme le rendu du plugin */
 					if (get_image_coord(preview, view, event->x, event->y, &sx, &sy, &rx, &ry, &max_w, &max_h)
-						&& scalpel_sample_rgb(preview, view, sx, sy, rgb))
+						&& scalpel_sample_rgb(preview, preview->filter_cache2[view], view, sx, sy, rgb))
 					{
 						rs_toolbox_scalpel_scroll(preview->toolbox, rgb, delta);
 					}
@@ -2255,30 +2311,52 @@ motion(GtkWidget *widget, GdkEventMotion *event, gpointer user_data)
 		}
 	}
 
-	/* Survol Color scalpel (mode interactif) : nourrit le repère de teinte
-	 * et le pointeur on-canvas (2 cercles de couleur + coin + texte). */
+	/* Survol Color scalpel (mode interactif) : la croix REMPLACE le pointeur
+	 * natif. La position et le masquage sont faits AVANT l'échantillonnage
+	 * (coûteux) ; la croix (un seul curseur visible) est ensuite redessinée
+	 * avec les coordonnées à jour, puis re-rendue une fois les couleurs lues. */
 	if (preview->scalpel_interactive && inside_image)
 	{
-		gfloat srgb[3];
-		if (scalpel_sample_rgb(preview, view, scaled_x, scaled_y, srgb))
+		preview->scalpel_hover_x = x;
+		preview->scalpel_hover_y = y;
+		if (!preview->scalpel_hover)
 		{
-			rs_toolbox_scalpel_hover(preview->toolbox, srgb);
-			preview->scalpel_hover_rgb[0] = srgb[0];
-			preview->scalpel_hover_rgb[1] = srgb[1];
-			preview->scalpel_hover_rgb[2] = srgb[2];
-			preview->scalpel_hover_x = x;
-			preview->scalpel_hover_y = y;
-			if (!preview->scalpel_hover)
-			{
-				preview->scalpel_hover = TRUE;
-				scalpel_set_native_cursor(preview, TRUE);
-			}
-			canvas_draw(preview, NULL, FALSE);
+			preview->scalpel_hover = TRUE;
+			scalpel_set_native_cursor(preview, TRUE);
 		}
-		else if (preview->scalpel_hover)
+		canvas_draw(preview, NULL, FALSE);
+
+		/* Échantillonnage des couleurs (entrée / entrée-écran / sortie) : met à
+		 * jour les pastilles de couleur de la croix. */
+		gfloat srgb_in[3], srgb_out[3];
+		if (scalpel_sample_rgb(preview, preview->filter_cache2[view], view, scaled_x, scaled_y, srgb_in))
 		{
-			preview->scalpel_hover = FALSE;
-			scalpel_set_native_cursor(preview, FALSE);
+			rs_toolbox_scalpel_hover(preview->toolbox, srgb_in);
+			preview->scalpel_hover_rgb[0] = srgb_in[0];
+			preview->scalpel_hover_rgb[1] = srgb_in[1];
+			preview->scalpel_hover_rgb[2] = srgb_in[2];
+			/* Cercle extérieur = entrée vue comme à l'écran (même conversion
+			 * CMS que l'affichage) ; repli sur une approximation gamma si la
+			 * branche n'est pas prête. */
+			gfloat in_disp[3];
+			if (!scalpel_sample_rgb(preview, preview->filter_scalpel_in[view], view, scaled_x, scaled_y, in_disp))
+			{
+				in_disp[0] = 65535.0f * powf(srgb_in[0] / 65535.0f, 1.0f / 2.2f);
+				in_disp[1] = 65535.0f * powf(srgb_in[1] / 65535.0f, 1.0f / 2.2f);
+				in_disp[2] = 65535.0f * powf(srgb_in[2] / 65535.0f, 1.0f / 2.2f);
+			}
+			preview->scalpel_hover_rgb_in_disp[0] = in_disp[0];
+			preview->scalpel_hover_rgb_in_disp[1] = in_disp[1];
+			preview->scalpel_hover_rgb_in_disp[2] = in_disp[2];
+			/* Sortie = couleur visible ; repli sur l'entrée si le cache3
+			 * n'est pas encore prêt (pas de clignotement du pointeur). */
+			if (!scalpel_sample_rgb(preview, preview->filter_cache3[view], view, scaled_x, scaled_y, srgb_out))
+			{
+				srgb_out[0] = srgb_in[0]; srgb_out[1] = srgb_in[1]; srgb_out[2] = srgb_in[2];
+			}
+			preview->scalpel_hover_rgb_out[0] = srgb_out[0];
+			preview->scalpel_hover_rgb_out[1] = srgb_out[1];
+			preview->scalpel_hover_rgb_out[2] = srgb_out[2];
 			canvas_draw(preview, NULL, FALSE);
 		}
 	}
@@ -2786,34 +2864,47 @@ sample_argentico_negative(RSPreviewWidget *preview, const gint view, gint sx, gi
 
 /* ------------------------------------------------------------------ */
 /* Échantillonnage Color scalpel : lit la couleur DÉVELOPPÉE sous le   */
-/* curseur dans le cache POST-DCP (filter_cache2), espace de travail   */
-/* où le plugin « effects » calcule la teinte (cz_rgb2hsl). Moyenne 3×3, */
-/* échelle brute 0..65535 (seuls les ratios comptent pour la teinte).  */
+/* curseur dans un cache de la chaîne (moyenne 3×3, échelle brute      */
+/* 0..65535), sur un PETIT ROI centré sur le curseur. La SOURCE est    */
+/* passée par l'appelant :                                             */
+/*   - filter_cache2      = ENTRÉE du module effets (post-DCP, linéaire) ; */
+/*   - filter_scalpel_in  = ENTRÉE convertie espace écran (même CMS    */
+/*                          que l'affichage, cercle « avant » fidèle) ; */
+/*   - filter_cache3      = SORTIE (après effets + conversion écran).  */
 /* ------------------------------------------------------------------ */
+#define SCALPEL_SAMPLE_ROI_HALF 48	/* demi-fenêtre : ROI ≈ 97×97 px */
 static gboolean
-scalpel_sample_rgb(RSPreviewWidget *preview, const gint view, gint sx, gint sy, gfloat out[3])
+scalpel_sample_rgb(RSPreviewWidget *preview, RSFilter *source, const gint view, gint sx, gint sy, gfloat out[3])
 {
 	if ((view < 0) || (view > (preview->views - 1)))
 		return FALSE;
-	if (!preview->request[view] || !preview->filter_cache2[view])
+	if (!preview->request[view] || !source)
 		return FALSE;
 
 	RSFilterRequest *request = rs_filter_request_clone(preview->request[view]);
 	rs_filter_request_set_quick(request, TRUE);
-	if (preview->zoom_to_fit)
-		rs_filter_request_set_roi(request, NULL);
 	rs_filter_set_recursive(RS_FILTER(preview->filter_input), "demosaic-allow-downscale", preview->zoom_to_fit, NULL);
 
-	/* Idem make_cbdata : en zoom manuel sans ROI la chaîne produirait l'image
-	 * ENTIÈRE (allocation géante) le temps d'une frame lors d'un changement de
-	 * zoom. On saute l'échantillonnage pour cette frame. */
-	if (!preview->zoom_to_fit && rs_filter_request_get_roi(request) == NULL)
+	/* Petit ROI centré sur le curseur : RSCache sert quasi gratuitement tout
+	 * sous-ROI inclus dans son buffer, et après une invalidation (molette) le
+	 * recalcul amont reste proportionnel à cette petite zone au lieu du plein
+	 * cadre → le pointeur suit la souris sans latence perceptible. */
+	gint max_w = 0, max_h = 0;
+	rs_filter_get_size_simple(source, request, &max_w, &max_h);
+	if ((max_w <= 0) || (max_h <= 0))
 	{
 		g_object_unref(request);
 		return FALSE;
 	}
+	const gint half = SCALPEL_SAMPLE_ROI_HALF;
+	GdkRectangle roi;
+	roi.x      = CLAMP(sx - half, 0, max_w - 1);
+	roi.y      = CLAMP(sy - half, 0, max_h - 1);
+	roi.width  = MIN(2 * half + 1, max_w - roi.x);
+	roi.height = MIN(2 * half + 1, max_h - roi.y);
+	rs_filter_request_set_roi(request, &roi);
 
-	RSFilterResponse *response = rs_filter_get_image(preview->filter_cache2[view], request);
+	RSFilterResponse *response = rs_filter_get_image(source, request);
 	g_object_unref(request);
 	if (!response)
 		return FALSE;
@@ -2842,12 +2933,30 @@ scalpel_sample_rgb(RSPreviewWidget *preview, const gint view, gint sx, gint sy, 
 }
 
 /* ------------------------------------------------------------------ */
-/* Pointeur on-canvas (porté de line fork Libre DT-Lab, colorequal) :  */
+/* Pointeur on-canvas (porté du fork Libre DT-Lab, colorequal) :       */
 /* masque le curseur natif pendant le survol et dessine à la place un  */
-/* indicateur = 2 cercles de la couleur échantillonnée, un coin de     */
-/* tarte ±45° (amplitude de la correction du canal actif à cette       */
-/* teinte), un réticule et une pastille de texte (« ° » ou « % »).     */
+/* indicateur = cercle EXTÉRIEUR de la couleur à l'ENTRÉE du module    */
+/* (cache2) et cercle CENTRAL en SORTIE (cache3), un coin de tarte     */
+/* ±45° (amplitude de la correction du canal actif à cette teinte),    */
+/* un réticule et une pastille de texte (« ° » ou « % »).              */
 /* ------------------------------------------------------------------ */
+
+/* Curseur vide fiable : pixbuf 1×1 entièrement transparent. Le curseur nommé
+ * « none » échoue (retourne NULL) sur plusieurs backends (Wayland…) et laissait
+ * le pointeur natif visible, d'où le décalage avec la croix dessinée. */
+static GdkCursor *
+scalpel_blank_cursor(GdkDisplay *display)
+{
+	static GdkCursor *blank = NULL;
+	if (!blank)
+	{
+		GdkPixbuf *pb = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, 1, 1);
+		gdk_pixbuf_fill(pb, 0x00000000);
+		blank = gdk_cursor_new_from_pixbuf(display, pb, 0, 0);
+		g_object_unref(pb);
+	}
+	return blank;
+}
 
 /* Masque ou rétablit le curseur natif du canvas (mode scalpel). */
 static void
@@ -2856,13 +2965,30 @@ scalpel_set_native_cursor(RSPreviewWidget *preview, gboolean hidden)
 	GdkWindow *window = gtk_widget_get_window(GTK_WIDGET(preview->canvas));
 	if (!window)
 		return;
-	GdkCursor *cursor = gdk_cursor_new_from_name(gdk_display_get_default(),
-		hidden ? "none" : "default");
-	if (cursor)
+
+	if (hidden)
 	{
-		gdk_window_set_cursor(window, cursor);
-		g_object_unref(cursor);
+		GdkCursor *blank = scalpel_blank_cursor(gdk_window_get_display(window));
+		if (blank)
+		{
+			/* Le curseur vide est mis en cache statique (durée de vie du
+			 * processus) : ne pas le décrémenter ici, la fenêtre en prend une
+			 * référence. */
+			gdk_window_set_cursor(window, blank);
+			return;
+		}
+		/* Repli si la création du pixbuf a échoué : tenter le nom « none ». */
+		GdkCursor *none = gdk_cursor_new_from_name(gdk_display_get_default(), "none");
+		if (none)
+		{
+			gdk_window_set_cursor(window, none);
+			g_object_unref(none);
+			return;
+		}
 	}
+
+	/* Restauration : aucun curseur explicite → retour au curseur hérité du widget. */
+	gdk_window_set_cursor(window, NULL);
 }
 
 /* Un cercle rempli de la couleur échantillonnée, contour dans la couleur du
@@ -2883,11 +3009,14 @@ scalpel_draw_cursor_circle(cairo_t *cr, gdouble x, gdouble y, gdouble radius,
 
 /* Indicateur complet, porté de dt_draw_correction_cursor() (fork DT-Lab) :
  * coin de tarte à gauche (±45° selon correction_norm), barres de référence,
- * réticule, 2 cercles concentriques et pastille de texte à droite. */
+ * réticule, 2 cercles concentriques et pastille de texte à droite.
+ * Cercle EXTÉRIEUR = couleur à l'entrée du module, CENTRAL = en sortie
+ * (avant/après correction), comme le Color Equalizer du fork Libre DT-Lab. */
 static void
 scalpel_draw_correction_cursor(cairo_t *cr, gdouble x, gdouble y, gdouble zoom_scale,
                                gfloat correction_norm, const gfloat frame_color[3],
-                               const gfloat color[3], const gchar *text)
+                               const gfloat outer_color[3], const gfloat inner_color[3],
+                               const gchar *text)
 {
 	const gdouble outer_radius   = 16.0;
 	const gdouble inner_radius   = outer_radius / 2.0;
@@ -2920,9 +3049,9 @@ scalpel_draw_correction_cursor(cairo_t *cr, gdouble x, gdouble y, gdouble zoom_s
 	cairo_line_to(cr, x, y - setting_offset - fill_width);
 	cairo_stroke(cr);
 
-	/* Les deux cercles concentriques dans la couleur échantillonnée */
-	scalpel_draw_cursor_circle(cr, x, y, outer_radius, color, zoom_scale, frame_color);
-	scalpel_draw_cursor_circle(cr, x, y, inner_radius, color, zoom_scale, frame_color);
+	/* Les deux cercles concentriques : extérieur = entrée, central = sortie */
+	scalpel_draw_cursor_circle(cr, x, y, outer_radius, outer_color, zoom_scale, frame_color);
+	scalpel_draw_cursor_circle(cr, x, y, inner_radius, inner_color, zoom_scale, frame_color);
 
 	if (!text || !*text)
 		return;
@@ -2961,13 +3090,24 @@ scalpel_draw_cursor(cairo_t *cr, RSPreviewWidget *preview)
 	if (zoom_scale < 1.0)
 		zoom_scale = 1.0;
 
-	const gfloat crr = preview->scalpel_hover_rgb[0] / 65535.0f;
-	const gfloat cgg = preview->scalpel_hover_rgb[1] / 65535.0f;
-	const gfloat cbb = preview->scalpel_hover_rgb[2] / 65535.0f;
-	const gfloat sampled_color[3] = { crr, cgg, cbb };
+	/* EXTÉRIEUR = couleur à l'ENTRÉE du module convertie en espace écran par
+	 * la MÊME transformation CMS que l'affichage (branche filter_scalpel_in)
+	 * → fidèle, comparable directement au cercle central. */
+	const gfloat outer_color[3] = {
+		preview->scalpel_hover_rgb_in_disp[0] / 65535.0f,
+		preview->scalpel_hover_rgb_in_disp[1] / 65535.0f,
+		preview->scalpel_hover_rgb_in_disp[2] / 65535.0f
+	};
 
-	/* Cadre noir sur fond clair, blanc sur fond sombre (lisible partout) */
-	const gfloat bg_luma = 0.3f * crr + 0.59f * cgg + 0.11f * cbb;
+	/* CENTRAL = couleur À LA SORTIE (cache3), déjà encodée écran */
+	const gfloat out_r = preview->scalpel_hover_rgb_out[0] / 65535.0f;
+	const gfloat out_g = preview->scalpel_hover_rgb_out[1] / 65535.0f;
+	const gfloat out_b = preview->scalpel_hover_rgb_out[2] / 65535.0f;
+	const gfloat inner_color[3] = { out_r, out_g, out_b };
+
+	/* Cadre noir sur fond clair, blanc sur fond sombre — luma de la SORTIE,
+	 * c'est elle qui est visible derrière le pointeur. */
+	const gfloat bg_luma = 0.3f * out_r + 0.59f * out_g + 0.11f * out_b;
 	const gfloat frame_shade = (bg_luma > 0.5f) ? 0.0f : 1.0f;
 	const gfloat frame_color[3] = { frame_shade, frame_shade, frame_shade };
 
@@ -2982,7 +3122,7 @@ scalpel_draw_cursor(cairo_t *cr, RSPreviewWidget *preview)
 		g_snprintf(text, sizeof(text), "%+.1f%%", value * 50.0);
 
 	scalpel_draw_correction_cursor(cr, preview->scalpel_hover_x, preview->scalpel_hover_y,
-	                               zoom_scale, (gfloat) value, frame_color, sampled_color, text);
+	                               zoom_scale, (gfloat) value, frame_color, outer_color, inner_color, text);
 }
 
 void
@@ -2994,6 +3134,7 @@ rs_preview_widget_set_scalpel_interactive(RSPreviewWidget *preview, gboolean act
 	scalpel_set_native_cursor(preview, FALSE);
 	if (!active)
 		rs_toolbox_scalpel_hover(preview->toolbox, NULL);
+	canvas_draw(preview, NULL, FALSE);
 }
 
 void
